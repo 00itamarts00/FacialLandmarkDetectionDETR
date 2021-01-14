@@ -1,3 +1,7 @@
-dataset: null
-train: null
-test: null
+dataset:
+  to_use: ['300W', 'AFW', 'COFW68', 'helen/trainset', 'helen/testset',
+           'ibug', 'lfpw/trainset', 'lfpw/testset', 'menpo/trainset', 'WFLW/trainset', 'WFLW/testset']
+train:
+  datasets: []
+evaluation:
+  datasets: []
