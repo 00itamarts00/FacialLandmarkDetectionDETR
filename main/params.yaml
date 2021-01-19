@@ -1,10 +1,33 @@
+experiment:
+  name: itsayag
+workspace:
+  directory: null
 dataset:
+  dataset_dir: '/home/itamar/thesis/DATASET'
+  workset_name: 'WS02'
   to_use: ['300W', 'AFW', 'COFW68', 'helen/trainset', 'helen/testset',
            'ibug', 'lfpw/trainset', 'lfpw/testset', 'menpo/trainset', 'WFLW/trainset', 'WFLW/testset']
 train:
-  use_cuda: yes
-  use_multi_loss_function: no
-  log_interval: 10  # epochs
-  datasets: ['lfpw/trainset', 'lfpw/testset', 'menpo/trainset', 'WFLW/trainset']
+  datasets:
+    to_use: ['lfpw/trainset', 'lfpw/testset', 'menpo/trainset', 'WFLW/trainset' ]
+    use_augmentations: True
+  partition_seed: 42
+  trainset_partition: 0.8
+  torch_seed: 0
+  batch_size: 20
+  step_size: 5
+  cuda:
+    use: yes
+    device: 'cuda:1'
+    num_workers: 1
+    pin_memory: True
+optimizer:
+  type: 'ADAM'
+  lr: 0.0005
+  betas: [0.5, 0.999]
+  eps: 1e-8
+  weight_decay: 0
+  amsgrad: False
+
 evaluation:
   datasets: []

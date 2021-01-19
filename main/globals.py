@@ -1,0 +1,2 @@
+TIMESTAMP = 0
+GREEN = (0, 255, 0)
