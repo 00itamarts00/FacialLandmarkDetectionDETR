@@ -1,7 +1,6 @@
 experiment:
   name: itsayag
-workspace:
-  directory: null
+  workspace_path: '/home/itamar/thesis/outputs'
 dataset:
   dataset_dir: '/home/itamar/thesis/DATASET'
   workset_name: 'WS02'
@@ -16,18 +15,50 @@ train:
   torch_seed: 0
   batch_size: 20
   step_size: 5
+  trainable_parameters: null
   cuda:
     use: yes
     device: 'cuda:1'
+    device_type: 'cuda'
     num_workers: 1
     pin_memory: True
+  backend:
+    use_torch: True
+  optimizer: 'ADAM'
+  scheduler: 'StepLR'
 optimizer:
-  type: 'ADAM'
-  lr: 0.0005
-  betas: [0.5, 0.999]
-  eps: 1e-8
-  weight_decay: 0
-  amsgrad: False
-
+  ADAM:
+    lr: 0.0005
+    betas: [0.5, 0.999]
+    eps: 1e-8
+    weight_decay: 0
+    amsgrad: False
+  SGD:
+    lr: 0.1
+    momentum: 0
+    dampening: 0
+    weight_decay: 0
+    nesterov: False
+  RANGER:
+    lr: 0.001
+    alpha: 0.5
+    K: 6
+    N_sma_threshhold: 5
+    betas: [0.95, 0.999]
+    eps: 1e-5
+    weight_decay: 0
+    use_gc: True
+    gc_conv_only: False
+model:
+  name: 'LMDT01'
+  output_branch: 'DPTS'
+scheduler:
+  StepLR:
+    step_size: 200
+    gamma: 0.3
+  CyclicLR:
+    base_lr: 1e-3
+    max_lr: 1e-1
+    step_size_up: 100
 evaluation:
   datasets: []

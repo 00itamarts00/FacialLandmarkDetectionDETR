@@ -84,3 +84,8 @@ class FileHandler(object):
     def get_datetime():
         dateTimeObj = datetime.now()
         return dateTimeObj.strftime("%d%m%y_%H%M%S")
+
+    @staticmethod
+    def save_dict_as_yaml(data, dict_path):
+        with open(dict_path, 'w') as outfile:
+            yaml.dump(data, outfile, default_flow_style=False)

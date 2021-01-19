@@ -12,8 +12,6 @@ class CnnStats(object):
         self.g_mean_file = os.path.join(stats_path, 'nnstats_mean_grad.csv')
         self.g_std_file = os.path.join(stats_path, 'nnstats_std_grad.csv')
 
-        os.makedirs(self.stats_path, exist_ok=True)
-
         self.df_v_mean = self.get_dataframe(self.v_mean_file, model)
         self.df_v_std = self.get_dataframe(self.v_std_file, model)
         self.df_g_mean = self.get_dataframe(self.g_mean_file, model)
@@ -24,12 +22,9 @@ class CnnStats(object):
             df = pd.read_csv(stats_file)
         else:
             df = pd.DataFrame(columns=('name', 'size'))
-
             for name, m in model.named_parameters():
                 df.loc[len(df)] = {'name': name, 'size': np.array(m.size())}
-
             df.to_csv(stats_file)
-
         return df
 
     def add_measure(self, epoch, model):
@@ -44,7 +39,6 @@ class CnnStats(object):
             if not m.grad == None:
                 self.df_g_mean[f'{epoch}'].loc[count] = m.grad.mean().item()
                 self.df_g_std[f'{epoch}'].loc[count] = m.grad.std().item()
-
             count = count + 1
 
     def dump(self):
