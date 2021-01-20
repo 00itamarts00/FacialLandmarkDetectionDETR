@@ -4,10 +4,10 @@
 # Created by Tianheng Cheng(tianhengcheng@gmail.com), Yang Zhao
 # ------------------------------------------------------------------------------
 
+import copy
 import json
 import os
 import random
-import copy
 
 import imgaug as ia
 import imgaug.augmenters as iaa

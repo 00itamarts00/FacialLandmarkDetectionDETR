@@ -1,28 +1,32 @@
 from __future__ import print_function
-import shutil
-import json
-import time
-from utils.file_handler import FileHandler
-import os
+
 import copy
-from CLMDataset import CLMDataset, get_def_transform, get_data_list
-from common.losslog import CLossLog
-import pandas as pd
-import torch
-import wandb
-import globals as g
-from torch.utils import data
+import logging
 import math
-from optimizer import OptimizerCLS
-from scheduler_cls import ScheduleCLS
-from models import model_LMDT01
+import os
+# import shutil
+# import json
+import time
+
+from torch.utils import data
+
+# import pandas as pd
+# import torch
+# import wandb
+import main.globals as g
+from common.losslog import CLossLog
 from common.modelhandler import CModelHandler
-from collections import namedtuple
 from common.nnstats import CnnStats
-import numpy as np
-from evaluate_model import *
-import torch
+from main.CLMDataset import CLMDataset, get_def_transform, get_data_list
+from main.components.optimizer import OptimizerCLS
+# import numpy as np
+from main.evaluate_model import *
+from models import model_LMDT01
+from main.components.scheduler_cls import ScheduleCLS
+from utils.file_handler import FileHandler
+
 torch.cuda.empty_cache()
+logger = logging.getLogger(__name__)
 
 
 class LDMTrain(object):
@@ -42,15 +46,24 @@ class LDMTrain(object):
         self.nnstats = CnnStats(self.paths.stats, self.mdhl.model)
 
     @property
-    def hm_amp_factor(self): return self.tr['hm_amp_factor']
+    def hm_amp_factor(self):
+        return self.tr['hm_amp_factor']
+
     @property
-    def log_interval(self): return self.ex['log_interval']
+    def log_interval(self):
+        return self.ex['log_interval']
+
     @property
-    def ds(self): return self.pr['dataset']
+    def ds(self):
+        return self.pr['dataset']
+
     @property
-    def tr(self): return self.pr['train']
+    def tr(self):
+        return self.pr['train']
+
     @property
-    def ex(self): return self.pr['experiment']
+    def ex(self):
+        return self.pr['experiment']
 
     @staticmethod
     def _get_data_from_item(item):
@@ -161,7 +174,7 @@ class LDMTrain(object):
 
             train_loss.append(mean_loss)
             if batch_idx % self.log_interval == 0:
-                bsz, ssz, per = (batch_idx + 1) * len(sample), len(self.train_loader.dataset),\
+                bsz, ssz, per = (batch_idx + 1) * len(sample), len(self.train_loader.dataset), \
                                 100. * (batch_idx + 1) / len(self.train_loader)
                 mean_loss = np.mean(train_loss)
                 osum0 = np.array(output[0].cpu().detach()).sum()
@@ -245,6 +258,3 @@ class LDMTrain(object):
         vld_loss = meta_model['params']['loss_valid'][-1][1]
 
         return model, trn_loss, vld_loss
-
-
-

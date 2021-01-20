@@ -1,9 +1,9 @@
-import globals as g
+import main.globals as g
 from main.components.trainer import LDMTrain
 from utils.file_handler import FileHandler
 from utils.param_utils import *
 
-PARAMS = 'params.yaml'
+PARAMS = 'main/params.yaml'
 
 
 class TopLevel(object):

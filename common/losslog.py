@@ -16,7 +16,6 @@ class CLossLog(object):
 
     def add_value(self, epoch, name, val):
         param_key = name.replace('/', '_')
-
         if not (param_key in self.paramslist):
             self.paramslist[param_key] = name
             self.params[param_key] = []

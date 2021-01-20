@@ -21,7 +21,8 @@ logger.info('Initiate Logger')
 override_params = {}
 
 tl = TopLevel()
-exec_str = 'tl.single_epoch_train()'
+# exec_str = 'tl.single_epoch_train()'
+exec_str = 'tl.train()'
 
 cProfile.run(exec_str, filename=fname+'.prof')
 
