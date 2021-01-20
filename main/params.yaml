@@ -2,6 +2,9 @@ experiment:
   name: itsayag
   workspace_path: '/home/itamar/thesis/outputs'
   log_interval: 20
+  pretrained:
+    use_pretrained: True
+    timestamp: '200121_165604'
   save_model: True
 dataset:
   dataset_dir: '/home/itamar/thesis/DATASET'
@@ -29,6 +32,7 @@ train:
     pin_memory: True
   backend:
     use_torch: True
+  model: 'LMDT01'
   optimizer: 'ADAM'
   scheduler: 'StepLR'
 optimizer:
@@ -55,8 +59,8 @@ optimizer:
     use_gc: True
     gc_conv_only: False
 model:
-  name: 'LMDT01'
-  output_branch: 'DPTS'
+  LMDT01:
+    output_branch: 'DPTS'
 scheduler:
   StepLR:
     step_size: 200
@@ -65,5 +69,6 @@ scheduler:
     base_lr: 1e-3
     max_lr: 1e-1
     step_size_up: 100
+loss: null
 evaluation:
   datasets: []

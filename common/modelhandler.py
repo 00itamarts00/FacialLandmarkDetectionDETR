@@ -1,34 +1,31 @@
 import json
 import os
 import re
-import shutil
-from datetime import datetime
-from utils.file_handler import FileHandler
 import numpy as np
 import torch
 
 
 class CModelHandler(object):
-    def __init__(self, model, **kwargs):
+    def __init__(self, model, nets, args, **kwargs):
+        self.nets_path = nets
+        self.args_path = args
+        self.last_epoch = self.get_last_epoch()
         self.model = model
-        self.nets_path = os.path.join(kwargs.get('workspace_path'), 'nets')
-        self.args_path = os.path.join(kwargs.get('workspace_path'), 'args')
+        if self.last_epoch != -1:
+            self.load_pretrained()
         self.epochs_to_save = np.concatenate((range(1, 10, 3), range(10, 100, 10), range(100, 10000, 50)))\
             if kwargs.get('epochs_to_save') is None else kwargs.get('epochs_to_save')
-        self._create_folders()
 
-    def _create_folders(self):
-        os.makedirs(self.nets_path, exist_ok=True)
-        os.makedirs(self.args_path, exist_ok=True)
-
-    def load(self):
+    def get_last_epoch(self):
         files = [f for f in os.listdir(self.nets_path) if f.endswith('.pt')]
         epidx = [int(re.findall(r'\d+', item)[0]) for item in files]
         last_epoch = -1 if len(epidx) == 0 else max(epidx)
-        model_name = f'model_{str(last_epoch).zfill(5)}.pt'
-        model = self.model if len(epidx) == 0 else\
-            self.model.load_state_dict(torch.load(os.path.join(self.nets_path, model_name)))
-        return model, last_epoch
+        return last_epoch
+
+    def load_pretrained(self):
+        model_name = f'model_{str(self.last_epoch).zfill(5)}.pt'
+        pretrained_dict = torch.load(os.path.join(self.nets_path, model_name))
+        self.model.load_state_dict(pretrained_dict)
 
     def weights_init(self, m):
         classname = m.__class__.__name__

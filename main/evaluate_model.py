@@ -31,7 +31,6 @@ def analyze_results(dfresults, datasets, setnick):
         dflist = pd.concat([dflist, dfresults[setnick_]], ignore_index=True)
 
     auc08, nle, fail08, bins, ced68 = calc_accuarcy(dflist)
-
     return {'setnick': setnick, 'auc08': auc08, 'NLE': nle, 'fail08': fail08, 'bins': bins, 'ced68': ced68}
 
     # Test model
