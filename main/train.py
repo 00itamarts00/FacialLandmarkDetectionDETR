@@ -1,8 +1,10 @@
 from __future__ import print_function
 import shutil
 import json
+import time
 from utils.file_handler import FileHandler
 import os
+import copy
 from CLMDataset import CLMDataset, get_def_transform, get_data_list
 from common.losslog import CLossLog
 import pandas as pd
@@ -12,25 +14,52 @@ import globals as g
 from torch.utils import data
 import math
 from optimizer import OptimizerCLS
-from schedule import ScheduleCLS
+from scheduler_cls import ScheduleCLS
 from models import model_LMDT01
 from common.modelhandler import CModelHandler
 from collections import namedtuple
 from common.nnstats import CnnStats
+import numpy as np
+from evaluate_model import *
 
 
 class LDMTrain(object):
     def __init__(self, params):
+        self.test_loader = None
         self.pr = params
         self.workset_path = os.path.join(self.ds['dataset_dir'], self.ds['workset_name'])
         self.paths = self.create_workspace()
+        self.device = self.backend_operations()
+        self.trainset, self.validset = self.create_training_data()
+        self.train_loader, self.valid_loader = self.load_data_to_dataloader()
+        self.model, self.mdhl, self.last_epoch = self.load_model()
+        self.optimizer = self.load_optimizer()
+        self.losslog = self.load_losslog()
+        self.meta_model = self.losslog.load(last_epoch=self.last_epoch)
+        self.trn_loss = self.meta_model['params']['loss_train'][-1][1] if self.meta_model is not None else 0
+        self.scheduler = self.load_scheduler()
+        self.nnstats = CnnStats(self.paths.stats, self.model)
 
+    @property
+    def hm_amp_factor(self): return self.tr['hm_amp_factor']
+    @property
+    def log_interval(self): return self.ex['log_interval']
     @property
     def ds(self): return self.pr['dataset']
     @property
     def tr(self): return self.pr['train']
     @property
     def ex(self): return self.pr['experiment']
+
+    @staticmethod
+    def _get_data_from_item(item):
+        sample = copy.deepcopy(item['img'])
+        target = copy.deepcopy(item['hm'])
+        opts = copy.deepcopy(item['opts'])
+        sfactor = item['sfactor']
+        for i in range(len(sfactor)):
+            opts[i] = np.multiply(opts[i], sfactor[i]) / sample.size(2)
+        return sample, target, opts
 
     def create_training_data(self):
         datasets = self.tr['datasets']['to_use']
@@ -68,31 +97,32 @@ class LDMTrain(object):
         FileHandler.save_dict_as_yaml(self.pr, os.path.join(workspace_path, 'params.yaml'))
         return paths
 
-    def load_data_to_dataloader(self, trainset, validset, **kwargs):
+    def load_data_to_dataloader(self, **kwargs):
         batch_size = self.tr['batch_size']
-        train_loader = data.DataLoader(trainset, batch_size=batch_size, shuffle=True, **kwargs)
-        valid_loader = data.DataLoader(validset, batch_size=batch_size, shuffle=False, **kwargs)
+        train_loader = data.DataLoader(self.trainset, batch_size=batch_size, shuffle=True, **kwargs)
+        valid_loader = data.DataLoader(self.validset, batch_size=batch_size, shuffle=False, **kwargs)
         return train_loader, valid_loader
 
     def load_losslog(self):
         losslog = CLossLog(self.paths)
         return losslog
 
-    def load_optimizer(self, model):
-        opt = OptimizerCLS(params=self.pr, model=model)
+    def load_optimizer(self):
+        opt = OptimizerCLS(params=self.pr, model=self.model)
         return opt.load_optimizer()
 
     def load_model(self):
+        model = None
         kwargs = {'workspace_path': self.paths.workspace, 'epochs_to_save': None}
         if self.pr['model']['name'] == 'LMDT01':
             output_branch = self.pr['model']['output_branch']
             model = model_LMDT01.get_instance(output_branch=output_branch)
         mdhl = CModelHandler(model, **kwargs)
         model, last_epoch = mdhl.load()
-        return model, last_epoch
+        return model, mdhl, last_epoch
 
-    def load_scheduler(self, optimizer):
-        sc = ScheduleCLS(params=self.pr, optimizer=optimizer)
+    def load_scheduler(self):
+        sc = ScheduleCLS(params=self.pr, optimizer=self.optimizer, last_epoch=self.last_epoch)
         return sc.load_scheduler()
 
     def backend_operations(self):
@@ -103,22 +133,120 @@ class LDMTrain(object):
         torch.backends.benchmark = self.tr['backend']['use_torch']
         return device
 
+    def train_epoch(self, epoch):
+        self.model.train()
+        train_loss = []
+        for batch_idx, item in enumerate(self.train_loader):
+            sample, target, opts = self._get_data_from_item(item)
+            target = np.multiply(target, self.hm_amp_factor)
+            sample, target, opts = sample.to(self.device), target.to(self.device), opts.to(self.device)
+            self.optimizer.zero_grad()
+            output = self.model(sample)
+            loss = self.model.loss(output, target, opts)
+
+            vmean_loss = []
+            if len(loss) > 1:
+                for lidx in range(0, len(loss) - 1):
+                    loss[lidx].backward(retain_graph=True)
+                    vmean_loss.append(np.mean(loss[lidx].item()))
+                loss[-1].backward()
+                mean_loss = np.mean(loss[-1].item())
+                vmean_loss.append(mean_loss)
+            else:
+                loss.backward()
+                mean_loss = np.mean(loss.item())
+                vmean_loss[0] = mean_loss
+
+            self.optimizer.step()
+
+            train_loss.append(mean_loss)
+            if batch_idx % self.log_interval == 0:
+                bsz, ssz, per = (batch_idx + 1) * len(sample), len(self.train_loader.dataset),\
+                                100. * (batch_idx + 1) / len(self.train_loader)
+                mean_loss = np.mean(train_loss)
+                osum0 = np.array(output[0].cpu().detach()).sum()
+                osum3 = np.array(output[3].cpu().detach()).sum()
+                print(f'Train Epoch: {epoch} [{bsz} / {ssz} ({per:.02f}%)]\tLoss: {mean_loss:.09f} \tosum0:'
+                      f' {osum0:.02f}\tosum3: {osum3:.02f} -- {vmean_loss}')
+        return np.mean(train_loss)
+
+    def valid_epoch(self):
+        self.model.eval()
+        valid_loss = []
+        dflist = pd.DataFrame()
+        with torch.no_grad():
+            for batch_idx, item in enumerate(self.test_loader):
+                sample, target, opts = self._get_data_from_item(item)
+                target = np.multiply(target, self.hm_amp_factor)
+                sample, target, opts = sample.to(self.device), target.to(self.device), opts.to(self.device)
+                output = self.model(sample)
+                loss = self.model.loss(output, target, opts)
+                if len(loss) > 1:
+                    mean_loss = np.mean(loss[-1].item())
+                else:
+                    mean_loss = np.mean(loss.item())
+                valid_loss.append(mean_loss)
+
+                df = self.model.extract_epts(output, res_factor=1)
+                df = add_metadata_to_result(df, item)
+                dflist = pd.concat([dflist, df], ignore_index=True)
+
+                if batch_idx % self.log_interval == 0:
+                    print(f'Validation:  [{(batch_idx + 1) * len(sample)}/{len(self.test_loader.dataset)}'
+                          f' ({100. * (batch_idx + 1) / len(self.test_loader):.02f}%)]'
+                          f'\tLoss: {np.mean(valid_loss):.06f}')
+
+        auc08, nle, fail08, bins, ced68 = calc_accuarcy(dflist)
+        # auc08, nle = -1, -1
+        return np.mean(valid_loss), auc08, nle
 
     def train(self):
-        device = self.backend_operations()
-        trainset, validset = self.create_training_data()
-        train_loader, valid_loader = self.load_data_to_dataloader(trainset, validset)
-        model, last_epoch = self.load_model()
-        optimizer = self.load_optimizer(model=model)
-        losslog = self.load_losslog()
-        scheduler = self.load_scheduler(optimizer)
-        meta_model = losslog.load(last_epoch)
-        trn_loss = meta_model['params']['loss_train'][-1][1] if meta_model is not None else 0
-        nnstats = CnnStats(self.paths.stats, model)
-        model.to(device)
+        run_valid = self.tr['run_valid']
+        self.model.to(self.device)
+        epochs = self.tr['epochs']
 
-        # model, trn_loss, vld_loss = train_model(device, train_loader, valid_loader, model, workspace_path, config,
-        #                                         logs_path=logs_path, do_valid=do_valid)
+        for epoch in range(self.last_epoch + 1, epochs + 1):
+            if math.isnan(self.trn_loss) or math.isinf(self.trn_loss):
+                break
+            if self.train_loader is not None:
+                starttime = time.time()
+                trn_loss = self.train_epoch(epoch=epoch)
+                runtime = (time.time() - starttime) / len(self.train_loader.dataset)
+
+                last_lr = self.scheduler.get_last_lr()[0]
+                print(f'Train set: Average loss: {trn_loss:.6f} LR={last_lr}\n')
+                self.losslog.add_value(epoch, 'loss/train', trn_loss)
+                self.losslog.add_value(epoch, 'lr', last_lr)
+                self.losslog.add_value(epoch, 'runtime/train', runtime)
+                self.nnstats.add_measure(epoch, self.model)
+                self.nnstats.dump()
+
+            if run_valid and self.valid_loader is not None:
+                starttime = time.time()
+                vld_loss, auc08, nle = self.valid_epoch()
+                runtime = (time.time() - starttime) / len(self.valid_loader.dataset)
+                self.losslog.add_value(epoch, 'loss/valid', vld_loss)
+                self.losslog.add_value(epoch, 'auc08/valid', auc08)
+                self.losslog.add_value(epoch, 'nle/valid', nle)
+                self.losslog.add_value(epoch, 'runtime/valid', runtime)
+
+                print(f'Valid set: Average loss: {vld_loss:.6f} auc08={auc08:.03f} nle={nle:.03f}, ''\n')
+
+                # valid_epoch_dbg(epoch, losslog, model, device, valid_loader, config, 16)
+
+            self.scheduler.step()
+
+            if self.ex['save_model']:
+                self.mdhl.save(self.model, epoch)
+                self.losslog.dump()
+
+        model, last_epoch = self.mdhl.load()
+        meta_model = self.losslog.get_meta()
+
+        trn_loss = meta_model['params']['loss_train'][-1][1]
+        vld_loss = meta_model['params']['loss_valid'][-1][1]
+
+        return model, trn_loss, vld_loss
 
 
 

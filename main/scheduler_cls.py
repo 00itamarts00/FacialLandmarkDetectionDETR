@@ -2,13 +2,18 @@ from torch.optim.lr_scheduler import StepLR, CyclicLR
 
 
 class ScheduleCLS(object):
-    def __init__(self, params, optimizer):
+    def __init__(self, params, optimizer, last_epoch):
         self.params = params
         self.optimizer = optimizer
+        self.last_epoch = last_epoch
         self.scheduler_type = self.params['train']['scheduler']
 
     @property
     def sc(self): return self.params['scheduler'][self.scheduler_type]
+
+    def advance_scheduler_to_last_epoch(self, scheduler):
+        for idx in range(0, self.last_epoch):
+            scheduler.step()
 
     def load_scheduler(self):
         if self.scheduler_type == 'StepLR':
@@ -20,6 +25,7 @@ class ScheduleCLS(object):
         scheduler = StepLR(optimizer=self.optimizer,
                            step_size=self.sc['step_size'],
                            gamma=self.sc['gamma'])
+        self.advance_scheduler_to_last_epoch(scheduler)
         return scheduler
 
     def load_cyclic_lr_scheduler(self):
@@ -27,19 +33,5 @@ class ScheduleCLS(object):
                              base_lr=self.sc['base_lr'],
                              max_lr=self.sc['max_lr'],
                              step_size_up=self.sc['step_size_up'])
+        self.advance_scheduler_to_last_epoch(scheduler)
         return scheduler
-
-# step_size = get_param(config, 'train.step_size', 200)
-    # gamma = get_param(config, 'train.gamma', 0.3)
-    # scheduler_type = get_param(config, 'train.scheduler_type', 'StepLR')
-    #
-    # if scheduler_type == 'StepLR':
-    #     scheduler = StepLR(optimizer, step_size=step_size, gamma=gamma)
-    # elif scheduler_type == 'CyclicLR':
-    #     scheduler = CyclicLR(optimizer, base_lr=get_param(config, 'train.CyclicLR.base_lr', 1e-3),
-    #                          max_lr=get_param(config, 'train.CyclicLR.max_lr', 1e-1),
-    #                          step_size_up=get_param(config, 'train.CyclicLR.step_size_up', 100))
-    #
-    # for idx in range(0, last_epoch):
-    #     scheduler.step()
-    #

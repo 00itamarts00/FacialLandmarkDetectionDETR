@@ -1,6 +1,8 @@
 experiment:
   name: itsayag
   workspace_path: '/home/itamar/thesis/outputs'
+  log_interval: 20
+  save_model: True
 dataset:
   dataset_dir: '/home/itamar/thesis/DATASET'
   workset_name: 'WS02'
@@ -12,10 +14,13 @@ train:
     use_augmentations: True
   partition_seed: 42
   trainset_partition: 0.8
+  epochs: 200
   torch_seed: 0
   batch_size: 20
   step_size: 5
   trainable_parameters: null
+  hm_amp_factor: 100
+  run_valid: True
   cuda:
     use: yes
     device: 'cuda:1'
