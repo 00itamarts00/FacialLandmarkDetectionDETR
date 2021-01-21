@@ -78,7 +78,8 @@ class LDMTrain(object):
             return 0
         return self.losslog.meta_model[next(reversed(self.losslog.meta_model))][f'loss_{type}']['val']
 
-    def create_dataloaders(self, **kwargs):
+    def create_dataloaders(self):
+        use_cuda = self.tr['cuda']['use']
         datasets = self.tr['datasets']['to_use']
         trainset_partition = self.tr['trainset_partition']
         partition_seed = self.tr['partition_seed']
@@ -96,6 +97,8 @@ class LDMTrain(object):
 
         trainset = CLMDataset(self.workset_path, dftrain, transform=transform)
         validset = CLMDataset(self.workset_path, dfvalid)
+
+        kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
         batch_size = self.tr['batch_size']
         train_loader = data.DataLoader(trainset, batch_size=batch_size, shuffle=True, **kwargs)

@@ -31,7 +31,7 @@ class FileHandler(object):
             json.dump(dictionary, fp)
 
     @staticmethod
-    def save_dict_to_pkl(self, dict_arg, dict_path):
+    def save_dict_to_pkl(dict_arg, dict_path):
         with open(dict_path, 'wb') as handle:
             pickle.dump(dict_arg, handle, protocol=pickle.HIGHEST_PROTOCOL)
 

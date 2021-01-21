@@ -1,16 +1,16 @@
 from __future__ import print_function
 
+import logging
+import sys
+
 import numpy as np
-import pandas as pd
 import torch
 
-from common.paramutils import get_param
-
-
 # import wandb
-###################################
+logger = logging.getLogger(__name__)
+
+
 def calc_accuarcy(epts_batch):
-# def calc_accuarcy(dflist):
     mean_err, max_err, std_err = [], [], []
     for key, val in epts_batch.items():
         err = calc_pts_error(np.array(list(val['epts'].values())), np.array(val['opts']))
@@ -22,12 +22,26 @@ def calc_accuarcy(epts_batch):
     return auc08, nle, fail08, bins, ced68
 
 
-def analyze_results(dfresults, datasets, setnick):
-    dflist = pd.DataFrame()
-    for item in datasets:
-        setnick_ = item.replace('/', '_')
-        dflist = pd.concat([dflist, dfresults[setnick_]], ignore_index=True)
-    auc08, nle, fail08, bins, ced68 = calc_accuarcy(dflist)
+def analyze_results(datastets_inst, datasets, setnick):
+    logger.info(f'Analyzing results on {setnick} Datasets')
+    datasets = [i.replace('/', '_') for i in datasets]
+    epts, opts = list(), list()
+    mean_err, max_err, std_err = [], [], []
+    for dataset, dataset_inst in datastets_inst.items():
+        setnick_ = dataset.replace('/', '_')
+        if setnick_ not in datasets:
+            continue
+        for b_idx, b_idx_inst in dataset_inst.items():
+            [epts.append(i) for i in np.array(list(b_idx_inst['epts'].values()))]
+            [opts.append(i) for i in b_idx_inst['opts'].cpu().numpy()]
+    epts = np.squeeze(epts)
+    opts = np.squeeze(opts)
+    err = calc_pts_error(epts, opts)
+    mean_err.append(np.mean(err))
+    max_err.append(np.max(err))
+    std_err.append(np.std(err))
+    auc08, fail08, bins, ced68 = calc_CED(mean_err)
+    nle = 100 * np.mean(mean_err)
     return {'setnick': setnick, 'auc08': auc08, 'NLE': nle, 'fail08': fail08, 'bins': bins, 'ced68': ced68}
 
     # Test model
@@ -67,30 +81,26 @@ def add_metadata_to_result(epts, item):
     for key, val in item.items():
         for i, field in enumerate(val):
             epts[i][key] = field
-            epts[i]['epts'] = {k: v/item['sfactor'][i].numpy() for (k, v) in epts[i]['output'].items()}
+            epts[i]['epts'] = {k: v / item['sfactor'][i].numpy() for (k, v) in epts[i]['output'].items()}
     return epts
 
 
-def evaluate_model(device, test_loader, model, workspace_path, config=None):
-    if config is None:
-        config = {}
-    log_interval = get_param(config, 'experiment.log_interval', 20)
+def evaluate_model(device, test_loader, model, **kwargs):
+    log_interval = kwargs.get('log_interval', 20)
 
-    model.eval()
-
-    dflist = pd.DataFrame()
+    epts_batch = dict()
     with torch.no_grad():
         for batch_idx, item in enumerate(test_loader):
             sample = item['img']
             target = item['hm']
             sample, target = sample.to(device), target.to(device)
             output = model(sample)
-            df = model.extract_epts(output, res_factor=1)
-            df = add_metadata_to_result(df, item)
+            epts = model.extract_epts(output, res_factor=1)
+            epts = add_metadata_to_result(epts, item)
 
-            dflist = pd.concat([dflist, df], ignore_index=True)
-            if batch_idx % log_interval == 0:
-                print(f'Testsing:  [{(batch_idx + 1) * len(sample)}/{len(test_loader.dataset)}'
-                      f' ({100. * (batch_idx + 1) / len(test_loader):.02f}%)]')
-
-    return dflist
+            epts_batch.update(epts)
+            percent = f' ({100. * (batch_idx + 1) / len(test_loader):.02f}%)]'
+            sys.stdout.write(f"\rTesting batch {batch_idx}\t{percent}")
+            sys.stdout.flush()
+    sys.stdout.write(f"\n")
+    return epts_batch

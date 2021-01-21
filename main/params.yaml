@@ -4,7 +4,7 @@ experiment:
   log_interval: 20
   pretrained:
     use_pretrained: False
-    timestamp: '210121_135834'
+    timestamp: '210121_161519'
   save_model: True
   single_batch_debug: False
 dataset:
@@ -72,4 +72,7 @@ scheduler:
     step_size_up: 100
 loss: null
 evaluation:
-  datasets: []
+  datasets: ['helen/testset', 'lfpw/testset', 'WFLW/testset', '300W', 'ibug', 'COFW68/COFW_test_color']
+#  datasets: [ 'helen/testset', 'lfpw/testset', 'ibug', '300W'] #, 'lfpw/testset', 'WFLW/testset', '300W', 'ibug', 'COFW68/COFW_test_color']
+  exp_name: 'itsayag'
+  timestamp: '210121_145942'
