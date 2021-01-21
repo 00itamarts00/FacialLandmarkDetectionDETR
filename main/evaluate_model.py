@@ -9,18 +9,16 @@ from common.paramutils import get_param
 
 # import wandb
 ###################################
-
-def calc_accuarcy(dflist):
+def calc_accuarcy(epts_batch):
+# def calc_accuarcy(dflist):
     mean_err, max_err, std_err = [], [], []
-    for idx in range(len(dflist)):
-        err = calc_pts_error(dflist['epts'][idx], np.array(dflist['opts'][idx]))
+    for key, val in epts_batch.items():
+        err = calc_pts_error(np.array(list(val['epts'].values())), np.array(val['opts']))
         mean_err.append(np.mean(err))
         max_err.append(np.max(err))
         std_err.append(np.std(err))
-
     auc08, fail08, bins, ced68 = calc_CED(mean_err)
     nle = 100 * np.mean(mean_err)
-
     return auc08, nle, fail08, bins, ced68
 
 
@@ -29,7 +27,6 @@ def analyze_results(dfresults, datasets, setnick):
     for item in datasets:
         setnick_ = item.replace('/', '_')
         dflist = pd.concat([dflist, dfresults[setnick_]], ignore_index=True)
-
     auc08, nle, fail08, bins, ced68 = calc_accuarcy(dflist)
     return {'setnick': setnick, 'auc08': auc08, 'NLE': nle, 'fail08': fail08, 'bins': bins, 'ced68': ced68}
 
@@ -46,10 +43,8 @@ def calc_CED(err, x_limit=0.08):
 
     auc = 100 * np.trapz(ced68[0:th_idx], bins[0:th_idx]) / x_limit
     failure = 100 * np.sum(np.array(err) > x_limit) / len(err)
-
     bins_o = bins[0:th_idx]
     ced68_o = ced68[0:th_idx]
-
     return auc, failure, bins_o, ced68_o
 
 
@@ -65,18 +60,15 @@ def calc_pts_error(epts, opts, normp=(36, 45)):  # for 68 points
     r = distance(opts[normp[0]], opts[normp[1]])
     d = distance(epts, opts)
     err = np.divide(d, r)
-
     return err
 
 
-def add_metadata_to_result(df, item):
-    df['opts'] = np.array(item['opts']).tolist()
-    df['imgname'] = item['imgname']
-    df['dataset'] = item['dataset']
-    df['sfactor'] = item['sfactor']
-    df['hmfactor'] = item['hmfactor']
-    df['epts'] = df['output'] / df['sfactor']
-    return df
+def add_metadata_to_result(epts, item):
+    for key, val in item.items():
+        for i, field in enumerate(val):
+            epts[i][key] = field
+            epts[i]['epts'] = {k: v/item['sfactor'][i].numpy() for (k, v) in epts[i]['output'].items()}
+    return epts
 
 
 def evaluate_model(device, test_loader, model, workspace_path, config=None):

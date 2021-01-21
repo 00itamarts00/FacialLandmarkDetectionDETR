@@ -133,7 +133,6 @@ class Net(nn.Module):
         xdec = self.decoder(amap)
         xdec = xdec.permute(0, 2, 1)
         out = self.dec_fc(xdec)
-
         return [xhm0, xhm1, xhm2, xhm3, xft1, out]
 
     def get_loss_fn(self):
@@ -151,32 +150,22 @@ class Net(nn.Module):
         return loss
 
     def extract_epts(self, output, hm_factor=4, res_factor=5):
-        self.output_branch = 'DPTS'
-        num_i = len(output[0])  # num samples
-        num_b = len(output) - 1  # num branchs
+        res = dict()
+        batch_size = len(output[0])  # num samples
+        branches = output[:-1]
 
-        col = []
-        for idx_b in range(num_b):
-            col.append(f'HM{idx_b:02}')
-        col.append(f'DPTS')
-        col.append(f'output')
-
-        row = np.array(range(num_i))
-
-        df = pd.DataFrame(columns=col, index=row)
-
-        for idx_i in range(num_i):
-            for idx_b in range(num_b):
-                ehms = output[idx_b].cpu().detach().numpy()
-
-                epts = extract_pts_from_hm(ehms[idx_i], res_factor=res_factor)
-
+        for i in range(batch_size):
+            res[i] = dict()
+            for b, branch in enumerate(branches):
+                ehms = output[b].cpu().detach().numpy()
+                epts = extract_pts_from_hm(ehms[i], res_factor=res_factor)
                 epts_ = np.multiply(epts, hm_factor)
-                df[f'HM{idx_b:02}'].loc[idx_i] = epts_
-            df['DPTS'].loc[idx_i] = np.multiply(output[-1][idx_i].cpu().detach().numpy(), hm_factor * ehms.shape[
-                2])  # hm_factor*ehms.shape[2] -> Reconstructing the image size
-            df[f'output'] = df[self.output_branch]
-        return df
+                res[i][f'HM{str(b).zfill(2)}'] = {k: v for k, v in enumerate(epts_)}
+            # hm_factor*ehms.shape[2] -> Reconstructing the image size
+            recon = np.multiply(output[-1][i].cpu().detach().numpy(), hm_factor * ehms.shape[2])
+            res[i][self.output_branch] = {k: v for k, v in enumerate(recon)}
+            res[i]['output'] = res[i][self.output_branch]
+        return res
 
     def init_weights(self, pretrained='', base_std=0.01):
         for m in self.modules():

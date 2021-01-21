@@ -104,8 +104,7 @@ class LDMTrain(object):
         return train_loader, valid_loader
 
     def create_workspace(self):
-        os.makedirs(self.ex['workspace_path'], exist_ok=True)
-        workspace_path = os.path.join(self.ex['workspace_path'], self.ex['name'], g.TIMESTAMP)
+        workspace_path = self.pr['workspace_path']
         structure = {'workspace': workspace_path,
                      'nets': os.path.join(workspace_path, 'nets'),
                      'args': os.path.join(workspace_path, 'args'),
@@ -115,7 +114,6 @@ class LDMTrain(object):
                      }
         paths = FileHandler.dict_to_nested_namedtuple(structure)
         [os.makedirs(i, exist_ok=True) for i in paths]
-        FileHandler.save_dict_as_yaml(self.pr, os.path.join(workspace_path, 'params.yaml'))
         return paths
 
     def load_losslog(self):
@@ -193,7 +191,7 @@ class LDMTrain(object):
     def valid_epoch(self):
         self.mdhl.model.eval()
         valid_loss = []
-        dflist = pd.DataFrame()
+        epts_batch = dict()
         with torch.no_grad():
             for batch_idx, item in enumerate(self.valid_loader):
                 sample, target, opts = self._get_data_from_item(item)
@@ -207,9 +205,9 @@ class LDMTrain(object):
                     mean_loss = np.mean(loss.item())
                 valid_loss.append(mean_loss)
 
-                df = self.mdhl.model.extract_epts(output, res_factor=1)
-                df = add_metadata_to_result(df, item)
-                dflist = pd.concat([dflist, df], ignore_index=True)
+                epts = self.mdhl.model.extract_epts(output, res_factor=1)
+                epts = add_metadata_to_result(epts, item)
+                epts_batch.update(epts)
 
                 if batch_idx % self.log_interval == 0:
                     print(f'Validation:  [{(batch_idx + 1) * len(sample)}/{len(self.valid_loader.dataset)}'
@@ -217,7 +215,7 @@ class LDMTrain(object):
                           f'\tLoss: {np.mean(valid_loss):.06f}')
                 if self.ex['single_batch_debug']:
                     break
-        auc08, nle, fail08, bins, ced68 = calc_accuarcy(dflist)
+        auc08, nle, fail08, bins, ced68 = calc_accuarcy(epts_batch)
         # auc08, nle = -1, -1
         return np.mean(valid_loss), auc08, nle
 

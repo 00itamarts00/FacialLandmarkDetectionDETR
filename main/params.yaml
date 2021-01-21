@@ -4,7 +4,7 @@ experiment:
   log_interval: 20
   pretrained:
     use_pretrained: False
-    timestamp: '200121_165604'
+    timestamp: '210121_135834'
   save_model: True
   single_batch_debug: False
 dataset:

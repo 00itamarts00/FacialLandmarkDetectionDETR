@@ -9,18 +9,9 @@ timestamp = FileHandler.get_datetime()
 g.TIMESTAMP = timestamp
 
 fname = os.path.join(g.LOGS_PROFS, f'{g.TIMESTAMP}')
+os.makedirs(g.LOGS_PROFS, exist_ok=True)
 
-logging.basicConfig(level=logging.INFO,
-                    format="%(asctime)s - %(levelname)s - %(message)s",
-                    handlers=[logging.FileHandler(fname+'.log'),
-                              logging.StreamHandler(sys.stdout)])
-
-logger = logging.getLogger(__name__)
-logger.info('Initiate Logger')
-
-override_params = {}
-
-tl = TopLevel()
+tl = TopLevel(override_params=None)
 exec_str = 'tl.single_batch_train()'
 # exec_str = 'tl.single_epoch_train()'
 # exec_str = 'tl.train()'
