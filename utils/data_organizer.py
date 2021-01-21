@@ -67,7 +67,7 @@ class DataOrganize(object):
 
 
 def main():
-    params = FileHandler.load_yaml('params.yaml')
+    params = FileHandler.load_yaml('../main/params.yaml')
     pointers = FileHandler.load_yaml('pointers.yaml')
 
     dsorg = DataOrganize(pointers=pointers, params=params)
