@@ -6,8 +6,8 @@ import wandb
 from torch.utils import data
 
 from common.modelhandler import CModelHandler
-from main.CLMDataset import CLMDataset, get_data_list
-from main.evaluate_model import evaluate_model, analyze_results
+from main.components.CLMDataset import CLMDataset, get_data_list
+from main.components.evaluate_model import evaluate_model, analyze_results
 from models import model_LMDT01
 from utils.file_handler import FileHandler
 

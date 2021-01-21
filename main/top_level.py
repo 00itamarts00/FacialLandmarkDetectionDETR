@@ -22,7 +22,6 @@ class TopLevel(object):
             return update_nested_dict(self.params, dict_override)
 
     def setup_logger(self, name):
-
         fname = os.path.join(self.params['workspace_path'], name)
         # noinspection PyArgumentList
         logging.basicConfig(level=logging.INFO,
@@ -31,6 +30,7 @@ class TopLevel(object):
                                       logging.StreamHandler(sys.stdout)])
         logger = logging.getLogger(__name__)
         logger.info('Initiate Logger')
+        return fname
 
     def setup_workspace(self):
         wp = self.params['experiment']['workspace_path']
@@ -50,7 +50,7 @@ class TopLevel(object):
     def single_batch_train(self):
         self.setup_workspace()
         self.setup_logger(name='single_batch_train')
-        override_params = {'train': {'epochs': 5, 'batch_size': 20},
+        override_params = {'train': {'epochs': 1, 'batch_size': 1},
                            'experiment': {'single_batch_debug': True}}
         self.params = self.override_params_dict(dict_override=override_params)
         lmd_train = LDMTrain(params=self.params)
@@ -63,13 +63,13 @@ class TopLevel(object):
         self.params = self.override_params_dict(dict_override=override_params)
         lmd_train = LDMTrain(params=self.params)
         lmd_train.train()
+        return fname
 
     def train(self):
         self.setup_workspace()
         self.setup_logger(name='train')
         lmd_train = LDMTrain(params=self.params)
         lmd_train.train()
-        pass
 
     def find_learning_rate(self):
         pass
@@ -80,3 +80,11 @@ class TopLevel(object):
         self.setup_logger(name='evaluate_model')
         lmd_eval = Evaluator(params=self.params)
         lmd_eval.evaluate()
+
+    def run_experiment(self):
+        self.train()
+        override_params = {'experiment':
+                               {'pretrained':
+                                    {'timestamp': g.TIMESTAMP}}}
+        self.params = self.override_params_dict(dict_override=override_params)
+        self.evaluate_model()

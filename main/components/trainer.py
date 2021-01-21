@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import copy
-import logging
 import math
 import os
 # import shutil
@@ -13,14 +12,13 @@ from torch.utils import data
 # import pandas as pd
 # import torch
 # import wandb
-import main.globals as g
 from common.losslog import CLossLog
 from common.modelhandler import CModelHandler
 from common.nnstats import CnnStats
-from main.CLMDataset import CLMDataset, get_def_transform, get_data_list
+from main.components.CLMDataset import CLMDataset, get_def_transform, get_data_list
 from main.components.optimizer import OptimizerCLS
 # import numpy as np
-from main.evaluate_model import *
+from main.components.evaluate_model import *
 from models import model_LMDT01
 from main.components.scheduler_cls import ScheduleCLS
 from utils.file_handler import FileHandler

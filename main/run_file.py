@@ -15,7 +15,8 @@ tl = TopLevel(override_params=None)
 # exec_str = 'tl.single_batch_train()'
 # exec_str = 'tl.single_epoch_train()'
 # exec_str = 'tl.train()'
-exec_str = 'tl.evaluate_model()'
+# exec_str = 'tl.evaluate_model()'
+exec_str = 'tl.run_experiment()'
 
 
 cProfile.run(exec_str, filename=fname+'.prof')
