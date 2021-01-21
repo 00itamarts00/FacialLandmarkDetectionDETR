@@ -3,7 +3,7 @@ from utils.file_handler import FileHandler
 import logging
 import sys
 import os
-import globals as g
+import main.globals as g
 from top_level import TopLevel
 timestamp = FileHandler.get_datetime()
 g.TIMESTAMP = timestamp
@@ -21,8 +21,8 @@ logger.info('Initiate Logger')
 override_params = {}
 
 tl = TopLevel()
-# exec_str = 'tl.single_epoch_train()'
-exec_str = 'tl.train()'
+exec_str = 'tl.single_epoch_train()'
+# exec_str = 'tl.train()'
 
 cProfile.run(exec_str, filename=fname+'.prof')
 

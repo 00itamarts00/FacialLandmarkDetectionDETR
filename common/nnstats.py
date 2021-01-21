@@ -27,7 +27,7 @@ class CnnStats(object):
             df.to_csv(stats_file)
         return df
 
-    def add_measure(self, epoch, model):
+    def add_measure(self, epoch, model, dump=False):
         self.df_v_mean[f'{epoch}'] = None
         self.df_v_std[f'{epoch}'] = None
         self.df_g_mean[f'{epoch}'] = None
@@ -40,6 +40,8 @@ class CnnStats(object):
                 self.df_g_mean[f'{epoch}'].loc[count] = m.grad.mean().item()
                 self.df_g_std[f'{epoch}'].loc[count] = m.grad.std().item()
             count = count + 1
+        if dump:
+            self.dump()
 
     def dump(self):
         self.df_v_mean.to_csv(self.v_mean_file)

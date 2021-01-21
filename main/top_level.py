@@ -41,7 +41,7 @@ class TopLevel(object):
         lmd_train.train()
         pass
 
-    def find_lr(self):
+    def find_learning_rate(self):
         pass
 
     def evaluate(self):

@@ -35,8 +35,7 @@ class LDMTrain(object):
         self.workset_path = os.path.join(self.ds['dataset_dir'], self.ds['workset_name'])
         self.paths = self.create_workspace()
         self.device = self.backend_operations()
-        self.trainset, self.validset = self.create_dataloaders()
-        self.train_loader, self.valid_loader = self.load_data_to_dataloader()
+        self.train_loader, self.valid_loader = self.create_dataloaders()
         self.mdhl = self.load_model()
         self.optimizer = self.load_optimizer()
         self.losslog = self.load_losslog()
@@ -75,7 +74,7 @@ class LDMTrain(object):
             opts[i] = np.multiply(opts[i], sfactor[i]) / sample.size(2)
         return sample, target, opts
 
-    def create_dataloaders(self):
+    def create_dataloaders(self, **kwargs):
         datasets = self.tr['datasets']['to_use']
         trainset_partition = self.tr['trainset_partition']
         partition_seed = self.tr['partition_seed']
@@ -94,7 +93,11 @@ class LDMTrain(object):
         trainset = CLMDataset(self.workset_path, dftrain, transform=transform)
         validset = CLMDataset(self.workset_path, dfvalid)
 
-        return trainset, validset
+        batch_size = self.tr['batch_size']
+        train_loader = data.DataLoader(trainset, batch_size=batch_size, shuffle=True, **kwargs)
+        valid_loader = data.DataLoader(validset, batch_size=batch_size, shuffle=False, **kwargs)
+
+        return train_loader, valid_loader
 
     def create_workspace(self):
         os.makedirs(self.ex['workspace_path'], exist_ok=True)
@@ -108,14 +111,8 @@ class LDMTrain(object):
                      }
         paths = FileHandler.dict_to_nested_namedtuple(structure)
         [os.makedirs(i, exist_ok=True) for i in paths]
-        FileHandler.save_dict_as_yaml(self.pr, os.path.join(workspace_path, '../params.yaml'))
+        FileHandler.save_dict_as_yaml(self.pr, os.path.join(workspace_path, 'params.yaml'))
         return paths
-
-    def load_data_to_dataloader(self, **kwargs):
-        batch_size = self.tr['batch_size']
-        train_loader = data.DataLoader(self.trainset, batch_size=batch_size, shuffle=True, **kwargs)
-        valid_loader = data.DataLoader(self.validset, batch_size=batch_size, shuffle=False, **kwargs)
-        return train_loader, valid_loader
 
     def load_losslog(self):
         losslog = CLossLog(self.paths)
@@ -156,7 +153,7 @@ class LDMTrain(object):
             self.optimizer.zero_grad()
             output = self.mdhl.model(sample)
             loss = self.mdhl.model.loss(output, target, opts)
-
+            # TODO: understand better the way be backprop the loss
             vmean_loss = []
             if len(loss) > 1:
                 for lidx in range(0, len(loss) - 1):
@@ -181,7 +178,13 @@ class LDMTrain(object):
                 osum3 = np.array(output[3].cpu().detach()).sum()
                 print(f'Train Epoch: {epoch} [{bsz} / {ssz} ({per:.02f}%)]\tLoss: {mean_loss:.09f} \tosum0:'
                       f' {osum0:.02f}\tosum3: {osum3:.02f} -- {vmean_loss}')
+            if self.ex['single_batch_debug']:
+                break
         return np.mean(train_loss)
+
+    def update_tensorboard(self, epoch, **kwargs):
+        for key, val in kwargs.items():
+            self.losslog.add_value(epoch, key, val)
 
     def valid_epoch(self):
         self.mdhl.model.eval()
@@ -208,7 +211,8 @@ class LDMTrain(object):
                     print(f'Validation:  [{(batch_idx + 1) * len(sample)}/{len(self.valid_loader.dataset)}'
                           f' ({100. * (batch_idx + 1) / len(self.valid_loader):.02f}%)]'
                           f'\tLoss: {np.mean(valid_loss):.06f}')
-
+                if self.ex['single_batch_debug']:
+                    break
         auc08, nle, fail08, bins, ced68 = calc_accuarcy(dflist)
         # auc08, nle = -1, -1
         return np.mean(valid_loss), auc08, nle
@@ -225,26 +229,20 @@ class LDMTrain(object):
                 starttime = time.time()
                 trn_loss = self.train_epoch(epoch=epoch)
                 runtime = (time.time() - starttime) / len(self.train_loader.dataset)
-
                 last_lr = self.scheduler.get_last_lr()[0]
+
                 print(f'Train set: Average loss: {trn_loss:.6f} LR={last_lr}\n')
-                self.losslog.add_value(epoch, 'loss/train', trn_loss)
-                self.losslog.add_value(epoch, 'lr', last_lr)
-                self.losslog.add_value(epoch, 'runtime/train', runtime)
-                self.nnstats.add_measure(epoch, self.mdhl.model)
-                self.nnstats.dump()
+                res = {'loss/train': trn_loss, 'lr': last_lr, 'runtime/train': runtime}
+                self.update_tensorboard(epoch, **res)
+                self.nnstats.add_measure(epoch, self.mdhl.model, dump=True)
 
             if run_valid and self.valid_loader is not None:
                 starttime = time.time()
                 vld_loss, auc08, nle = self.valid_epoch()
                 runtime = (time.time() - starttime) / len(self.valid_loader.dataset)
-                self.losslog.add_value(epoch, 'loss/valid', vld_loss)
-                self.losslog.add_value(epoch, 'auc08/valid', auc08)
-                self.losslog.add_value(epoch, 'nle/valid', nle)
-                self.losslog.add_value(epoch, 'runtime/valid', runtime)
-
+                res = {'loss/valid': vld_loss, 'auc08/valid': auc08, 'nle/valid': nle, 'runtime/valid': runtime}
+                self.update_tensorboard(epoch, **res)
                 print(f'Valid set: Average loss: {vld_loss:.6f} auc08={auc08:.03f} nle={nle:.03f}, ''\n')
-                # valid_epoch_dbg(epoch, losslog, model, device, valid_loader, config, 16)
             self.scheduler.step()
 
             if self.ex['save_model']:
