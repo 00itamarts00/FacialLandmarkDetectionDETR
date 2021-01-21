@@ -39,8 +39,7 @@ class LDMTrain(object):
         self.mdhl = self.load_model()
         self.optimizer = self.load_optimizer()
         self.losslog = self.load_losslog()
-        self.meta_model = self.losslog.load(last_epoch=self.mdhl.last_epoch)
-        self.trn_loss = self.meta_model['params']['loss_train'][-1][1] if self.meta_model is not None else 0
+        self.trn_loss = self.get_last_loss()
         self.scheduler = self.load_scheduler()
         self.nnstats = CnnStats(self.paths.stats, self.mdhl.model)
 
@@ -73,6 +72,11 @@ class LDMTrain(object):
         for i in range(len(sfactor)):
             opts[i] = np.multiply(opts[i], sfactor[i]) / sample.size(2)
         return sample, target, opts
+
+    def get_last_loss(self, type='train'):
+        if self.losslog.meta_model == dict():
+            return 0
+        return self.losslog.meta_model[next(reversed(self.losslog.meta_model))][f'loss_{type}']['val']
 
     def create_dataloaders(self, **kwargs):
         datasets = self.tr['datasets']['to_use']
@@ -115,7 +119,7 @@ class LDMTrain(object):
         return paths
 
     def load_losslog(self):
-        losslog = CLossLog(self.paths)
+        losslog = CLossLog(self.paths, last_epoch=self.mdhl.last_epoch)
         return losslog
 
     def load_optimizer(self):
@@ -232,7 +236,7 @@ class LDMTrain(object):
                 last_lr = self.scheduler.get_last_lr()[0]
 
                 print(f'Train set: Average loss: {trn_loss:.6f} LR={last_lr}\n')
-                res = {'loss/train': trn_loss, 'lr': last_lr, 'runtime/train': runtime}
+                res = {'loss_train': trn_loss, 'lr': last_lr, 'runtime_train': runtime}
                 self.update_tensorboard(epoch, **res)
                 self.nnstats.add_measure(epoch, self.mdhl.model, dump=True)
 
@@ -240,7 +244,7 @@ class LDMTrain(object):
                 starttime = time.time()
                 vld_loss, auc08, nle = self.valid_epoch()
                 runtime = (time.time() - starttime) / len(self.valid_loader.dataset)
-                res = {'loss/valid': vld_loss, 'auc08/valid': auc08, 'nle/valid': nle, 'runtime/valid': runtime}
+                res = {'loss_valid': vld_loss, 'auc08_valid': auc08, 'nle_valid': nle, 'runtime_valid': runtime}
                 self.update_tensorboard(epoch, **res)
                 print(f'Valid set: Average loss: {vld_loss:.6f} auc08={auc08:.03f} nle={nle:.03f}, ''\n')
             self.scheduler.step()
@@ -250,9 +254,8 @@ class LDMTrain(object):
                 self.losslog.dump()
 
         model, last_epoch = self.mdhl.model, self.mdhl.last_epoch
-        meta_model = self.losslog.get_meta()
 
-        trn_loss = meta_model['params']['loss_train'][-1][1]
-        vld_loss = meta_model['params']['loss_valid'][-1][1]
+        trn_loss = self.get_last_loss(type='train')
+        vld_loss = self.get_last_loss(type='valid')
 
         return model, trn_loss, vld_loss

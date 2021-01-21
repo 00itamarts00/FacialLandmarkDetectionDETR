@@ -24,8 +24,9 @@ class TopLevel(object):
     def load_params(self):
         return FileHandler.load_yaml(PARAMS)
 
-    def single_image_train(self):
-        override_params = {'train': {'epochs': 50}}
+    def single_batch_train(self):
+        override_params = {'train': {'epochs': 1, 'batch_size': 1},
+                           'experiment': {'single_batch_debug': True}}
         self.params = self.override_params_dict(dict_override=override_params)
         lmd_train = LDMTrain(params=self.params)
         lmd_train.train()
