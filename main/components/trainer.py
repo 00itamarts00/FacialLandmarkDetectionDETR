@@ -8,9 +8,11 @@ import os
 import time
 
 from torch.utils import data
+from main.refactor.utils import save_checkpoint
 from models import hrnet_config
 from models.hrnet_config import update_config
-
+from tensorboardX import SummaryWriter
+from main.refactor.functions import train, validate, inference
 # import pandas as pd
 # import torch
 # import wandb
@@ -24,6 +26,7 @@ from main.components.evaluate_model import *
 from main.components.scheduler_cls import ScheduleCLS
 from utils.file_handler import FileHandler
 from models import model_LMDT01, HRNET
+from main.refactor.dataset import DataSet68
 torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
@@ -41,6 +44,8 @@ class LDMTrain(object):
         self.trn_loss = self.get_last_loss()
         self.scheduler = self.load_scheduler()
         self.nnstats = CnnStats(self.paths.stats, self.mdhl.model)
+        self.loss = self.load_criteria()
+        self.writer = self.init_writer()
 
     @property
     def hm_amp_factor(self):
@@ -72,6 +77,20 @@ class LDMTrain(object):
             opts[i] = np.multiply(opts[i], sfactor[i]) / sample.size(2)
         return sample, target, opts
 
+    def init_writer(self):
+        writer_dict = {
+            'writer': SummaryWriter(log_dir=self.paths.logs),
+            'train_global_steps': 0,
+            'valid_global_steps': 0,
+        }
+        return writer_dict
+
+    def load_criteria(self):
+        loss_crit = self.tr['criteria']
+        args = self.pr['loss'][loss_crit]
+        if loss_crit == 'MSELoss':
+            return torch.nn.MSELoss(size_average=True)
+
     def get_last_loss(self, type='train'):
         if self.losslog.meta_model == dict():
             return 0
@@ -89,13 +108,24 @@ class LDMTrain(object):
         dftrain = df.sample(frac=trainset_partition, random_state=partition_seed)  # random state is a seed value
         dfvalid = df.drop(dftrain.index)
 
-        dftrain.to_csv(os.path.join(self.workset_path, f'{nickname}_train.csv'))
-        dfvalid.to_csv(os.path.join(self.workset_path, f'{nickname}_valid.csv'))
+        # dftrain.to_csv(os.path.join(self.workset_path, f'{nickname}_train.csv'))
+        # dfvalid.to_csv(os.path.join(self.workset_path, f'{nickname}_valid.csv'))
 
         transform = get_def_transform() if use_augmentations else None
 
-        trainset = CLMDataset(self.workset_path, dftrain, transform=transform)
-        validset = CLMDataset(self.workset_path, dfvalid)
+        # trainset = CLMDataset(self.workset_path, dftrain, transform=transform)
+        # validset = CLMDataset(self.workset_path, dfvalid)
+
+        augmentation_args = None
+        if self.tr['datasets']['use_augmentations']:
+            augmentation_args = self.tr['datasets']['augmentations']
+        model_name = self.tr['model']
+        model_args = self.pr['model'][model_name]
+
+        trainset = DataSet68(dftrain, self.paths.workset, augmentation_args, model_args,
+                             is_train=True, transform=None)
+        validset = DataSet68(dfvalid, self.paths.workset, augmentation_args, model_args,
+                             is_train=False, transform=None)
 
         kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
@@ -112,6 +142,7 @@ class LDMTrain(object):
                      'args': os.path.join(workspace_path, 'args'),
                      'logs': os.path.join(workspace_path, 'logs'),
                      'stats': os.path.join(workspace_path, 'stats'),
+                     'final_output_dir': os.path.join(workspace_path, 'final_output_dir'),
                      'workset': self.workset_path
                      }
         paths = FileHandler.dict_to_nested_namedtuple(structure)
@@ -227,38 +258,55 @@ class LDMTrain(object):
     def train(self):
         run_valid = self.tr['run_valid']
         self.mdhl.model.to(self.device)
-        epochs = self.tr['epochs'] + self.mdhl.last_epoch + 1
 
+        # TODO: support multiple gpus
+        # gpus = list(config.GPUS)
+        # model = torch.nn.DataParallel(self.mdhl.model, device_ids=gpus).cuda()
+
+        epochs = self.tr['epochs'] + self.mdhl.last_epoch + 1
+        best_nme = 100
+        nme = 0
+        predictions = None
         for epoch in range(self.mdhl.last_epoch + 1, epochs):
             if math.isnan(self.trn_loss) or math.isinf(self.trn_loss):
                 break
             if self.train_loader is not None:
                 starttime = time.time()
-                trn_loss = self.train_epoch(epoch=epoch)
-                runtime = (time.time() - starttime) / len(self.train_loader.dataset)
-                last_lr = self.scheduler.get_last_lr()[0]
+                # train
+                kwargs = {'log_interval': 20}
+                train(train_loader=self.train_loader,
+                      model=self.mdhl.model,
+                      criterion=self.loss,
+                      optimizer=self.optimizer,
+                      epoch=epoch,
+                      writer_dict=self.writer,
+                      **kwargs)
 
-                print(f'Train set: Average loss: {trn_loss:.6f} LR={last_lr}\n')
-                res = {'loss_train': trn_loss, 'lr': last_lr, 'runtime_train': runtime}
-                self.update_tensorboard(epoch, **res)
-                self.nnstats.add_measure(epoch, self.mdhl.model, dump=True)
-
-            if run_valid and self.valid_loader is not None:
-                starttime = time.time()
-                vld_loss, auc08, nle = self.valid_epoch()
-                runtime = (time.time() - starttime) / len(self.valid_loader.dataset)
-                res = {'loss_valid': vld_loss, 'auc08_valid': auc08, 'nle_valid': nle, 'runtime_valid': runtime}
-                self.update_tensorboard(epoch, **res)
-                print(f'Valid set: Average loss: {vld_loss:.6f} auc08={auc08:.03f} nle={nle:.03f}, ''\n')
+                # evaluate
+                kwargs = {'num_landmarks': self.tr['num_landmarks']}
+                nme, predictions = validate(val_loader=self.valid_loader,
+                                            model=self.mdhl.model,
+                                            critertion=self.loss,
+                                            epoch=epoch,
+                                            writer_dict=self.writer,
+                                            **kwargs)
             self.scheduler.step()
 
-            if self.ex['save_model']:
-                self.mdhl.save(self.mdhl.model, epoch)
-                self.losslog.dump()
+            is_best = nme < best_nme
+            best_nme = min(nme, best_nme)
+            logger.info(f'=> saving checkpoint to {self.paths.final_output_dir}')
+            final_model_state_file = os.path.join(self.paths.final_output_dir, 'final_state.pth')
 
-        model, last_epoch = self.mdhl.model, self.mdhl.last_epoch
+            save_checkpoint(states=
+                            {"state_dict": self.mdhl.model,
+                             "epoch": epoch + 1,
+                             "best_nme": best_nme,
+                             "optimizer": self.optimizer.state_dict()},
+                            predictions=predictions,
+                            is_best=is_best,
+                            output_dir=self.paths.final_output_dir,
+                            filename='checkpoint_{}.pth'.format(epoch))
 
-        trn_loss = self.get_last_loss(type='train')
-        vld_loss = self.get_last_loss(type='valid')
-
-        return model, trn_loss, vld_loss
+            logger.info(f'saving final model state to {final_model_state_file}')
+            torch.save(self.mdhl.model.state_dict(), final_model_state_file)
+            self.writer['writer'].close()

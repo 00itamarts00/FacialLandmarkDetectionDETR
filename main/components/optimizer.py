@@ -22,6 +22,7 @@ class OptimizerCLS(object):
             return self.load_sgd_opt()
 
     def get_trainable_parameters(self):
+        # TODO: understand this better - itamar
         trainable_parameters = self.params['train']['trainable_parameters']
         if trainable_parameters is None:
             return self.model.parameters()
@@ -39,7 +40,7 @@ class OptimizerCLS(object):
                 return params
 
     def load_ranger_opt(self):
-        optimizer = Ranger(params=self.trainable_parameters,
+        optimizer = Ranger(params=filter(lambda p: p.requires_grad, self.model.parameters()),
                            lr=self.op['lr'],
                            alpha=self.op['alpha'],
                            K=self.op['k'],
@@ -52,7 +53,7 @@ class OptimizerCLS(object):
         return optimizer
 
     def load_sgd_opt(self):
-        optimizer = optim.SGD(params=self.trainable_parameters,
+        optimizer = optim.SGD(params=filter(lambda p: p.requires_grad, self.model.parameters()),
                               lr=self.op['lr'],
                               momentum=self.op['momentum'],
                               dampening=self.op['dampening'],
@@ -61,7 +62,7 @@ class OptimizerCLS(object):
         return optimizer
 
     def load_adam_opt(self):
-        optimizer = optim.Adam(params=self.trainable_parameters,
+        optimizer = optim.Adam(params=filter(lambda p: p.requires_grad, self.model.parameters()),
                                lr=self.op['lr'],
                                betas=self.op['betas'],
                                eps=float(self.op['eps']),

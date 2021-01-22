@@ -173,7 +173,7 @@ class CLMDataset(data.Dataset):
 
         img = ia.imresize_single_image(im_, self.imgsize)
         sfactor = img.shape[0] / im_.shape[0]
-        pts = pts_ * sfactor;
+        pts = pts_ * sfactor
 
         if not (self.transform is None):
             if random.random() > 0.5:
