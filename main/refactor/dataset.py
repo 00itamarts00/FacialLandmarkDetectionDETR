@@ -15,6 +15,7 @@ import numpy as np
 import cv2
 from utils.file_handler import FileHandler
 from main.refactor.transforms import fliplr_joints, crop, generate_target, transform_pixel
+from utils.plot_utils import *
 
 
 class DataSet68(data.Dataset):
@@ -42,12 +43,12 @@ class DataSet68(data.Dataset):
         image_path = os.path.join(self.data_root, self.df.iloc[idx, 2], 'img', self.df.iloc[idx, 1]+'.jpg')
         pts_path = os.path.join(self.data_root, self.df.iloc[idx, 2], 'pts68', self.df.iloc[idx, 1]+'.pts')
 
-        img = np.array(Image.open(image_path).convert('RGB'), dtype=np.float32)
-        img_resize = cv2.resize(img, dsize=tuple(self.input_size), interpolation=cv2.INTER_CUBIC)
-        scale = img.shape[0] / img_resize.shape[0]
+        im_ = np.array(Image.open(image_path).convert('RGB'), dtype=np.float32)
+        img = cv2.resize(im_, dsize=tuple(self.input_size), interpolation=cv2.INTER_CUBIC)
+        scale = im_.shape[0] / img.shape[0]
 
-        center_w = 128
-        center_h = 128
+        center_w = 0
+        center_h = 0
         center = torch.Tensor([center_w, center_h])
 
         pts = np.array(FileHandler.load_json(pts_path)['pts'], dtype=np.float)
@@ -87,5 +88,7 @@ class DataSet68(data.Dataset):
         meta = {'index': idx, 'center': center, 'scale': scale,
                 'pts': torch.Tensor(pts), 'tpts': tpts}
 
+        plot_ldm_on_image(img, pts)
+        plt.show()
         return img, target, meta
 
