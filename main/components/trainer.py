@@ -8,6 +8,8 @@ import os
 import time
 
 from torch.utils import data
+from models import hrnet_config
+from models.hrnet_config import update_config
 
 # import pandas as pd
 # import torch
@@ -19,10 +21,9 @@ from main.components.CLMDataset import CLMDataset, get_def_transform, get_data_l
 from main.components.optimizer import OptimizerCLS
 # import numpy as np
 from main.components.evaluate_model import *
-from models import model_LMDT01
 from main.components.scheduler_cls import ScheduleCLS
 from utils.file_handler import FileHandler
-
+from models import model_LMDT01, HRNET
 torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
@@ -131,6 +132,9 @@ class LDMTrain(object):
         if self.tr['model'] == 'LMDT01':
             output_branch = self.pr['model']['LMDT01']['output_branch']
             model = model_LMDT01.get_instance(output_branch=output_branch)
+        if self.tr['model'] == 'HRNET':
+            config = hrnet_config._C
+            model = HRNET.get_face_alignment_net(config)
         mdhl = CModelHandler(model=model, nets=self.paths.nets, args=self.paths.args, **kwargs)
         return mdhl
 
@@ -155,7 +159,9 @@ class LDMTrain(object):
             sample, target, opts = sample.to(self.device), target.to(self.device), opts.to(self.device)
             self.optimizer.zero_grad()
             output = self.mdhl.model(sample)
-            loss = self.mdhl.model.loss(output, target, opts)
+            args = [output, target, opts]
+            kwargs = {}
+            loss = self.mdhl.model.loss(args, **kwargs)
             # TODO: understand better the way be backprop the loss
             vmean_loss = []
             if len(loss) > 1:
@@ -166,9 +172,9 @@ class LDMTrain(object):
                 mean_loss = np.mean(loss[-1].item())
                 vmean_loss.append(mean_loss)
             else:
-                loss.backward()
-                mean_loss = np.mean(loss.item())
-                vmean_loss[0] = mean_loss
+                loss[0].backward()
+                mean_loss = np.mean(loss[0].item())
+                vmean_loss.append(mean_loss)
 
             self.optimizer.step()
 
@@ -199,13 +205,11 @@ class LDMTrain(object):
                 target = np.multiply(target, self.hm_amp_factor)
                 sample, target, opts = sample.to(self.device), target.to(self.device), opts.to(self.device)
                 output = self.mdhl.model(sample)
-                loss = self.mdhl.model.loss(output, target, opts)
-                if len(loss) > 1:
-                    mean_loss = np.mean(loss[-1].item())
-                else:
-                    mean_loss = np.mean(loss.item())
+                args = [output, target, opts]
+                kwargs = {}
+                loss = self.mdhl.model.loss(args, **kwargs)
+                mean_loss = np.mean(loss[-1].item())
                 valid_loss.append(mean_loss)
-
                 epts = self.mdhl.model.extract_epts(output, res_factor=1)
                 epts = add_metadata_to_result(epts, item)
                 epts_batch.update(epts)

@@ -33,6 +33,7 @@ train:
     pin_memory: True
   backend:
     use_torch: True
+#  model: 'HRNET'
   model: 'LMDT01'
   optimizer: 'ADAM'
   scheduler: 'StepLR'
@@ -62,6 +63,7 @@ optimizer:
 model:
   LMDT01:
     output_branch: 'DPTS'
+  HRNET: null
 scheduler:
   StepLR:
     step_size: 200

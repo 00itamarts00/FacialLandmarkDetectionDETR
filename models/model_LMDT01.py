@@ -138,7 +138,8 @@ class Net(nn.Module):
     def get_loss_fn(self):
         return self.loss_fn
 
-    def loss(self, output, target, opts):
+    def loss(self, args, **kwargs):
+        output, target, opts = args
         loss0 = self.loss_hm(output[0], target)
         loss1 = self.loss_hm(output[1], target)
         loss2 = self.loss_hm(output[2], target)

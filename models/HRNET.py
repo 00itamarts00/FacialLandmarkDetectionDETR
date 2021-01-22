@@ -257,7 +257,8 @@ class HighResolutionNet(nn.Module):
         self.inplanes = 64
         extra = config.MODEL.EXTRA
         super(HighResolutionNet, self).__init__()
-
+        # loss function
+        self.loss_fuction = torch.nn.MSELoss(size_average=True).cuda()
         # stem net
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=2, padding=1,
                                bias=False)
@@ -298,7 +299,6 @@ class HighResolutionNet(nn.Module):
             pre_stage_channels, num_channels)
         self.stage4, pre_stage_channels = self._make_stage(
             self.stage4_cfg, num_channels, multi_scale_output=True)
-
         final_inp_channels = sum(pre_stage_channels)
 
         self.head = nn.Sequential(
@@ -318,8 +318,12 @@ class HighResolutionNet(nn.Module):
                 padding=1 if extra.FINAL_CONV_KERNEL == 3 else 0)
         )
 
-    def _make_transition_layer(
-            self, num_channels_pre_layer, num_channels_cur_layer):
+    def loss(self, args, **kwargs):
+        output, target, opts = args
+        return [self.loss_fuction(output, target)]
+
+    @staticmethod
+    def _make_transition_layer(num_channels_pre_layer, num_channels_cur_layer):
         num_branches_cur = len(num_channels_cur_layer)
         num_branches_pre = len(num_channels_pre_layer)
 

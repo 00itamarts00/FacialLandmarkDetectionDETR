@@ -50,7 +50,7 @@ class TopLevel(object):
     def single_batch_train(self):
         self.setup_workspace()
         self.setup_logger(name='single_batch_train')
-        override_params = {'train': {'epochs': 1, 'batch_size': 1},
+        override_params = {'train': {'epochs': 10, 'batch_size': 16},
                            'experiment': {'single_batch_debug': True}}
         self.params = self.override_params_dict(dict_override=override_params)
         lmd_train = LDMTrain(params=self.params)
@@ -63,7 +63,6 @@ class TopLevel(object):
         self.params = self.override_params_dict(dict_override=override_params)
         lmd_train = LDMTrain(params=self.params)
         lmd_train.train()
-        return fname
 
     def train(self):
         self.setup_workspace()
@@ -82,7 +81,7 @@ class TopLevel(object):
         lmd_eval.evaluate()
 
     def run_experiment(self):
-        self.train()
+        self.single_batch_train()
         override_params = {'experiment':
                                {'pretrained':
                                     {'timestamp': g.TIMESTAMP}}}
