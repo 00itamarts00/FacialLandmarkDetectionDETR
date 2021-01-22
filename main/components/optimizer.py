@@ -67,6 +67,5 @@ class OptimizerCLS(object):
                                eps=float(self.op['eps']),
                                weight_decay=self.op['weight_decay'],
                                amsgrad=self.op['amsgrad'])
-
         return optimizer
 

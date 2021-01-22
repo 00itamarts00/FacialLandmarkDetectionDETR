@@ -56,14 +56,6 @@ class TopLevel(object):
         lmd_train = LDMTrain(params=self.params)
         lmd_train.train()
 
-    def single_epoch_train(self):
-        self.setup_workspace()
-        self.setup_logger(name='single_epoch_train')
-        override_params = {'train': {'epochs': 1}}
-        self.params = self.override_params_dict(dict_override=override_params)
-        lmd_train = LDMTrain(params=self.params)
-        lmd_train.train()
-
     def train(self):
         self.setup_workspace()
         self.setup_logger(name='train')

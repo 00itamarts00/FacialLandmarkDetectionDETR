@@ -26,9 +26,10 @@ train:
   hm_amp_factor: 100
   run_valid: True
   cuda:
-    use: yes
+    use: False
     device: 'cuda:1'
     device_type: 'cuda'
+#    device_type: 'cpu'
     num_workers: 1
     pin_memory: True
   backend:

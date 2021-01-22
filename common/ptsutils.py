@@ -126,7 +126,6 @@ def extract_pts_from_hm(hm, res_factor=5):
         p = np.unravel_index(np.argmax(hmr), hmr.shape)
         pts[i, :] = (p[1], p[0])
     pts = np.true_divide(pts, res_factor)
-
     return pts
 
 
@@ -320,20 +319,3 @@ def image_align(img, pts, dst_size=(1024, 1024)):
     timg, tpts = crop_image_by_pts(rimg, rpts, ppad=10)
 
     simg, spts = image_scale(timg, tpts, dst_size)
-
-    if False:
-        imshowpts(img, pts)
-        imshowpts(simg, spts)
-
-        imshowpts(simg, spts)
-        imshowpts(pimg, ppts)
-        imshowpts(rimg, rpts)
-        imshowpts(timg, tpts)
-
-        imshowpts(rimg, spts, opts=rpts)
-
-        imshowpts(simg, spts, opts=np.array([upt, lpt]))
-
-        imshowpts(im, pts)
-        imshowpts(im, np.array([[minx, miny], [maxx, maxy]]))
-    return simg, spts

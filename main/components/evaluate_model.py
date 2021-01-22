@@ -87,7 +87,6 @@ def add_metadata_to_result(epts, item):
 
 def evaluate_model(device, test_loader, model, **kwargs):
     log_interval = kwargs.get('log_interval', 20)
-
     epts_batch = dict()
     with torch.no_grad():
         for batch_idx, item in enumerate(test_loader):
@@ -104,3 +103,28 @@ def evaluate_model(device, test_loader, model, **kwargs):
             sys.stdout.flush()
     sys.stdout.write(f"\n")
     return epts_batch
+
+
+def compute_nme(preds, targets, box_size=None):
+    preds = preds.numpy()
+    target = targets.cpu().numpy()
+
+    N = preds.shape[0]
+    L = preds.shape[1]
+    rmse = np.zeros(N)
+
+    for i in range(N):
+        pts_pred, pts_gt = preds[i, ], target[i, ]
+        if L == 19:  # aflw
+            interocular = box_size
+        elif L == 29:  # cofw
+            interocular = np.linalg.norm(pts_gt[8, ] - pts_gt[9, ])
+        elif L == 68:  # 300w
+            # interocular
+            interocular = np.linalg.norm(pts_gt[36, ] - pts_gt[45, ])
+        elif L == 98:
+            interocular = np.linalg.norm(pts_gt[60, ] - pts_gt[72, ])
+        else:
+            raise ValueError('Number of landmarks is wrong')
+        rmse[i] = np.sum(np.linalg.norm(pts_pred - pts_gt, axis=1)) / (interocular * L)
+    return rmse

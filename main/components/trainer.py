@@ -162,7 +162,7 @@ class LDMTrain(object):
             args = [output, target, opts]
             kwargs = {}
             loss = self.mdhl.model.loss(args, **kwargs)
-            # TODO: understand better the way be backprop the loss
+
             vmean_loss = []
             if len(loss) > 1:
                 for lidx in range(0, len(loss) - 1):
