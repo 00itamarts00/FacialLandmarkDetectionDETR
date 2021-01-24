@@ -22,7 +22,6 @@ class Evaluator(object):
         self.workset_path = os.path.join(self.ds['dataset_dir'], self.ds['workset_name'])
         self.device = self.backend_operations()
         self.paths = self.create_workspace()
-        # self.train_loader, self.valid_loader = self.create_dataloaders()
         self.mdhl = self.load_model()
 
     @property
