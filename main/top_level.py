@@ -50,7 +50,7 @@ class TopLevel(object):
     def single_batch_train(self):
         self.setup_workspace()
         self.setup_logger(name='single_batch_train')
-        override_params = {'train': {'epochs': 10, 'batch_size': 16},
+        override_params = {'train': {'epochs': 1, 'batch_size': 1},
                            'experiment': {'single_batch_debug': True}}
         self.params = self.override_params_dict(dict_override=override_params)
         lmd_train = LDMTrain(params=self.params)

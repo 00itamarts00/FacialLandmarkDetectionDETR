@@ -188,7 +188,7 @@ class CLMDataset(data.Dataset):
         hmfactor = self.input_size[0] / self.hmsize[0]
         pts_ = torch.Tensor(pts_)
 
-        item = {'img_name': img_name, 'dataset': dataset, 'img': img, 'target': heatmaps,
+        item = {'index': idx, 'img_name': img_name, 'dataset': dataset, 'img': img, 'target': heatmaps,
                 'hm_pts': hm_pts, 'opts': pts_, 'sfactor': sfactor, 'hmfactor': hmfactor}
         return item
 

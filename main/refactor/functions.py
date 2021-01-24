@@ -45,6 +45,7 @@ def train_epoch(train_loader, model, criterion, optimizer,
                 epoch, writer_dict, **kwargs):
 
     log_interval = kwargs.get('log_interval', 20)
+    debug = kwargs.get('debug', False)
 
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -104,6 +105,9 @@ def train_epoch(train_loader, model, criterion, optimizer,
                 writer.add_scalar('train_loss', losses.val, global_steps)
                 writer_dict['train_global_steps'] = global_steps + 1
 
+            if debug:
+                break
+
         end = time.time()
     nme = nme_batch_sum / nme_count
     msg = 'Train Epoch {} time:{:.4f} loss:{:.4f} nme:{:.4f}'\
@@ -118,6 +122,7 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
     losses = AverageMeter()
 
     num_classes = kwargs.get('num_landmarks', 20)
+    debug = kwargs.get('debug', False)
 
     predictions = torch.zeros((len(val_loader.dataset), num_classes, 2))
 
@@ -130,34 +135,46 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
     end = time.time()
 
     with torch.no_grad():
-        for i, (inp, target, meta) in enumerate(val_loader):
+        for i, item in enumerate(val_loader):
             data_time.update(time.time() - end)
-            output = model(inp)
+            # compute the output
+            input_, target = item['img'], item['target']
+            output = model(input_)
             target = target.cuda(non_blocking=True)
 
-            score_map = output.data.cpu()
             # loss
             loss = criterion(output, target)
 
-            preds = decode_preds(score_map, meta['center'], meta['scale'], [64, 64])
             # NME
-            nme_temp = compute_nme(preds, meta)
+            scale = item['sfactor']
+            score_map = output.data.cpu()
+            res = np.array(item['target'].shape[-2:])
+            center = np.zeros([score_map.shape[0], 2])
+            preds = decode_preds(score_map, center, scale, res)
+            opts = item['opts']
+            nme_batch = compute_nme(preds, opts)
+            nme_batch_sum = nme_batch_sum + np.sum(nme_batch)
+            nme_count = nme_count + preds.size(0)
+
             # Failure Rate under different threshold
-            failure_008 = (nme_temp > 0.08).sum()
-            failure_010 = (nme_temp > 0.10).sum()
+            failure_008 = (nme_batch > 0.08).sum()
+            failure_010 = (nme_batch > 0.10).sum()
             count_failure_008 += failure_008
             count_failure_010 += failure_010
 
-            nme_batch_sum += np.sum(nme_temp)
+            nme_batch_sum += np.sum(nme_batch)
             nme_count = nme_count + preds.size(0)
             for n in range(score_map.size(0)):
-                predictions[meta['index'][n], :, :] = preds[n, :, :]
+                predictions[item['index'][n], :, :] = preds[n, :, :]
 
-            losses.update(loss.item(), inp.size(0))
+            losses.update(loss.item(), input_.size(0))
 
             # measure elapsed time
             batch_time.update(time.time() - end)
             end = time.time()
+
+            if debug:
+                break
 
     nme = nme_batch_sum / nme_count
     failure_008_rate = count_failure_008 / nme_count

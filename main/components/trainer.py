@@ -182,7 +182,8 @@ class LDMTrain(object):
             if self.train_loader is not None:
                 starttime = time.time()
                 # train
-                kwargs = {'log_interval': 20}
+                kwargs = {'log_interval': 20,
+                          'debug': self.ex['single_batch_debug']}
                 train_epoch(train_loader=self.train_loader,
                             model=self.mdhl.model,
                             criterion=self.loss,
@@ -192,10 +193,11 @@ class LDMTrain(object):
                             **kwargs)
 
                 # evaluate
-                kwargs = {'num_landmarks': self.tr['num_landmarks']}
+                kwargs = {'num_landmarks': self.tr['num_landmarks'],
+                          'debug': self.ex['single_batch_debug']}
                 nme, predictions = validate_epoch(val_loader=self.valid_loader,
                                                   model=self.mdhl.model,
-                                                  critertion=self.loss,
+                                                  criterion=self.loss,
                                                   epoch=epoch,
                                                   writer_dict=self.writer,
                                                   **kwargs)
