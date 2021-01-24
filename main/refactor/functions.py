@@ -41,8 +41,8 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def train(train_loader, model, criterion, optimizer,
-          epoch, writer_dict, **kwargs):
+def train_epoch(train_loader, model, criterion, optimizer,
+                epoch, writer_dict, **kwargs):
 
     log_interval = kwargs.get('log_interval', 20)
 
@@ -56,21 +56,26 @@ def train(train_loader, model, criterion, optimizer,
 
     end = time.time()
 
-    for i, (inp, target, meta) in enumerate(train_loader):
+    for i, item in enumerate(train_loader):
         # measure data time
-        data_time.update(time.time()-end)
+        data_time.update(time.time() - end)
 
         # compute the output
-        output = model(inp)
+        input_, target = item['img'], item['target']
+        output = model(input_)
         target = target.cuda(non_blocking=True)
 
         loss = criterion(output, target)
 
         # NME
+        scale = item['sfactor']
         score_map = output.data.cpu()
-        preds = decode_preds(score_map, meta['center'], meta['scale'], [64, 64])
+        res = np.array(item['target'].shape[-2:])
+        center = np.zeros([score_map.shape[0], 2])
+        preds = decode_preds(score_map, center, scale, res)
 
-        nme_batch = compute_nme(preds, meta)
+        opts = item['opts']
+        nme_batch = compute_nme(preds, opts)
         nme_batch_sum = nme_batch_sum + np.sum(nme_batch)
         nme_count = nme_count + preds.size(0)
 
@@ -79,7 +84,7 @@ def train(train_loader, model, criterion, optimizer,
         loss.backward()
         optimizer.step()
 
-        losses.update(loss.item(), inp.size(0))
+        losses.update(loss.item(), input_.size(0))
 
         batch_time.update(time.time()-end)
         if i % log_interval == 0:
@@ -89,7 +94,7 @@ def train(train_loader, model, criterion, optimizer,
                   'Data {data_time.val:.3f}s ({data_time.avg:.3f}s)\t' \
                   'Loss {loss.val:.5f} ({loss.avg:.5f})\t'.format(
                       epoch, i, len(train_loader), batch_time=batch_time,
-                      speed=inp.size(0)/batch_time.val,
+                      speed=input_.size(0)/batch_time.val,
                       data_time=data_time, loss=losses)
             logger.info(msg)
 
@@ -106,7 +111,7 @@ def train(train_loader, model, criterion, optimizer,
     logger.info(msg)
 
 
-def validate(val_loader, model, criterion, epoch, writer_dict, **kwargs):
+def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
     batch_time = AverageMeter()
     data_time = AverageMeter()
 

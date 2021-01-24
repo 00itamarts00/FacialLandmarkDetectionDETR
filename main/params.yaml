@@ -33,8 +33,8 @@ train:
   hm_amp_factor: 100
   run_valid: True
   cuda:
-    use: False
-    device: 'cuda:1'
+    use: True
+    device: 'cuda:0'
     device_type: 'cuda'
     num_workers: 1
     pin_memory: True
@@ -73,7 +73,7 @@ optimizer:
 model:
   LMDT01:
     output_branch: 'DPTS'
-    input_size: [ 256, 256 ]
+    input_size: [256, 256]
   HRNET:
     sigma: 1.5    # TODO: understand this parameter
     input_size: [256, 256]

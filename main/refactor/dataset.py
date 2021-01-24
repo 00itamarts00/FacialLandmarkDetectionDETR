@@ -6,7 +6,7 @@
 
 import os
 import random
-
+from main.components.CLMDataset import fliplr
 import torch
 import torch.utils.data as data
 import pandas as pd
@@ -43,13 +43,9 @@ class DataSet68(data.Dataset):
         image_path = os.path.join(self.data_root, self.df.iloc[idx, 2], 'img', self.df.iloc[idx, 1]+'.jpg')
         pts_path = os.path.join(self.data_root, self.df.iloc[idx, 2], 'pts68', self.df.iloc[idx, 1]+'.pts')
 
-        im_ = np.array(Image.open(image_path).convert('RGB'), dtype=np.float32)
+        im_ = np.array(Image.open(image_path), dtype=np.float32)
         img = cv2.resize(im_, dsize=tuple(self.input_size), interpolation=cv2.INTER_CUBIC)
         scale = im_.shape[0] / img.shape[0]
-
-        center_w = 0
-        center_h = 0
-        center = torch.Tensor([center_w, center_h])
 
         pts = np.array(FileHandler.load_json(pts_path)['pts'], dtype=np.float)
 
@@ -64,10 +60,10 @@ class DataSet68(data.Dataset):
                 if random.random() <= 0.6 else 0
             if random.random() <= 0.5 and self.flip:
                 img = np.fliplr(img)
+                # TODO: check this parts by plots
                 pts = fliplr_joints(pts, width=img.shape[1], dataset='300W')
-                center[0] = img.shape[1] - center[0]
-
-        img = crop(img, center, scale, self.input_size, rot=r)
+        center = [0, 0]
+        img = crop(img, [0, 0], scale, self.input_size, rot=r)
 
         target = np.zeros((nparts, self.output_size[0], self.output_size[1]))
         tpts = pts.copy()
@@ -83,9 +79,8 @@ class DataSet68(data.Dataset):
         img = img.transpose([2, 0, 1])
         target = torch.Tensor(target)
         tpts = torch.Tensor(tpts)
-        center = torch.Tensor(center)
 
-        meta = {'index': idx, 'center': center, 'scale': scale,
+        meta = {'index': idx, 'scale': scale, 'rot': r,
                 'pts': torch.Tensor(pts), 'tpts': tpts}
 
         plot_ldm_on_image(img, pts)

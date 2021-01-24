@@ -7,12 +7,9 @@ import os
 # import json
 import time
 
-from torch.utils import data
-from main.refactor.utils import save_checkpoint
-from models import hrnet_config
-from models.hrnet_config import update_config
 from tensorboardX import SummaryWriter
-from main.refactor.functions import train, validate, inference
+from torch.utils import data
+
 # import pandas as pd
 # import torch
 # import wandb
@@ -20,13 +17,15 @@ from common.losslog import CLossLog
 from common.modelhandler import CModelHandler
 from common.nnstats import CnnStats
 from main.components.CLMDataset import CLMDataset, get_def_transform, get_data_list
-from main.components.optimizer import OptimizerCLS
-# import numpy as np
 from main.components.evaluate_model import *
+from main.components.optimizer import OptimizerCLS
 from main.components.scheduler_cls import ScheduleCLS
-from utils.file_handler import FileHandler
+from main.refactor.functions import train_epoch, validate_epoch
+from main.refactor.utils import save_checkpoint
+from models import hrnet_config
 from models import model_LMDT01, HRNET
-from main.refactor.dataset import DataSet68
+from utils.file_handler import FileHandler
+
 torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
@@ -89,7 +88,7 @@ class LDMTrain(object):
         loss_crit = self.tr['criteria']
         args = self.pr['loss'][loss_crit]
         if loss_crit == 'MSELoss':
-            return torch.nn.MSELoss(size_average=True)
+            return torch.nn.MSELoss(reduction='mean')
 
     def get_last_loss(self, type='train'):
         if self.losslog.meta_model == dict():
@@ -108,24 +107,10 @@ class LDMTrain(object):
         dftrain = df.sample(frac=trainset_partition, random_state=partition_seed)  # random state is a seed value
         dfvalid = df.drop(dftrain.index)
 
-        # dftrain.to_csv(os.path.join(self.workset_path, f'{nickname}_train.csv'))
-        # dfvalid.to_csv(os.path.join(self.workset_path, f'{nickname}_valid.csv'))
-
         transform = get_def_transform() if use_augmentations else None
 
-        # trainset = CLMDataset(self.workset_path, dftrain, transform=transform)
-        # validset = CLMDataset(self.workset_path, dfvalid)
-
-        augmentation_args = None
-        if self.tr['datasets']['use_augmentations']:
-            augmentation_args = self.tr['datasets']['augmentations']
-        model_name = self.tr['model']
-        model_args = self.pr['model'][model_name]
-
-        trainset = DataSet68(dftrain, self.paths.workset, augmentation_args, model_args,
-                             is_train=True, transform=None)
-        validset = DataSet68(dfvalid, self.paths.workset, augmentation_args, model_args,
-                             is_train=False, transform=None)
+        trainset = CLMDataset(self.pr, self.paths, dftrain, transform=transform)
+        validset = CLMDataset(self.pr, self.paths, dfvalid)
 
         kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
@@ -181,87 +166,11 @@ class LDMTrain(object):
         torch.backends.benchmark = self.tr['backend']['use_torch']
         return device
 
-    def train_epoch(self, epoch):
-        self.mdhl.model.train()
-        train_loss = []
-        for batch_idx, item in enumerate(self.train_loader):
-            sample, target, opts = self._get_data_from_item(item)
-            target = np.multiply(target, self.hm_amp_factor)
-            sample, target, opts = sample.to(self.device), target.to(self.device), opts.to(self.device)
-            self.optimizer.zero_grad()
-            output = self.mdhl.model(sample)
-            args = [output, target, opts]
-            kwargs = {}
-            loss = self.mdhl.model.loss(args, **kwargs)
-
-            vmean_loss = []
-            if len(loss) > 1:
-                for lidx in range(0, len(loss) - 1):
-                    loss[lidx].backward(retain_graph=True)
-                    vmean_loss.append(np.mean(loss[lidx].item()))
-                loss[-1].backward()
-                mean_loss = np.mean(loss[-1].item())
-                vmean_loss.append(mean_loss)
-            else:
-                loss[0].backward()
-                mean_loss = np.mean(loss[0].item())
-                vmean_loss.append(mean_loss)
-
-            self.optimizer.step()
-
-            train_loss.append(mean_loss)
-            if batch_idx % self.log_interval == 0:
-                bsz, ssz, per = (batch_idx + 1) * len(sample), len(self.train_loader.dataset), \
-                                100. * (batch_idx + 1) / len(self.train_loader)
-                mean_loss = np.mean(train_loss)
-                osum0 = np.array(output[0].cpu().detach()).sum()
-                osum3 = np.array(output[3].cpu().detach()).sum()
-                print(f'Train Epoch: {epoch} [{bsz} / {ssz} ({per:.02f}%)]\tLoss: {mean_loss:.09f} \tosum0:'
-                      f' {osum0:.02f}\tosum3: {osum3:.02f} -- {vmean_loss}')
-            if self.ex['single_batch_debug']:
-                break
-        return np.mean(train_loss)
-
-    def update_tensorboard(self, epoch, **kwargs):
-        for key, val in kwargs.items():
-            self.losslog.add_value(epoch, key, val)
-
-    def valid_epoch(self):
-        self.mdhl.model.eval()
-        valid_loss = []
-        epts_batch = dict()
-        with torch.no_grad():
-            for batch_idx, item in enumerate(self.valid_loader):
-                sample, target, opts = self._get_data_from_item(item)
-                target = np.multiply(target, self.hm_amp_factor)
-                sample, target, opts = sample.to(self.device), target.to(self.device), opts.to(self.device)
-                output = self.mdhl.model(sample)
-                args = [output, target, opts]
-                kwargs = {}
-                loss = self.mdhl.model.loss(args, **kwargs)
-                mean_loss = np.mean(loss[-1].item())
-                valid_loss.append(mean_loss)
-                epts = self.mdhl.model.extract_epts(output, res_factor=1)
-                epts = add_metadata_to_result(epts, item)
-                epts_batch.update(epts)
-
-                if batch_idx % self.log_interval == 0:
-                    print(f'Validation:  [{(batch_idx + 1) * len(sample)}/{len(self.valid_loader.dataset)}'
-                          f' ({100. * (batch_idx + 1) / len(self.valid_loader):.02f}%)]'
-                          f'\tLoss: {np.mean(valid_loss):.06f}')
-                if self.ex['single_batch_debug']:
-                    break
-        auc08, nle, fail08, bins, ced68 = calc_accuarcy(epts_batch)
-        # auc08, nle = -1, -1
-        return np.mean(valid_loss), auc08, nle
-
     def train(self):
         run_valid = self.tr['run_valid']
-        self.mdhl.model.to(self.device)
 
         # TODO: support multiple gpus
-        # gpus = list(config.GPUS)
-        # model = torch.nn.DataParallel(self.mdhl.model, device_ids=gpus).cuda()
+        self.mdhl.model = torch.nn.DataParallel(self.mdhl.model, device_ids=[0]).cuda()
 
         epochs = self.tr['epochs'] + self.mdhl.last_epoch + 1
         best_nme = 100
@@ -274,22 +183,22 @@ class LDMTrain(object):
                 starttime = time.time()
                 # train
                 kwargs = {'log_interval': 20}
-                train(train_loader=self.train_loader,
-                      model=self.mdhl.model,
-                      criterion=self.loss,
-                      optimizer=self.optimizer,
-                      epoch=epoch,
-                      writer_dict=self.writer,
-                      **kwargs)
+                train_epoch(train_loader=self.train_loader,
+                            model=self.mdhl.model,
+                            criterion=self.loss,
+                            optimizer=self.optimizer,
+                            epoch=epoch,
+                            writer_dict=self.writer,
+                            **kwargs)
 
                 # evaluate
                 kwargs = {'num_landmarks': self.tr['num_landmarks']}
-                nme, predictions = validate(val_loader=self.valid_loader,
-                                            model=self.mdhl.model,
-                                            critertion=self.loss,
-                                            epoch=epoch,
-                                            writer_dict=self.writer,
-                                            **kwargs)
+                nme, predictions = validate_epoch(val_loader=self.valid_loader,
+                                                  model=self.mdhl.model,
+                                                  critertion=self.loss,
+                                                  epoch=epoch,
+                                                  writer_dict=self.writer,
+                                                  **kwargs)
             self.scheduler.step()
 
             is_best = nme < best_nme
@@ -310,3 +219,4 @@ class LDMTrain(object):
             logger.info(f'saving final model state to {final_model_state_file}')
             torch.save(self.mdhl.model.state_dict(), final_model_state_file)
             self.writer['writer'].close()
+

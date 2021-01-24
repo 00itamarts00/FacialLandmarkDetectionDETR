@@ -8,7 +8,8 @@ import copy
 import json
 import os
 import random
-
+from PIL import Image
+from utils.file_handler import FileHandler
 import imgaug as ia
 import imgaug.augmenters as iaa
 import matplotlib.pyplot as plt
@@ -52,7 +53,7 @@ def get_def_transform():
 
 def transform_data(transform, im, pts):
     kps = [ia.Keypoint(x, y) for x, y in pts]
-    image_aug, kps_aug = np.array(transform(image=im, keypoints=kps))
+    image_aug, kps_aug = np.array(transform(image=im, keypoints=kps), dtype=object)
     ptsa = []
     for item in kps_aug:
         ptsa.append([item.coords[0][0], item.coords[0][1]])
@@ -122,22 +123,22 @@ def fliplr(im, pts):
 
     ptsa[didx, 0] = pts[sidx, 0]
     ptsa[didx, 1] = pts[sidx, 1]
-
     ptsa[didx, 0] = ima.shape[1] - ptsa[didx, 0]
-
     return ima, ptsa
 
 
 class CLMDataset(data.Dataset):
-    def __init__(self, worksets_path, dflist, numpts=68, imgsize=(256, 256), is_train=True, transform=None):
-        self.worksets_path = worksets_path
-        self.numpts = numpts
+    def __init__(self, params, paths, dflist, is_train=True, transform=None):
+        self.worksets_path = paths.workset
         self.transform = transform
-        self.imgsize = (256, 256)
-        self.hmsize = [64, 64]
+        self.num_landmarks = params['train']['num_landmarks']
+        model_args = params['model'][params['train']['model']]
+        self.dflist = dflist
+        self.is_train = is_train
+        self.input_size = model_args['input_size']
+        self.hmsize = model_args['heatmap_size']
         self.gaurfactor = 5
         self.gaustd = 2.5
-        self.dflist = dflist
         # Extracted from trainset_full.csv
         self.mean = np.array([[0.5021, 0.3964, 0.3471]], dtype=np.float32)
         self.std = np.array([0.2858, 0.2547, 0.2488], dtype=np.float32)
@@ -151,54 +152,44 @@ class CLMDataset(data.Dataset):
         imgname = df.iloc[idx]['imgnames']
         dataset = df.iloc[idx]['dataset']
 
-        ptspath = os.path.join(self.worksets_path, dataset, f'pts{self.numpts}', f'{imgname}.pts')
-        imgpath = os.path.join(self.worksets_path, dataset, 'img', f'{imgname}.jpg')
+        pts_path = os.path.join(self.worksets_path, dataset, f'pts{self.num_landmarks}', f'{imgname}.pts')
+        img_path = os.path.join(self.worksets_path, dataset, 'img', f'{imgname}.jpg')
 
-        im_ = plt.imread(imgpath)
-        fid = open(ptspath, 'r', encoding='utf-8')
-        data = json.load(fid)
-        pts_ = np.array(data['pts'])
+        im_ = np.array(Image.open(img_path), dtype=np.float32)
+        pts_ = np.array(FileHandler.load_json(pts_path)['pts'])
         return im_, pts_
 
     def get_infodata(self, idx):
-        df = self.dflist
-        imgname = df.iloc[idx]['imgnames']
-        dataset = df.iloc[idx]['dataset']
-
+        imgname = self.dflist.iloc[idx]['imgnames']
+        dataset = self.dflist.iloc[idx]['dataset']
         return dataset, imgname
 
     def __getitem__(self, idx):
-        dataset, imgname = self.get_infodata(idx)
+        dataset, img_name = self.get_infodata(idx)
         im_, pts_ = self.get_pairdata(idx)
 
-        img = ia.imresize_single_image(im_, self.imgsize)
+        img = ia.imresize_single_image(im_, self.input_size)
         sfactor = img.shape[0] / im_.shape[0]
         pts = pts_ * sfactor
 
-        if not (self.transform is None):
+        if self.transform is not None and self.is_train:
             if random.random() > 0.5:
                 img, pts = fliplr(img, pts)
             img, pts = transform_data(self.transform, img, pts)
 
-        hm, hm_pts = create_heatmaps2(pts, np.shape(img), self.hmsize, self.imga, self.gaurfactor)
-        hm = np.float32(hm)  # /np.max(hm)
+        heatmaps, hm_pts = create_heatmaps2(pts, np.shape(img), self.hmsize, self.imga, self.gaurfactor)
+        heatmaps = np.float32(heatmaps)  # /np.max(hm)
+        heatmaps = torch.Tensor(heatmaps)
 
-        img = img.astype(np.float32)
-        # img = (np.float32(img)/255 - self.mean) / self.std
-        img = np.float32(img) / 255
-        # img = img.transpose([2, 0, 1])
-
+        img = (np.float32(img)/255 - self.mean) / self.std
         img = torch.Tensor(img)
-        hm = torch.Tensor(hm)
-
         img = img.permute(2, 0, 1)
 
-        hmfactor = self.imgsize[0] / self.hmsize[0]
+        hmfactor = self.input_size[0] / self.hmsize[0]
         pts_ = torch.Tensor(pts_)
 
-        item = {'img': img, 'hm': hm, 'hm_pts': hm_pts, 'opts': pts_, 'sfactor': sfactor, 'dataset': dataset,
-                'imgname': imgname, 'hmfactor': hmfactor}
-
+        item = {'img_name': img_name, 'dataset': dataset, 'img': img, 'target': heatmaps,
+                'hm_pts': hm_pts, 'opts': pts_, 'sfactor': sfactor, 'hmfactor': hmfactor}
         return item
 
     def update_mean_and_std(self):

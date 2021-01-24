@@ -33,11 +33,10 @@ def get_preds(scores):
     return preds
 
 
-def compute_nme(preds, meta):
+def compute_nme(preds, opts, box_size=None):
 
-    targets = meta['pts']
     preds = preds.numpy()
-    target = targets.cpu().numpy()
+    target = opts.cpu().numpy()
 
     N = preds.shape[0]
     L = preds.shape[1]
@@ -46,7 +45,7 @@ def compute_nme(preds, meta):
     for i in range(N):
         pts_pred, pts_gt = preds[i, ], target[i, ]
         if L == 19:  # aflw
-            interocular = meta['box_size'][i]
+            interocular = box_size
         elif L == 29:  # cofw
             interocular = np.linalg.norm(pts_gt[8, ] - pts_gt[9, ])
         elif L == 68:  # 300w
