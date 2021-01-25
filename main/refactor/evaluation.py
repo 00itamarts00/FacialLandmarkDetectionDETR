@@ -61,14 +61,15 @@ def compute_nme(preds, opts, box_size=None):
 
 
 def extract_pts_from_hm(score_maps, scale, hm_input_ratio):
-    pred = []
+    pred = [None] * score_maps.shape[0]
     for k, hm_stack in enumerate(score_maps):
-        pts = []
-        for hm in hm_stack:
-            max_idx = np.unravel_index(hm.argmax(), hm.shape)
-            pts.append(np.array(max_idx))
+        pts = [None] * score_maps.shape[1]
+        for p, hm in enumerate(hm_stack):
+            max_idx = np.unravel_index(np.argmax(hm, axis=None), hm.shape)  # returns a tuple
+            pttmp = np.array(max_idx)
+            pts[p] = np.array([pttmp[1], pttmp[0]])
         pts = np.multiply(np.multiply(pts, 1/scale.numpy()[k]), hm_input_ratio.numpy()[k])
-        pred.append(pts)
+        pred[k] = pts
     return torch.tensor(pred)
 
 

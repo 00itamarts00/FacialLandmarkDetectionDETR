@@ -189,8 +189,9 @@ class CLMDataset(data.Dataset):
         hmfactor = self.input_size[0] / self.hmsize[0]
         pts_ = torch.Tensor(pts_)
 
-        item = {'index': idx, 'oimg': im_, 'img_name': img_name, 'dataset': dataset, 'img': img, 'target': heatmaps,
-                'hm_pts': hm_pts, 'opts': pts_, 'sfactor': sfactor, 'hmfactor': hmfactor, 'tpts': pts}
+        item = {'index': idx, 'img_name': img_name, 'dataset': dataset,
+                'img': img, 'target': heatmaps, 'hm_pts': hm_pts, 'opts': pts_, 'sfactor': sfactor,
+                'hmfactor': hmfactor, 'tpts': pts}
         return item
 
     def update_mean_and_std(self):
@@ -251,10 +252,6 @@ if __name__ == '__main__':
         item = trainset.__getitem__(i)
         imshowpts(np.array(item['img']).transpose([1, 2, 0]), item['pts'])
         imshowpts(np.array(item['hm']).transpose([1, 2, 0]).sum(2), item['hm_pts'])
-
-        # img = trainset.renorm_image(item['img'])
-        # pts = np.array(item['pts'])
-        # imshowpts(img,pts)
 
     for i in range(5):
         item = validset.__getitem__(i)

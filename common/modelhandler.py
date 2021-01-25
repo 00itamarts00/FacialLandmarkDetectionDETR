@@ -17,15 +17,18 @@ class CModelHandler(object):
             if kwargs.get('epochs_to_save') is None else kwargs.get('epochs_to_save')
 
     def get_last_epoch(self):
-        files = [f for f in os.listdir(self.checkpoint) if f.endswith('.pt')]
-        epidx = [int(re.findall(r'\d+', item)[0]) for item in files]
+        files = [f for f in os.listdir(self.checkpoint) if f.endswith('.pth')]
+        regex = re.compile(r'\d+')
+        epidx = np.array([[int(x) for x in regex.findall(i)] for i in files])
+        epidx = np.array([i[0] for i in epidx if i != []], dtype=int)
+        # epidx = [int(re.findall(r'\d+', item)[0]) for item in files]
         last_epoch = -1 if len(epidx) == 0 else max(epidx)
         return last_epoch
 
     def load_pretrained(self):
-        model_name = f'model_{str(self.last_epoch).zfill(5)}.pt'
+        model_name = f'checkpoint_{str(self.last_epoch)}.pth'
         pretrained_dict = torch.load(os.path.join(self.checkpoint, model_name))
-        self.model.load_state_dict(pretrained_dict)
+        self.model.load_state_dict(pretrained_dict['state_dict'].module.state_dict())
 
     def weights_init(self, m):
         classname = m.__class__.__name__

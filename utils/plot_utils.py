@@ -19,7 +19,7 @@ def plot_score_maps(item, index, score_map, predictions):
     img_name = item['img_name'][index]
     img = item['img'].numpy()[index]
     score_map_i = score_map.numpy()[index]
-    preds = predictions[index].numpy()
+    preds = predictions.numpy()[index]
     opts = item['opts'].numpy()[index]
     cnt = 1
     fig = Figure(figsize=[30, 20])
@@ -33,8 +33,8 @@ def plot_score_maps(item, index, score_map, predictions):
     ax = fig.add_subplot(8, 9, cnt)
     ax.scatter(opts.T[0], opts.T[1], s=1, c='b', label='gt')
     ax.scatter(preds.T[0], preds.T[1], s=1, c='r', label='pred')
-    ax.tick_params(axis='x', labelsize=2)
-    ax.tick_params(axis='y', labelsize=2)
+    ax.tick_params(axis='x', labelsize=7)
+    ax.tick_params(axis='y', labelsize=7)
     ax.set_title(f'pred and target', fontsize=5)
     cnt += 1
     for hm in score_map_i:

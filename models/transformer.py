@@ -99,7 +99,6 @@ class TransformerEncoder(nn.Module):
 
 
 class TransformerDecoder(nn.Module):
-
     def __init__(self, decoder_layer, num_layers, norm=None, return_intermediate=False):
         super().__init__()
         self.layers = _get_clones(decoder_layer, num_layers)

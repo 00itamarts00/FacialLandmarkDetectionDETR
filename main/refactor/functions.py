@@ -52,8 +52,7 @@ def train_epoch(train_loader, model, criterion, optimizer,
     losses = AverageMeter()
 
     model.train()
-    nme_count = 0
-    nme_batch_sum = 0
+    nme_count = nme_batch_sum = 0
 
     end = time.time()
 
@@ -61,20 +60,20 @@ def train_epoch(train_loader, model, criterion, optimizer,
         # measure data time
         data_time.update(time.time() - end)
 
+        input_, target, opts = item['img'], item['target'], item['opts']
+        scale, hm_factor = item['sfactor'], item['hmfactor']
+
         # compute the output
-        input_, target = item['img'], item['target']
         output = model(input_)
         target = target.cuda(non_blocking=True)
 
+        # Loss
         loss = criterion(output, target)
 
         # NME
-        scale = item['sfactor']
-        hm_factor = item['hmfactor']
         score_map = output.data.cpu()
 
         preds = extract_pts_from_hm(score_maps=score_map, scale=scale, hm_input_ratio=hm_factor)
-        opts = item['opts']
         nme_batch = compute_nme(preds, opts)
         nme_batch_sum = nme_batch_sum + np.sum(nme_batch)
         nme_count = nme_count + preds.size(0)
@@ -98,24 +97,25 @@ def train_epoch(train_loader, model, criterion, optimizer,
                       data_time=data_time, loss=losses)
             logger.info(msg)
 
-            if writer_dict:
-                writer = writer_dict['writer']
-                log = writer_dict['log']
-                log[epoch] = {}
-                global_steps = writer_dict['train_global_steps']
-                writer.add_scalar('train_loss', losses.val, global_steps)
-                log[epoch].update({'train_loss': losses.val})
-                writer.add_scalar('train_nme', nme_batch_sum / nme_count, global_steps)
-                log[epoch].update({'train_nme': nme_batch_sum / nme_count})
-                writer.add_scalar('batch_time.avg', batch_time.avg, global_steps)
-                log[epoch].update({'batch_time.avg': batch_time.avg})
-                writer_dict['train_global_steps'] = global_steps + 1
-
-            if debug:
-                break
+        if debug:
+            break
 
         end = time.time()
+
     nme = nme_batch_sum / nme_count
+    if writer_dict:
+        writer = writer_dict['writer']
+        log = writer_dict['log']
+        log[epoch] = {}
+        global_steps = writer_dict['train_global_steps']
+        writer.add_scalar('train_loss', losses.val, global_steps)
+        log[epoch].update({'train_loss': losses.val})
+        writer.add_scalar('train_nme', nme, global_steps)
+        log[epoch].update({'train_nme': nme})
+        writer.add_scalar('batch_time.avg', batch_time.avg, global_steps)
+        log[epoch].update({'batch_time.avg': batch_time.avg})
+        writer_dict['train_global_steps'] = global_steps + 1
+
     msg = 'Train Epoch {} time:{:.4f} loss:{:.4f} nme:{:.4f}'\
         .format(epoch, batch_time.avg, losses.avg, nme)
     logger.info(msg)
@@ -143,8 +143,10 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
     with torch.no_grad():
         for i, item in enumerate(val_loader):
             data_time.update(time.time() - end)
+            input_, target, opts = item['img'], item['target'], item['opts']
+            scale, hm_factor = item['sfactor'], item['hmfactor']
+
             # compute the output
-            input_, target = item['img'], item['target']
             output = model(input_)
             target = target.cuda(non_blocking=True)
 
@@ -152,11 +154,8 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
             loss = criterion(output, target)
 
             # NME
-            scale = item['sfactor']
-            hm_factor = item['hmfactor']
             score_map = output.data.cpu()
             preds = extract_pts_from_hm(score_maps=score_map, scale=scale, hm_input_ratio=hm_factor)
-            opts = item['opts']
             nme_batch = compute_nme(preds, opts)
             scatter_prediction_gt(preds, opts)
 

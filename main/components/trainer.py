@@ -43,8 +43,6 @@ class LDMTrain(object):
         self.mdhl = self.load_model()
         self.optimizer = self.load_optimizer()
         self.trn_loss = 0
-        # self.trn_loss = self.get_last_loss()
-
         self.scheduler = self.load_scheduler()
         self.nnstats = CnnStats(self.paths.stats, self.mdhl.model)
         self.loss = self.load_criteria()
@@ -84,8 +82,8 @@ class LDMTrain(object):
     def init_writer(self):
         writer_dict = {
             'writer': SummaryWriter(log_dir=self.paths.logs),
-            'train_global_steps': 0,
-            'valid_global_steps': 0,
+            'train_global_steps': self.mdhl.last_epoch + 1,
+            'valid_global_steps': self.mdhl.last_epoch + 1,
             'log': {}
         }
         return writer_dict
@@ -95,11 +93,6 @@ class LDMTrain(object):
         args = self.pr['loss'][loss_crit]
         if loss_crit == 'MSELoss':
             return torch.nn.MSELoss(reduction='mean')
-
-    def get_last_loss(self, type='train'):
-        if self.losslog.meta_model == dict():
-            return 0
-        return self.losslog.meta_model[next(reversed(self.losslog.meta_model))][f'loss_{type}']['val']
 
     def create_dataloaders(self):
         use_cuda = self.tr['cuda']['use']
@@ -138,10 +131,6 @@ class LDMTrain(object):
         paths = FileHandler.dict_to_nested_namedtuple(structure)
         [os.makedirs(i, exist_ok=True) for i in paths]
         return paths
-
-    # def load_losslog(self):
-    #     losslog = CLossLog(self.paths, last_epoch=self.mdhl.last_epoch)
-    #     return losslog
 
     def load_optimizer(self):
         opt = OptimizerCLS(params=self.pr, model=self.mdhl.model)
