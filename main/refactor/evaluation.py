@@ -67,7 +67,7 @@ def extract_pts_from_hm(score_maps, scale, hm_input_ratio):
         for hm in hm_stack:
             max_idx = np.unravel_index(hm.argmax(), hm.shape)
             pts.append(np.array(max_idx))
-        pts = np.multiply(np.multiply(pts, scale.numpy()[k]), hm_input_ratio.numpy()[k])
+        pts = np.multiply(np.multiply(pts, 1/scale.numpy()[k]), hm_input_ratio.numpy()[k])
         pred.append(pts)
     return torch.tensor(pred)
 

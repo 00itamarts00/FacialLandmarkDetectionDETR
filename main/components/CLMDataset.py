@@ -181,14 +181,15 @@ class CLMDataset(data.Dataset):
         heatmaps = np.float32(heatmaps)  # /np.max(hm)
         heatmaps = torch.Tensor(heatmaps)
 
-        img = (np.float32(img)/255 - self.mean) / self.std
+        # img = (np.float32(img)/255 - self.mean) / self.std
+        img = np.float32(img) / 255
         img = torch.Tensor(img)
         img = img.permute(2, 0, 1)
 
         hmfactor = self.input_size[0] / self.hmsize[0]
         pts_ = torch.Tensor(pts_)
 
-        item = {'index': idx, 'img_name': img_name, 'dataset': dataset, 'img': img, 'target': heatmaps,
+        item = {'index': idx, 'oimg': im_, 'img_name': img_name, 'dataset': dataset, 'img': img, 'target': heatmaps,
                 'hm_pts': hm_pts, 'opts': pts_, 'sfactor': sfactor, 'hmfactor': hmfactor}
         return item
 

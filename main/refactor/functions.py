@@ -14,7 +14,7 @@ import logging
 import torch
 from torchvision.utils import make_grid
 import numpy as np
-from utils.plot_utils import plot_score_maps
+from utils.plot_utils import plot_score_maps, scatter_prediction_gt
 from main.refactor.evaluation import decode_preds, compute_nme, extract_pts_from_hm
 logger = logging.getLogger(__name__)
 
@@ -158,6 +158,7 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
             preds = extract_pts_from_hm(score_maps=score_map, scale=scale, hm_input_ratio=hm_factor)
             opts = item['opts']
             nme_batch = compute_nme(preds, opts)
+            scatter_prediction_gt(preds, opts)
 
             # Failure Rate under different threshold
             failure_008 = (nme_batch > 0.08).sum()

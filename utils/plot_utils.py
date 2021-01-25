@@ -22,7 +22,7 @@ def plot_score_maps(item, index, score_map, predictions):
     preds = predictions[index].numpy()
     opts = item['opts'].numpy()[index]
     cnt = 1
-    fig = Figure()
+    fig = Figure(figsize=[30, 20])
     canvas = FigureCanvas(fig)
     fig.suptitle(f'debug_image\ndataset: {dataset} name: {img_name}')
     ax = fig.add_subplot(8, 9, cnt)
@@ -48,3 +48,13 @@ def plot_score_maps(item, index, score_map, predictions):
     width, height = fig.get_size_inches() * fig.get_dpi()
     image = np.fromstring(canvas.tostring_rgb(), dtype='uint8').reshape(int(height), int(width), 3)
     return image
+
+
+def scatter_prediction_gt(pred, gt):
+    plt.figure()
+    plt.scatter(pred.T[1], pred.T[0], s=2, label='pred')
+    plt.scatter(gt.T[1], gt.T[0], s=2, label='gt')
+    plt.legend()
+    plt.title('scatter pred and gt')
+    plt.show()
+    plt.pause(0.01)
