@@ -12,10 +12,10 @@ import time
 import logging
 
 import torch
+from torchvision.utils import make_grid
 import numpy as np
-
-from main.refactor.evaluation import decode_preds, compute_nme
-
+from utils.plot_utils import plot_score_maps
+from main.refactor.evaluation import decode_preds, compute_nme, extract_pts_from_hm
 logger = logging.getLogger(__name__)
 
 
@@ -70,11 +70,10 @@ def train_epoch(train_loader, model, criterion, optimizer,
 
         # NME
         scale = item['sfactor']
+        hm_factor = item['hmfactor']
         score_map = output.data.cpu()
-        res = np.array(item['target'].shape[-2:])
-        center = np.zeros([score_map.shape[0], 2])
-        preds = decode_preds(score_map, center, scale, res)
 
+        preds = extract_pts_from_hm(score_maps=score_map, scale=scale, hm_input_ratio=hm_factor)
         opts = item['opts']
         nme_batch = compute_nme(preds, opts)
         nme_batch_sum = nme_batch_sum + np.sum(nme_batch)
@@ -101,8 +100,15 @@ def train_epoch(train_loader, model, criterion, optimizer,
 
             if writer_dict:
                 writer = writer_dict['writer']
+                log = writer_dict['log']
+                log[epoch] = {}
                 global_steps = writer_dict['train_global_steps']
                 writer.add_scalar('train_loss', losses.val, global_steps)
+                log[epoch].update({'train_loss': losses.val})
+                writer.add_scalar('train_nme', nme_batch_sum / nme_count, global_steps)
+                log[epoch].update({'train_nme': nme_batch_sum / nme_count})
+                writer.add_scalar('batch_time.avg', batch_time.avg, global_steps)
+                log[epoch].update({'batch_time.avg': batch_time.avg})
                 writer_dict['train_global_steps'] = global_steps + 1
 
             if debug:
@@ -147,14 +153,11 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
 
             # NME
             scale = item['sfactor']
+            hm_factor = item['hmfactor']
             score_map = output.data.cpu()
-            res = np.array(item['target'].shape[-2:])
-            center = np.zeros([score_map.shape[0], 2])
-            preds = decode_preds(score_map, center, scale, res)
+            preds = extract_pts_from_hm(score_maps=score_map, scale=scale, hm_input_ratio=hm_factor)
             opts = item['opts']
             nme_batch = compute_nme(preds, opts)
-            nme_batch_sum = nme_batch_sum + np.sum(nme_batch)
-            nme_count = nme_count + preds.size(0)
 
             # Failure Rate under different threshold
             failure_008 = (nme_batch > 0.08).sum()
@@ -185,22 +188,34 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
                                 failure_008_rate, failure_010_rate)
     logger.info(msg)
 
+    dbg_img = plot_score_maps(item=item, index=-1, score_map=score_map, predictions=preds)
+    grid = torch.tensor(np.swapaxes(np.swapaxes(dbg_img, 0, -1), 1, 2))
+
     if writer_dict:
         writer = writer_dict['writer']
+        log = writer_dict['log']
+        log[epoch] = {}
         global_steps = writer_dict['valid_global_steps']
         writer.add_scalar('valid_loss', losses.avg, global_steps)
+        log[epoch].update({'valid_loss': losses.avg})
         writer.add_scalar('valid_nme', nme, global_steps)
+        log[epoch].update({'valid_nme': nme})
+        writer.add_scalar('valid_failure_008_rate', failure_008_rate, global_steps)
+        log[epoch].update({'valid_failure_008_rate': failure_008_rate})
+        writer.add_scalar('valid_failure_010_rate', failure_010_rate, global_steps)
+        log[epoch].update({'valid_failure_010_rate': failure_010_rate})
+        writer.add_image('images', grid, global_steps)
+        log[epoch].update({'dbg_img': dbg_img})
         writer_dict['valid_global_steps'] = global_steps + 1
-
     return nme, predictions
 
 
-def inference(config, data_loader, model):
+def inference(model, data_loader, **kwargs):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
 
-    num_classes = config.MODEL.NUM_JOINTS
+    num_classes = kwargs.get('num_classes', 68)
     predictions = torch.zeros((len(data_loader.dataset), num_classes, 2))
 
     model.eval()
@@ -212,14 +227,20 @@ def inference(config, data_loader, model):
     end = time.time()
 
     with torch.no_grad():
-        for i, (inp, target, meta) in enumerate(data_loader):
+        for i, item in enumerate(data_loader):
             data_time.update(time.time() - end)
-            output = model(inp)
+            input_, target = item['img'], item['target']
+            output = model(input_)
+
+            scale = item['sfactor']
             score_map = output.data.cpu()
-            preds = decode_preds(score_map, meta['center'], meta['scale'], [64, 64])
+            res = np.array(item['target'].shape[-2:])
+            center = np.zeros([score_map.shape[0], 2])
+            preds = decode_preds(score_map, center, scale, res)
+            opts = item['opts']
 
             # NME
-            nme_temp = compute_nme(preds, meta)
+            nme_temp = compute_nme(preds, opts)
 
             failure_008 = (nme_temp > 0.08).sum()
             failure_010 = (nme_temp > 0.10).sum()
@@ -229,7 +250,7 @@ def inference(config, data_loader, model):
             nme_batch_sum += np.sum(nme_temp)
             nme_count = nme_count + preds.size(0)
             for n in range(score_map.size(0)):
-                predictions[meta['index'][n], :, :] = preds[n, :, :]
+                predictions[item['index'][n], :, :] = preds[n, :, :]
 
             # measure elapsed time
             batch_time.update(time.time() - end)

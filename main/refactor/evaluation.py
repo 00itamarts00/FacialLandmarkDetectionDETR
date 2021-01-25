@@ -38,26 +38,38 @@ def compute_nme(preds, opts, box_size=None):
     preds = preds.numpy()
     target = opts.cpu().numpy()
 
-    N = preds.shape[0]
-    L = preds.shape[1]
-    rmse = np.zeros(N)
+    batch_size = preds.shape[0]
+    num_landmarks = preds.shape[1]
+    rmse = np.zeros(batch_size)
 
-    for i in range(N):
+    for i in range(batch_size):
         pts_pred, pts_gt = preds[i, ], target[i, ]
-        if L == 19:  # aflw
+        if num_landmarks == 19:  # aflw
             interocular = box_size
-        elif L == 29:  # cofw
+        elif num_landmarks == 29:  # cofw
             interocular = np.linalg.norm(pts_gt[8, ] - pts_gt[9, ])
-        elif L == 68:  # 300w
+        elif num_landmarks == 68:  # 300w
             # interocular
             interocular = np.linalg.norm(pts_gt[36, ] - pts_gt[45, ])
-        elif L == 98:
+        elif num_landmarks == 98:
             interocular = np.linalg.norm(pts_gt[60, ] - pts_gt[72, ])
         else:
             raise ValueError('Number of landmarks is wrong')
-        rmse[i] = np.sum(np.linalg.norm(pts_pred - pts_gt, axis=1)) / (interocular * L)
+        rmse[i] = np.sum(np.linalg.norm(pts_pred - pts_gt, axis=1)) / (interocular * num_landmarks)
 
     return rmse
+
+
+def extract_pts_from_hm(score_maps, scale, hm_input_ratio):
+    pred = []
+    for k, hm_stack in enumerate(score_maps):
+        pts = []
+        for hm in hm_stack:
+            max_idx = np.unravel_index(hm.argmax(), hm.shape)
+            pts.append(np.array(max_idx))
+        pts = np.multiply(np.multiply(pts, scale.numpy()[k]), hm_input_ratio.numpy()[k])
+        pred.append(pts)
+    return torch.tensor(pred)
 
 
 def decode_preds(output, center, scale, res):

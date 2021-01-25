@@ -41,7 +41,6 @@ train:
   backend:
     use_torch: True
   model: 'HRNET'
-#  model: 'LMDT01'
   optimizer: 'ADAM'
   scheduler: 'StepLR'
   criteria: 'MSELoss'

@@ -17,14 +17,14 @@ class CnnStats(object):
         self.df_g_mean = self.get_dataframe(self.g_mean_file, model)
         self.df_g_std = self.get_dataframe(self.g_std_file, model)
 
-    def get_dataframe(self, stats_file, model):
-        if os.path.isfile(stats_file):
-            df = pd.read_csv(stats_file)
-        else:
-            df = pd.DataFrame(columns=('name', 'size'))
-            for name, m in model.named_parameters():
-                df.loc[len(df)] = {'name': name, 'size': np.array(m.size())}
-            df.to_csv(stats_file)
+    @staticmethod
+    def get_dataframe(stats_file, model):
+        df = pd.read_csv(stats_file) if os.path.isfile(stats_file) else pd.DataFrame(columns=('name', 'size'))
+
+        for name, m in model.named_parameters():
+            df.loc[len(df)] = {'name': name, 'size': np.array(m.size())}
+
+        df.to_csv(stats_file)
         return df
 
     def add_measure(self, epoch, model, dump=False):
@@ -40,6 +40,7 @@ class CnnStats(object):
                 self.df_g_mean[f'{epoch}'].loc[count] = m.grad.mean().item()
                 self.df_g_std[f'{epoch}'].loc[count] = m.grad.std().item()
             count = count + 1
+
         if dump:
             self.dump()
 

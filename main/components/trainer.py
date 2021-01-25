@@ -9,13 +9,13 @@ import time
 
 from tensorboardX import SummaryWriter
 from torch.utils import data
-
+import matplotlib.pyplot as plt
 # import pandas as pd
 # import torch
 # import wandb
 from common.losslog import CLossLog
 from common.modelhandler import CModelHandler
-from common.nnstats import CnnStats
+from main.refactor.nnstats import CnnStats
 from main.components.CLMDataset import CLMDataset, get_def_transform, get_data_list
 from main.components.evaluate_model import *
 from main.components.optimizer import OptimizerCLS
@@ -29,6 +29,9 @@ from utils.file_handler import FileHandler
 torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
+# TODO: support resuming traninig
+# TODO: Load tensorboard logs as df/dict
+
 
 class LDMTrain(object):
     def __init__(self, params):
@@ -39,12 +42,14 @@ class LDMTrain(object):
         self.train_loader, self.valid_loader = self.create_dataloaders()
         self.mdhl = self.load_model()
         self.optimizer = self.load_optimizer()
-        self.losslog = self.load_losslog()
-        self.trn_loss = self.get_last_loss()
+        self.trn_loss = 0
+        # self.trn_loss = self.get_last_loss()
+
         self.scheduler = self.load_scheduler()
         self.nnstats = CnnStats(self.paths.stats, self.mdhl.model)
         self.loss = self.load_criteria()
         self.writer = self.init_writer()
+        self.nnstats = CnnStats(self.paths.stats, self.mdhl.model)
 
     @property
     def hm_amp_factor(self):
@@ -81,6 +86,7 @@ class LDMTrain(object):
             'writer': SummaryWriter(log_dir=self.paths.logs),
             'train_global_steps': 0,
             'valid_global_steps': 0,
+            'log': {}
         }
         return writer_dict
 
@@ -123,20 +129,19 @@ class LDMTrain(object):
     def create_workspace(self):
         workspace_path = self.pr['workspace_path']
         structure = {'workspace': workspace_path,
-                     'nets': os.path.join(workspace_path, 'nets'),
+                     'checkpoint': os.path.join(workspace_path, 'checkpoint'),
                      'args': os.path.join(workspace_path, 'args'),
                      'logs': os.path.join(workspace_path, 'logs'),
                      'stats': os.path.join(workspace_path, 'stats'),
-                     'final_output_dir': os.path.join(workspace_path, 'final_output_dir'),
                      'workset': self.workset_path
                      }
         paths = FileHandler.dict_to_nested_namedtuple(structure)
         [os.makedirs(i, exist_ok=True) for i in paths]
         return paths
 
-    def load_losslog(self):
-        losslog = CLossLog(self.paths, last_epoch=self.mdhl.last_epoch)
-        return losslog
+    # def load_losslog(self):
+    #     losslog = CLossLog(self.paths, last_epoch=self.mdhl.last_epoch)
+    #     return losslog
 
     def load_optimizer(self):
         opt = OptimizerCLS(params=self.pr, model=self.mdhl.model)
@@ -145,13 +150,10 @@ class LDMTrain(object):
     def load_model(self):
         model = None
         kwargs = {'workspace_path': self.paths.workspace, 'epochs_to_save': None}
-        if self.tr['model'] == 'LMDT01':
-            output_branch = self.pr['model']['LMDT01']['output_branch']
-            model = model_LMDT01.get_instance(output_branch=output_branch)
         if self.tr['model'] == 'HRNET':
             config = hrnet_config._C
             model = HRNET.get_face_alignment_net(config)
-        mdhl = CModelHandler(model=model, nets=self.paths.nets, args=self.paths.args, **kwargs)
+        mdhl = CModelHandler(model=model, checkpoint_path=self.paths.checkpoint, args=self.paths.args, **kwargs)
         return mdhl
 
     def load_scheduler(self):
@@ -201,12 +203,17 @@ class LDMTrain(object):
                                                   epoch=epoch,
                                                   writer_dict=self.writer,
                                                   **kwargs)
+
             self.scheduler.step()
+            self.writer['writer'].flush()
+            FileHandler.save_dict_to_pkl(self.writer['log'], os.path.join(self.paths.stats, 'meta.pkl'))
+            self.nnstats.add_measure(epoch, self.mdhl.model, dump=True)
 
             is_best = nme < best_nme
+            print(f'is best nme: {is_best}')
             best_nme = min(nme, best_nme)
-            logger.info(f'=> saving checkpoint to {self.paths.final_output_dir}')
-            final_model_state_file = os.path.join(self.paths.final_output_dir, 'final_state.pth')
+            logger.info(f'=> saving checkpoint to {self.paths.checkpoint}')
+            final_model_state_file = os.path.join(self.paths.checkpoint, 'final_state.pth')
 
             save_checkpoint(states=
                             {"state_dict": self.mdhl.model,
@@ -215,7 +222,7 @@ class LDMTrain(object):
                              "optimizer": self.optimizer.state_dict()},
                             predictions=predictions,
                             is_best=is_best,
-                            output_dir=self.paths.final_output_dir,
+                            output_dir=self.paths.checkpoint,
                             filename='checkpoint_{}.pth'.format(epoch))
 
             logger.info(f'saving final model state to {final_model_state_file}')

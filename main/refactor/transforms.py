@@ -155,7 +155,8 @@ def transform_pixel(pt, center, scale, output_size, invert=0, rot=0):
 
 def transform_preds(coords, center, scale, output_size):
     for p in range(coords.size(0)):
-        coords[p, 0:2] = torch.tensor(transform_pixel(coords[p, 0:2], center, scale, output_size, 1, 0))
+        coords[p, 0:2] = torch.tensor(transform_pixel(coords[p, 0:2], center, scale,
+                                                      output_size, invert=False, rot=False))
     return coords
 
 
