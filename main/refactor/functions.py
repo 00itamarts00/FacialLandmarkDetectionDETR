@@ -64,8 +64,9 @@ def train_epoch(train_loader, model, criterion, optimizer,
         scale, hm_factor = item['sfactor'], item['hmfactor']
 
         # compute the output
-        output = model(input_)
+        # input_ = input_.cuda()      # TODO: check this works
         target = target.cuda(non_blocking=True)
+        output = model(input_)
 
         # Loss
         loss = criterion(output, target)
@@ -74,7 +75,7 @@ def train_epoch(train_loader, model, criterion, optimizer,
         score_map = output.data.cpu()
 
         preds = extract_pts_from_hm(score_maps=score_map, scale=scale, hm_input_ratio=hm_factor)
-        nme_batch = compute_nme(preds, opts)
+        nme_batch = compute_nme(preds.numpy(), opts.cpu().numpy())
         nme_batch_sum = nme_batch_sum + np.sum(nme_batch)
         nme_count = nme_count + preds.size(0)
 
@@ -156,7 +157,8 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
             # NME
             score_map = output.data.cpu()
             preds = extract_pts_from_hm(score_maps=score_map, scale=scale, hm_input_ratio=hm_factor)
-            nme_batch = compute_nme(preds, opts)
+            nme_batch = compute_nme(preds.numpy(), opts.cpu().numpy())
+
             # scatter_prediction_gt(preds, opts)
 
             # Failure Rate under different threshold
@@ -240,7 +242,7 @@ def inference(model, data_loader, **kwargs):
             opts = item['opts']
 
             # NME
-            nme_temp = compute_nme(preds, opts)
+            nme_temp = compute_nme(preds.numpy(), opts.cpu().numpy())
 
             failure_008 = (nme_temp > 0.08).sum()
             failure_010 = (nme_temp > 0.10).sum()

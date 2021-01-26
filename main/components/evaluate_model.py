@@ -8,6 +8,7 @@ import torch
 
 # import wandb
 logger = logging.getLogger(__name__)
+from main.refactor.evaluation import decode_preds, compute_nme, extract_pts_from_hm
 
 
 def calc_accuarcy(epts_batch):
@@ -25,18 +26,18 @@ def calc_accuarcy(epts_batch):
 def analyze_results(datastets_inst, datasets, setnick):
     logger.info(f'Analyzing results on {setnick} Datasets')
     datasets = [i.replace('/', '_') for i in datasets]
-    epts, opts = list(), list()
+    preds, opts = list(), list()
     mean_err, max_err, std_err = [], [], []
     for dataset, dataset_inst in datastets_inst.items():
         setnick_ = dataset.replace('/', '_')
         if setnick_ not in datasets:
             continue
         for b_idx, b_idx_inst in dataset_inst.items():
-            [epts.append(i) for i in np.array(list(b_idx_inst['epts'].values()))]
-            [opts.append(i) for i in b_idx_inst['opts'].cpu().numpy()]
-    epts = np.squeeze(epts)
+            [preds.append(i) for i in b_idx_inst['preds'].numpy()]
+            [opts.append(i) for i in b_idx_inst['opts'].numpy()]
+    preds = np.squeeze(preds)
     opts = np.squeeze(opts)
-    err = calc_pts_error(epts, opts)
+    err = compute_nme(preds, opts)
     mean_err.append(np.mean(err))
     max_err.append(np.max(err))
     std_err.append(np.std(err))
@@ -90,41 +91,16 @@ def evaluate_model(device, test_loader, model, **kwargs):
     epts_batch = dict()
     with torch.no_grad():
         for batch_idx, item in enumerate(test_loader):
-            sample = item['img']
-            target = item['hm']
-            sample, target = sample.to(device), target.to(device)
-            output = model(sample)
-            epts = model.extract_epts(output, res_factor=1)
-            epts = add_metadata_to_result(epts, item)
-
-            epts_batch.update(epts)
+            input_, target, opts = item['img'], item['target'], item['opts']
+            scale, hm_factor = item['sfactor'], item['hmfactor']
+            input_, target = input_.to(device), target.to(device)
+            output = model(input_)
+            score_map = output.data.cpu()
+            preds = extract_pts_from_hm(score_maps=score_map, scale=scale, hm_input_ratio=hm_factor)
+            item['preds'] = preds
+            epts_batch[batch_idx] = item
             percent = f' ({100. * (batch_idx + 1) / len(test_loader):.02f}%)]'
             sys.stdout.write(f"\rTesting batch {batch_idx}\t{percent}")
             sys.stdout.flush()
     sys.stdout.write(f"\n")
     return epts_batch
-
-
-def compute_nme(preds, targets, box_size=None):
-    preds = preds.numpy()
-    target = targets.cpu().numpy()
-
-    N = preds.shape[0]
-    L = preds.shape[1]
-    rmse = np.zeros(N)
-
-    for i in range(N):
-        pts_pred, pts_gt = preds[i, ], target[i, ]
-        if L == 19:  # aflw
-            interocular = box_size
-        elif L == 29:  # cofw
-            interocular = np.linalg.norm(pts_gt[8, ] - pts_gt[9, ])
-        elif L == 68:  # 300w
-            # interocular
-            interocular = np.linalg.norm(pts_gt[36, ] - pts_gt[45, ])
-        elif L == 98:
-            interocular = np.linalg.norm(pts_gt[60, ] - pts_gt[72, ])
-        else:
-            raise ValueError('Number of landmarks is wrong')
-        rmse[i] = np.sum(np.linalg.norm(pts_pred - pts_gt, axis=1)) / (interocular * L)
-    return rmse

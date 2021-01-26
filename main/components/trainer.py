@@ -82,8 +82,8 @@ class LDMTrain(object):
     def init_writer(self):
         writer_dict = {
             'writer': SummaryWriter(log_dir=self.paths.logs),
-            'train_global_steps': self.mdhl.last_epoch + 1,
-            'valid_global_steps': self.mdhl.last_epoch + 1,
+            'train_global_steps': self.mdhl.final_epoch + 1,
+            'valid_global_steps': self.mdhl.final_epoch + 1,
             'log': {}
         }
         return writer_dict
@@ -138,7 +138,7 @@ class LDMTrain(object):
 
     def load_model(self):
         model = None
-        kwargs = {'workspace_path': self.paths.workspace, 'epochs_to_save': None}
+        kwargs = {'workspace_path': self.paths.workspace, 'epochs_to_save': None, 'load_mode': 'last'}
         if self.tr['model'] == 'HRNET':
             config = hrnet_config._C
             model = HRNET.get_face_alignment_net(config)
@@ -146,7 +146,7 @@ class LDMTrain(object):
         return mdhl
 
     def load_scheduler(self):
-        sc = ScheduleCLS(params=self.pr, optimizer=self.optimizer, last_epoch=self.mdhl.last_epoch)
+        sc = ScheduleCLS(params=self.pr, optimizer=self.optimizer, last_epoch=self.mdhl.final_epoch)
         return sc.load_scheduler()
 
     def backend_operations(self):
@@ -163,11 +163,11 @@ class LDMTrain(object):
         # TODO: support multiple gpus
         self.mdhl.model = torch.nn.DataParallel(self.mdhl.model, device_ids=[0]).cuda()
 
-        epochs = self.tr['epochs'] + self.mdhl.last_epoch + 1
+        epochs = self.tr['epochs'] + self.mdhl.final_epoch + 1
         best_nme = 100
         nme = 0
         predictions = None
-        for epoch in range(self.mdhl.last_epoch + 1, epochs):
+        for epoch in range(self.mdhl.final_epoch + 1, epochs):
             if math.isnan(self.trn_loss) or math.isinf(self.trn_loss):
                 break
             if self.train_loader is not None:

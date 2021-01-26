@@ -7,9 +7,11 @@ from torch.utils import data
 
 from common.modelhandler import CModelHandler
 from main.components.CLMDataset import CLMDataset, get_data_list
-from main.components.evaluate_model import evaluate_model, analyze_results
+from main.refactor.evaluation import evaluate_model, analyze_results
 from models import model_LMDT01
 from utils.file_handler import FileHandler
+from models import hrnet_config
+from models import model_LMDT01, HRNET
 
 torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
@@ -51,13 +53,13 @@ class Evaluator(object):
     def create_workspace(self):
         workspace_path = self.pr['workspace_path']
         structure = {'workspace': workspace_path,
-                     'nets': os.path.join(workspace_path, 'nets'),
+                     'checkpoint': os.path.join(workspace_path, 'checkpoint'),
                      'args': os.path.join(workspace_path, 'args'),
                      'logs': os.path.join(workspace_path, 'logs'),
                      'stats': os.path.join(workspace_path, 'stats'),
-                     'workset': self.workset_path,
-                     'results': os.path.join(workspace_path, 'results'),
-                     'wandb': os.path.join(workspace_path, 'wandb')
+                     'eval': os.path.join(workspace_path, 'evaluation'),
+                     'wandb': os.path.join(workspace_path, 'wandb'),
+                     'workset': self.workset_path
                      }
         paths = FileHandler.dict_to_nested_namedtuple(structure)
         [os.makedirs(i, exist_ok=True) for i in paths]
@@ -73,11 +75,11 @@ class Evaluator(object):
 
     def load_model(self):
         model = None
-        kwargs = {'workspace_path': self.paths.workspace, 'epochs_to_save': None}
-        if self.tr['model'] == 'LMDT01':
-            output_branch = self.pr['model']['LMDT01']['output_branch']
-            model = model_LMDT01.get_instance(output_branch=output_branch)
-        mdhl = CModelHandler(model=model, nets=self.paths.nets, args=self.paths.args, **kwargs)
+        kwargs = {'workspace_path': self.paths.workspace, 'epochs_to_save': None, 'load_mode': 'best'}
+        if self.tr['model'] == 'HRNET':
+            config = hrnet_config._C
+            model = HRNET.get_face_alignment_net(config)
+        mdhl = CModelHandler(model=model, checkpoint_path=self.paths.checkpoint, args=self.paths.args, **kwargs)
         return mdhl
 
     def create_data_loaders(self, dataset):
@@ -87,7 +89,7 @@ class Evaluator(object):
         setnick = dataset.replace('/', '_')
         dflist = get_data_list(self.paths.workset, [dataset], setnick)
         dflist.to_csv(os.path.join(self.paths.workset, f'{setnick}.csv'))
-        testset = CLMDataset(self.paths.workset, dflist)
+        testset = CLMDataset(self.pr, self.paths, dflist)
         test_loader = data.DataLoader(testset, batch_size=batch_size, shuffle=True, **kwargs)
         return test_loader
 
@@ -98,7 +100,7 @@ class Evaluator(object):
         self.mdhl.model.to(self.device)
         for dataset in self.ev['datasets']:
             setnick = dataset.replace('/', '_')
-            results_file = os.path.join(self.paths.results, f'{setnick}.pkl')
+            results_file = os.path.join(self.paths.eval, f'{setnick}.pkl')
             if not os.path.exists(results_file):
                 logger.info(f'Evaluating {setnick} testset')
                 test_loader = self.create_data_loaders(dataset=dataset)
@@ -119,14 +121,14 @@ class Evaluator(object):
         rCOFW68 = analyze_results(res, ['COFW68/COFW_test_color'], 'COFW68')
         rWFLW = analyze_results(res, ['WFLW/testset'], 'WFLW')
         #
-        print('SET NAME \t\t\t\t AUC08  \t\t NLE ')
-        print('----------------------------------------------------')
-        print('{} \t\t & {:.03f} \t\t & {:.03f}'.format(r300WPub['setnick'], r300WPub['auc08'], r300WPub['NLE']))
-        print('{} \t\t & {:.03f} \t\t & {:.03f}'.format(r300WPri['setnick'], r300WPri['auc08'], r300WPri['NLE']))
-        print('{} \t\t\t\t\t & {:.03f} \t\t & {:.03f}'.format(rCOFW68['setnick'], rCOFW68['auc08'], rCOFW68['NLE']))
-        print('{} \t\t\t\t\t & {:.03f} \t\t & {:.03f}'.format(rWFLW['setnick'], rWFLW['auc08'], rWFLW['NLE']))
+        logger.info('SET NAME \t\t\t\t AUC08  \t\t NLE ')
+        logger.info('----------------------------------------------------')
+        logger.info('{} \t\t & {:.03f} \t\t & {:.03f}'.format(r300WPub['setnick'], r300WPub['auc08'], r300WPub['NLE']))
+        logger.info('{} \t\t & {:.03f} \t\t & {:.03f}'.format(r300WPri['setnick'], r300WPri['auc08'], r300WPri['NLE']))
+        logger.info('{} \t\t\t\t\t & {:.03f} \t\t & {:.03f}'.format(rCOFW68['setnick'], rCOFW68['auc08'], rCOFW68['NLE']))
+        logger.info('{} \t\t\t\t\t & {:.03f} \t\t & {:.03f}'.format(rWFLW['setnick'], rWFLW['auc08'], rWFLW['NLE']))
 
-        wblog = wandb.init(name=f'{self.ex["name"]}_{str(self.mdhl.last_epoch).zfill(5)}',
+        wblog = wandb.init(name=f'{self.ex["name"]}_{str(self.mdhl.final_epoch).zfill(5)}',
                            project='landmark-detection',
                            sync_tensorboard=False,
                            dir=self.paths.wandb,
@@ -137,4 +139,4 @@ class Evaluator(object):
         wblog.log({'r300WPri': r300WPri})
         wblog.log({'rCOFW68': rCOFW68})
         wblog.log({'rWFLW': rWFLW})
-        wblog.log({'epoch': self.mdhl.last_epoch})
+        wblog.log({'epoch': self.mdhl.final_epoch})
