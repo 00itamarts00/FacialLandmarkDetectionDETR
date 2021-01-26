@@ -4,11 +4,13 @@
 # Created by Tianheng Cheng(tianhengcheng@gmail.com), Yang Zhao
 # ------------------------------------------------------------------------------
 
+import logging
 import math
 import sys
-import torch
+
 import numpy as np
-import logging
+import torch
+
 logger = logging.getLogger(__name__)
 # import wandb
 
@@ -37,7 +39,6 @@ def get_preds(scores):
 
 
 def compute_nme(preds, opts, box_size=None):
-
     target = opts
 
     batch_size = preds.shape[0]
@@ -45,16 +46,16 @@ def compute_nme(preds, opts, box_size=None):
     rmse = np.zeros(batch_size)
 
     for i in range(batch_size):
-        pts_pred, pts_gt = preds[i, ], target[i, ]
+        pts_pred, pts_gt = preds[i,], target[i,]
         if num_landmarks == 19:  # aflw
             interocular = box_size
         elif num_landmarks == 29:  # cofw
-            interocular = np.linalg.norm(pts_gt[8, ] - pts_gt[9, ])
+            interocular = np.linalg.norm(pts_gt[8,] - pts_gt[9,])
         elif num_landmarks == 68:  # 300w
             # interocular
-            interocular = np.linalg.norm(pts_gt[36, ] - pts_gt[45, ])
+            interocular = np.linalg.norm(pts_gt[36,] - pts_gt[45,])
         elif num_landmarks == 98:
-            interocular = np.linalg.norm(pts_gt[60, ] - pts_gt[72, ])
+            interocular = np.linalg.norm(pts_gt[60,] - pts_gt[72,])
         else:
             raise ValueError('Number of landmarks is wrong')
         rmse[i] = np.sum(np.linalg.norm(pts_pred - pts_gt, axis=1)) / (interocular * num_landmarks)
@@ -70,7 +71,7 @@ def extract_pts_from_hm(score_maps, scale, hm_input_ratio):
             max_idx = np.unravel_index(np.argmax(hm, axis=None), hm.shape)  # returns a tuple
             pttmp = np.array(max_idx)
             pts[p] = np.array([pttmp[1], pttmp[0]])
-        pts = np.multiply(np.multiply(pts, 1/scale.numpy()[k]), hm_input_ratio.numpy()[k])
+        pts = np.multiply(np.multiply(pts, 1 / scale.numpy()[k]), hm_input_ratio.numpy()[k])
         pred[k] = pts
     return torch.tensor(pred)
 
@@ -86,7 +87,7 @@ def decode_preds(output, center, scale, res):
             px = int(math.floor(coords[n][p][0]))
             py = int(math.floor(coords[n][p][1]))
             if (px > 1) and (px < res[0]) and (py > 1) and (py < res[1]):
-                diff = torch.Tensor([hm[py - 1][px] - hm[py - 1][px - 2], hm[py][px - 1]-hm[py - 2][px - 1]])
+                diff = torch.Tensor([hm[py - 1][px] - hm[py - 1][px - 2], hm[py][px - 1] - hm[py - 2][px - 1]])
                 coords[n][p] += diff.sign() * .25
     coords += 0.5
     preds = coords.clone()

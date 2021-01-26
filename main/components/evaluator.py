@@ -8,10 +8,9 @@ from torch.utils import data
 from common.modelhandler import CModelHandler
 from main.components.CLMDataset import CLMDataset, get_data_list
 from main.refactor.evaluation import evaluate_model, analyze_results
-from models import model_LMDT01
-from utils.file_handler import FileHandler
+from models import HRNET
 from models import hrnet_config
-from models import model_LMDT01, HRNET
+from utils.file_handler import FileHandler
 
 torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
@@ -125,7 +124,8 @@ class Evaluator(object):
         logger.info('----------------------------------------------------')
         logger.info('{} \t\t & {:.03f} \t\t & {:.03f}'.format(r300WPub['setnick'], r300WPub['auc08'], r300WPub['NLE']))
         logger.info('{} \t\t & {:.03f} \t\t & {:.03f}'.format(r300WPri['setnick'], r300WPri['auc08'], r300WPri['NLE']))
-        logger.info('{} \t\t\t\t\t & {:.03f} \t\t & {:.03f}'.format(rCOFW68['setnick'], rCOFW68['auc08'], rCOFW68['NLE']))
+        logger.info(
+            '{} \t\t\t\t\t & {:.03f} \t\t & {:.03f}'.format(rCOFW68['setnick'], rCOFW68['auc08'], rCOFW68['NLE']))
         logger.info('{} \t\t\t\t\t & {:.03f} \t\t & {:.03f}'.format(rWFLW['setnick'], rWFLW['auc08'], rWFLW['NLE']))
 
         wblog = wandb.init(name=f'{self.ex["name"]}_{str(self.mdhl.final_epoch).zfill(5)}',
