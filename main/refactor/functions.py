@@ -157,7 +157,7 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
             score_map = output.data.cpu()
             preds = extract_pts_from_hm(score_maps=score_map, scale=scale, hm_input_ratio=hm_factor)
             nme_batch = compute_nme(preds, opts)
-            scatter_prediction_gt(preds, opts)
+            # scatter_prediction_gt(preds, opts)
 
             # Failure Rate under different threshold
             failure_008 = (nme_batch > 0.08).sum()
