@@ -15,3 +15,7 @@ wandb~=0.10.12
 yacs~=0.1.8
 tensorboardx~=2.1
 config~=0.5.0.post0
+panopticapi~=0.1
+pycocotools~=2.0.2
+onnxruntime~=1.6.0
+submitit~=1.1.5

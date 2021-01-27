@@ -20,13 +20,15 @@ class OptimizerCLS(object):
             return self.load_adam_opt()
         if self.optimizer_type == 'SGD':
             return self.load_sgd_opt()
+        if self.optimizer_type == 'ADAMW':
+            return self.load_adamw_opt()
 
     def get_trainable_parameters(self):
         # TODO: understand this better - itamar
         trainable_parameters = self.params['train']['trainable_parameters']
         if trainable_parameters is None:
             return self.model.parameters()
-        else:       # TODO: this addition is for training small additions to the net
+        else:       # NOTE: this addition is for training small additions to the net
             params = []
             for name, p in self.model.named_parameters():
                 if trainable_parameters in name:
@@ -70,3 +72,7 @@ class OptimizerCLS(object):
                                amsgrad=self.op['amsgrad'])
         return optimizer
 
+    def load_adamw_opt(self):
+        optimizer = optim.AdamW(params=filter(lambda p: p.requires_grad, self.model.parameters()),
+                                lr=self.op['lr'],
+                                weight_decay=self.op['weight_decay'])

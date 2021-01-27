@@ -6,7 +6,7 @@ import os
 # import shutil
 # import json
 import time
-
+from packages.detr.models import build_model
 from tensorboardX import SummaryWriter
 from torch.utils import data
 import matplotlib.pyplot as plt
@@ -29,7 +29,6 @@ from utils.file_handler import FileHandler
 torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
-# TODO: support resuming traninig
 # TODO: Load tensorboard logs as df/dict
 
 
@@ -142,6 +141,9 @@ class LDMTrain(object):
         if self.tr['model'] == 'HRNET':
             config = hrnet_config._C
             model = HRNET.get_face_alignment_net(config)
+        if self.tr['model'] == 'DETR':
+            from packages.detr import detr_args
+            model = build_model(args=detr_args)
         mdhl = CModelHandler(model=model, checkpoint_path=self.paths.checkpoint, args=self.paths.args, **kwargs)
         return mdhl
 
