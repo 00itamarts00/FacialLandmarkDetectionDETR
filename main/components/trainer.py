@@ -205,21 +205,22 @@ class LDMTrain(object):
             is_best = nme < best_nme
             print(f'is best nme: {is_best}')
             best_nme = min(nme, best_nme)
-            logger.info(f'=> saving checkpoint to {self.paths.checkpoint}')
-            final_model_state_file = os.path.join(self.paths.checkpoint, 'final_state.pth')
+            if is_best or epoch % 20 == 0:
+                logger.info(f'=> saving checkpoint to {self.paths.checkpoint}')
+                final_model_state_file = os.path.join(self.paths.checkpoint, 'final_state.pth')
 
-            save_checkpoint(states=
-                            {"state_dict": self.model,
-                             "epoch": epoch + 1,
-                             "best_nme": best_nme,
-                             "optimizer": self.optimizer.state_dict()},
-                            predictions=predictions,
-                            is_best=is_best,
-                            output_dir=self.paths.checkpoint,
-                            filename='checkpoint_{}.pth'.format(epoch))
+                save_checkpoint(states=
+                                {"state_dict": self.model,
+                                 "epoch": epoch + 1,
+                                 "best_nme": best_nme,
+                                 "optimizer": self.optimizer.state_dict()},
+                                predictions=predictions,
+                                is_best=is_best,
+                                output_dir=self.paths.checkpoint,
+                                filename='checkpoint_{}.pth'.format(epoch))
 
-            logger.info(f'saving final model state to {final_model_state_file}')
-            torch.save(self.model.state_dict(), final_model_state_file)
+                logger.info(f'saving final model state to {final_model_state_file}')
+                torch.save(self.model.state_dict(), final_model_state_file)
             self.writer['writer'].close()
 
 

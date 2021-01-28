@@ -221,8 +221,11 @@ class CLMDataset(data.Dataset):
         return meanx, stdx
 
     def renorm_image(self, img):
+        mean = np.array([[0.5021, 0.3964, 0.3471]], dtype=np.float32)
+        std = np.array([0.2858, 0.2547, 0.2488], dtype=np.float32)
+
         img_ = np.array(img).transpose([1, 2, 0])
-        img_ = 255 * (img_ * self.std + self.mean)
+        img_ = 255 * (img_ * std + mean)
         img_[img_ > 255] = 255
         img_[img_ < 0] = 0
 

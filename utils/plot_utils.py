@@ -58,3 +58,36 @@ def scatter_prediction_gt(pred, gt):
     plt.title('scatter pred and gt')
     plt.show()
     plt.pause(0.01)
+
+
+def plot_gt_pred_on_img(item, predictions, index):
+    dataset = item['dataset'][index]
+    img_name = item['img_name'][index]
+    img = item['img'].numpy()[index]
+    img = renorm_image(img)
+    img = np.array(img).astype(np.uint8)
+    fig = Figure()
+    canvas = FigureCanvas(fig)
+    preds = predictions[index]
+    opts = item['opts'].numpy()[index] * item['sfactor'].numpy()[index]
+    ax = fig.add_subplot(111)
+    ax.set_title(f'debug_image\ndataset: {dataset} name: {img_name}')
+    ax.imshow(img)
+    ax.scatter(preds.T[0], preds.T[1], s=5, c='r', label='pred')
+    ax.scatter(opts.T[0], opts.T[1], s=5, c='b', label='gt')
+    ax.legend()
+    canvas.draw()
+    width, height = fig.get_size_inches() * fig.get_dpi()
+    image = np.fromstring(canvas.tostring_rgb(), dtype='uint8').reshape(int(height), int(width), 3)
+    return image
+
+
+def renorm_image(img):
+    mean = np.array([[0.5021, 0.3964, 0.3471]], dtype=np.float32)
+    std = np.array([0.2858, 0.2547, 0.2488], dtype=np.float32)
+    img_ = np.array(img).transpose([1, 2, 0])
+    img_ = 255 * (img_ * std + mean)
+    img_[img_ > 255] = 255
+    img_[img_ < 0] = 0
+
+    return np.ubyte(img_)

@@ -14,7 +14,7 @@ import math
 import torch
 from torchvision.utils import make_grid
 import numpy as np
-from utils.plot_utils import plot_score_maps, scatter_prediction_gt
+from utils.plot_utils import plot_score_maps, plot_gt_pred_on_img
 from main.refactor.evaluation import decode_preds, compute_nme, extract_pts_from_hm
 logger = logging.getLogger(__name__)
 
@@ -61,17 +61,19 @@ def train_epoch(train_loader, model, criterion, optimizer,
     for i, item in enumerate(train_loader):
         # measure data time
         data_time.update(time.time() - end)
-        # taraget shape 32 68 2
+
         input_, target, opts = item['img'], item['target'], item['opts']
         scale, hm_factor = item['sfactor'], item['hmfactor']
 
         # compute the output
-        # input_ = input_.cuda()      # TODO: check this works
-        target = target.cuda(non_blocking=True)
+        input_ = input_.cuda()
+        bs = target.shape[0]
+        target_dict = [{'labels': torch.range(start=0, end=target.shape[1]-1).cuda(),
+                        'coords': target[i].cuda()} for i in range(bs)]
         output = model(input_)
 
         # Loss
-        loss_dict = criterion(output, target)
+        loss_dict = criterion(output, target_dict)
         weight_dict = criterion.weight_dict
         lossv = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
 
@@ -142,6 +144,7 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
     predictions = torch.zeros((len(val_loader.dataset), num_classes, 2))
 
     model.eval()
+    criterion.eval()
 
     nme_count = 0
     nme_batch_sum = 0
@@ -156,17 +159,20 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
             scale, hm_factor = item['sfactor'], item['hmfactor']
 
             # compute the output
+            input_ = input_.cuda()
+            bs = target.shape[0]
+            target_dict = [{'labels': torch.range(start=0, end=target.shape[1] - 1).cuda(),
+                            'coords': target[i].cuda()} for i in range(bs)]
             output = model(input_)
-            target = target.cuda(non_blocking=True)
 
             # loss
-            loss = criterion(output, target)
+            loss_dict = criterion(output, target_dict)
+            weight_dict = criterion.weight_dict
+            lossv = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
 
             # NME
-            score_map = output.data.cpu()
-            preds = extract_pts_from_hm(score_maps=score_map, scale=scale, hm_input_ratio=hm_factor)
-            nme_batch = compute_nme(preds.numpy(), opts.cpu().numpy())
-
+            preds = output['pred_coords'].cpu().detach().numpy() * 256
+            nme_batch = compute_nme(preds, opts.cpu().numpy())
             # scatter_prediction_gt(preds, opts)
 
             # Failure Rate under different threshold
@@ -176,11 +182,9 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
             count_failure_010 += failure_010
 
             nme_batch_sum += np.sum(nme_batch)
-            nme_count = nme_count + preds.size(0)
-            for n in range(score_map.size(0)):
-                predictions[item['index'][n], :, :] = preds[n, :, :]
+            nme_count = nme_count + preds.shape[0]
 
-            losses.update(loss.item(), input_.size(0))
+            losses.update(lossv.item(), input_.size(0))
 
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -198,7 +202,7 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
                                 failure_008_rate, failure_010_rate)
     logger.info(msg)
 
-    dbg_img = plot_score_maps(item=item, index=-1, score_map=score_map, predictions=preds)
+    dbg_img = plot_gt_pred_on_img(item=item, predictions=preds, index=-1)
     grid = torch.tensor(np.swapaxes(np.swapaxes(dbg_img, 0, -1), 1, 2))
 
     if writer_dict:
@@ -214,6 +218,8 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
         log[epoch].update({'valid_failure_008_rate': failure_008_rate})
         writer.add_scalar('valid_failure_010_rate', failure_010_rate, global_steps)
         log[epoch].update({'valid_failure_010_rate': failure_010_rate})
+        [log[epoch].update({k: v}) for (k, v) in loss_dict.items()]
+        [writer.add_scalar(k, v, global_steps) for (k, v) in loss_dict.items()]
         writer.add_image('images', grid, global_steps)
         log[epoch].update({'dbg_img': dbg_img})
         writer_dict['valid_global_steps'] = global_steps + 1
