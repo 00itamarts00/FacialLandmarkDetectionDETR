@@ -7,10 +7,10 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-
+import sys
 import time
 import logging
-
+import math
 import torch
 from torchvision.utils import make_grid
 import numpy as np
@@ -43,7 +43,7 @@ class AverageMeter(object):
 
 def train_epoch(train_loader, model, criterion, optimizer,
                 epoch, writer_dict, **kwargs):
-
+    max_norm = 0
     log_interval = kwargs.get('log_interval', 20)
     debug = kwargs.get('debug', False)
 
@@ -71,22 +71,28 @@ def train_epoch(train_loader, model, criterion, optimizer,
         output = model(input_)
 
         # Loss
-        loss = criterion(output, target)
+        loss_dict = criterion(output, target)
+        weight_dict = criterion.weight_dict
+        lossv = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
+
+        if not math.isfinite(lossv.item()):
+            print("Loss is {}, stopping training".format(lossv.item()))
+            sys.exit(1)
 
         # NME
-        score_map = output.data.cpu()
-
-        preds = extract_pts_from_hm(score_maps=score_map, scale=scale, hm_input_ratio=hm_factor)
-        nme_batch = compute_nme(preds.numpy(), opts.cpu().numpy())
+        preds = output['pred_coords'].cpu().detach().numpy() * 256
+        nme_batch = compute_nme(preds, opts.cpu().numpy())
         nme_batch_sum = nme_batch_sum + np.sum(nme_batch)
-        nme_count = nme_count + preds.size(0)
+        nme_count = nme_count + preds.shape[0]
 
         # optimize
         optimizer.zero_grad()
-        loss.backward()
+        lossv.backward()
+        if max_norm > 0:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
         optimizer.step()
 
-        losses.update(loss.item(), input_.size(0))
+        losses.update(lossv.item(), input_.size(0))
 
         batch_time.update(time.time()-end)
         if i % log_interval == 0:
