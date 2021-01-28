@@ -8,7 +8,7 @@ class OptimizerCLS(object):
         self.params = params
         self.model = model
         self.optimizer_type = self.params['train']['optimizer']
-        self.trainable_parameters = self.get_trainable_parameters()
+        # self.trainable_parameters = self.get_trainable_parameters()
 
     @property
     def op(self): return self.params['optimizer'][self.optimizer_type]
@@ -73,6 +73,17 @@ class OptimizerCLS(object):
         return optimizer
 
     def load_adamw_opt(self):
+        if self.params['train']['model'] == 'DETR':
+            from packages.detr import detr_args
+            param_dicts = [
+                {"params": [p for n, p in self.model.named_parameters() if "backbone" not in n and p.requires_grad]},
+                {
+                    "params": [p for n, p in self.model.named_parameters() if "backbone" in n and p.requires_grad],
+                    "lr": detr_args.lr_backbone,
+                },
+            ]
+
         optimizer = optim.AdamW(params=filter(lambda p: p.requires_grad, self.model.parameters()),
                                 lr=self.op['lr'],
                                 weight_decay=self.op['weight_decay'])
+        return optimizer

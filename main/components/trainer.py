@@ -3,8 +3,12 @@ from __future__ import print_function
 import copy
 import math
 import os
+import torch.optim as optim
+from torch.optim.lr_scheduler import StepLR, CyclicLR
+
 # import shutil
 # import json
+from packages.detr import detr_args
 import time
 from packages.detr.models import build_model
 from tensorboardX import SummaryWriter
@@ -36,18 +40,24 @@ class LDMTrain(object):
     def __init__(self, params):
         self.pr = params
         self.workset_path = os.path.join(self.ds['dataset_dir'], self.ds['workset_name'])
+        self.last_epoch = self.get_last_epoch()
         self.paths = self.create_workspace()
         self.device = self.backend_operations()
         self.train_loader, self.valid_loader = self.create_dataloaders()
-        self.mdhl = self.load_model()
+        self.model, self.criterion, self.postprocessors = self.load_model()
         self.optimizer = self.load_optimizer()
-        self.trn_loss = 0
         self.scheduler = self.load_scheduler()
-        self.nnstats = CnnStats(self.paths.stats, self.mdhl.model)
-        self.loss = self.load_criteria()
+        self.nnstats = CnnStats(self.paths.stats, self.model)
         self.writer = self.init_writer()
-        self.nnstats = CnnStats(self.paths.stats, self.mdhl.model)
+        self.trn_loss = 0
+        self.update_last_epoch_in_components()
+    
+    def get_last_epoch(self):
+        return 0
 
+    def update_last_epoch_in_components(self):
+        return
+    
     @property
     def hm_amp_factor(self):
         return self.tr['hm_amp_factor']
@@ -81,17 +91,11 @@ class LDMTrain(object):
     def init_writer(self):
         writer_dict = {
             'writer': SummaryWriter(log_dir=self.paths.logs),
-            'train_global_steps': self.mdhl.final_epoch + 1,
-            'valid_global_steps': self.mdhl.final_epoch + 1,
+            'train_global_steps': self.last_epoch + 1,
+            'valid_global_steps': self.last_epoch + 1,
             'log': {}
         }
         return writer_dict
-
-    def load_criteria(self):
-        loss_crit = self.tr['criteria']
-        args = self.pr['loss'][loss_crit]
-        if loss_crit == 'MSELoss':
-            return torch.nn.MSELoss(reduction='mean')
 
     def create_dataloaders(self):
         use_cuda = self.tr['cuda']['use']
@@ -132,24 +136,22 @@ class LDMTrain(object):
         return paths
 
     def load_optimizer(self):
-        opt = OptimizerCLS(params=self.pr, model=self.mdhl.model)
-        return opt.load_optimizer()
+        args_op = self.pr['optimizer'][self.tr['optimizer']]
+        optimizer = optim.AdamW(params=filter(lambda p: p.requires_grad, self.model.parameters()),
+                                lr=args_op['lr'],
+                                weight_decay=args_op['weight_decay'])
+        return optimizer
 
     def load_model(self):
-        model = None
-        kwargs = {'workspace_path': self.paths.workspace, 'epochs_to_save': None, 'load_mode': 'last'}
-        if self.tr['model'] == 'HRNET':
-            config = hrnet_config._C
-            model = HRNET.get_face_alignment_net(config)
-        if self.tr['model'] == 'DETR':
-            from packages.detr import detr_args
-            model = build_model(args=detr_args)
-        mdhl = CModelHandler(model=model, checkpoint_path=self.paths.checkpoint, args=self.paths.args, **kwargs)
-        return mdhl
+        model, criterion, postprocessors = build_model(args=detr_args)
+        return model, criterion, postprocessors
 
     def load_scheduler(self):
-        sc = ScheduleCLS(params=self.pr, optimizer=self.optimizer, last_epoch=self.mdhl.final_epoch)
-        return sc.load_scheduler()
+        args_sc = self.pr['scheduler'][self.tr['scheduler']]
+        scheduler = StepLR(optimizer=self.optimizer,
+                           step_size=args_sc['step_size'],
+                           gamma=args_sc['gamma'])
+        return scheduler
 
     def backend_operations(self):
         cuda = self.tr['cuda']
@@ -163,13 +165,13 @@ class LDMTrain(object):
         run_valid = self.tr['run_valid']
 
         # TODO: support multiple gpus
-        self.mdhl.model = torch.nn.DataParallel(self.mdhl.model, device_ids=[0]).cuda()
+        self.model = torch.nn.DataParallel(self.model, device_ids=[0]).cuda()
 
-        epochs = self.tr['epochs'] + self.mdhl.final_epoch + 1
+        epochs = self.tr['epochs'] + self.last_epoch + 1
         best_nme = 100
         nme = 0
         predictions = None
-        for epoch in range(self.mdhl.final_epoch + 1, epochs):
+        for epoch in range(self.last_epoch + 1, epochs):
             if math.isnan(self.trn_loss) or math.isinf(self.trn_loss):
                 break
             if self.train_loader is not None:
@@ -178,8 +180,8 @@ class LDMTrain(object):
                 kwargs = {'log_interval': 20,
                           'debug': self.ex['single_batch_debug']}
                 train_epoch(train_loader=self.train_loader,
-                            model=self.mdhl.model,
-                            criterion=self.loss,
+                            model=self.model,
+                            criterion=self.criterion,
                             optimizer=self.optimizer,
                             epoch=epoch,
                             writer_dict=self.writer,
@@ -189,8 +191,8 @@ class LDMTrain(object):
                 kwargs = {'num_landmarks': self.tr['num_landmarks'],
                           'debug': self.ex['single_batch_debug']}
                 nme, predictions = validate_epoch(val_loader=self.valid_loader,
-                                                  model=self.mdhl.model,
-                                                  criterion=self.loss,
+                                                  model=self.model,
+                                                  criterion=self.criterion,
                                                   epoch=epoch,
                                                   writer_dict=self.writer,
                                                   **kwargs)
@@ -198,7 +200,7 @@ class LDMTrain(object):
             self.scheduler.step()
             self.writer['writer'].flush()
             FileHandler.save_dict_to_pkl(self.writer['log'], os.path.join(self.paths.stats, 'meta.pkl'))
-            self.nnstats.add_measure(epoch, self.mdhl.model, dump=True)
+            self.nnstats.add_measure(epoch, self.model, dump=True)
 
             is_best = nme < best_nme
             print(f'is best nme: {is_best}')
@@ -207,7 +209,7 @@ class LDMTrain(object):
             final_model_state_file = os.path.join(self.paths.checkpoint, 'final_state.pth')
 
             save_checkpoint(states=
-                            {"state_dict": self.mdhl.model,
+                            {"state_dict": self.model,
                              "epoch": epoch + 1,
                              "best_nme": best_nme,
                              "optimizer": self.optimizer.state_dict()},
@@ -217,7 +219,7 @@ class LDMTrain(object):
                             filename='checkpoint_{}.pth'.format(epoch))
 
             logger.info(f'saving final model state to {final_model_state_file}')
-            torch.save(self.mdhl.model.state_dict(), final_model_state_file)
+            torch.save(self.model.state_dict(), final_model_state_file)
             self.writer['writer'].close()
 
 

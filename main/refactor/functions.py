@@ -52,6 +52,8 @@ def train_epoch(train_loader, model, criterion, optimizer,
     losses = AverageMeter()
 
     model.train()
+    criterion.train()
+
     nme_count = nme_batch_sum = 0
 
     end = time.time()
@@ -59,7 +61,7 @@ def train_epoch(train_loader, model, criterion, optimizer,
     for i, item in enumerate(train_loader):
         # measure data time
         data_time.update(time.time() - end)
-
+        # taraget shape 32 68 2
         input_, target, opts = item['img'], item['target'], item['opts']
         scale, hm_factor = item['sfactor'], item['hmfactor']
 
