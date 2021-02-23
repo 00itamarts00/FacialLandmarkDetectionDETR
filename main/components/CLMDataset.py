@@ -140,7 +140,7 @@ class CLMDataset(data.Dataset):
         self.gaurfactor = 5
         self.gaustd = 2.5
         # Extracted from trainset_full.csv
-        self.mean = np.array([[0.5021, 0.3964, 0.3471]], dtype=np.float32)
+        self.mean = np.array([0.5021, 0.3964, 0.3471], dtype=np.float32)
         self.std = np.array([0.2858, 0.2547, 0.2488], dtype=np.float32)
         self.imga = create_base_gaussian(np.multiply(self.hmsize, self.gaurfactor), self.gaustd * self.gaurfactor)
 
@@ -221,7 +221,7 @@ class CLMDataset(data.Dataset):
         return meanx, stdx
 
     def renorm_image(self, img):
-        mean = np.array([[0.5021, 0.3964, 0.3471]], dtype=np.float32)
+        mean = np.array([0.5021, 0.3964, 0.3471], dtype=np.float32)
         std = np.array([0.2858, 0.2547, 0.2488], dtype=np.float32)
 
         img_ = np.array(img).transpose([1, 2, 0])

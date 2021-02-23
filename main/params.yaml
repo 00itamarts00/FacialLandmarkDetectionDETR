@@ -2,6 +2,7 @@ experiment:
   name: detr
   workspace_path: '/home/itamar/thesis/outputs'
   log_interval: 20
+  single_image_train: True
   pretrained:
     use_pretrained: False
     timestamp: '260121_012626'
@@ -47,7 +48,7 @@ train:
 
 optimizer:
   ADAM:
-    lr: 0.0005
+    lr: 1e-5
     betas: [0.5, 0.999]
     eps: 1e-8
     weight_decay: 0
@@ -59,17 +60,17 @@ optimizer:
     weight_decay: 0
     nesterov: False
   RANGER:
-    lr: 0.001
+    lr: 1e-05
     alpha: 0.5
     K: 6
     N_sma_threshhold: 5
     betas: [0.95, 0.999]
-    eps: 1e-5
+    eps: 1e-05
     weight_decay: 0
     use_gc: True
     gc_conv_only: False
   ADAMW:
-    lr: 0.0001
+    lr: 1e-05
     weight_decay: 0.0001
 
 model:
@@ -88,8 +89,8 @@ model:
 
 scheduler:
   StepLR:
-    step_size: 200
-    gamma: 0
+    step_size: 50
+    gamma: 0.5
   CyclicLR:
     base_lr: 1e-3
     max_lr: 1e-1

@@ -3,41 +3,37 @@ from __future__ import print_function
 import copy
 import math
 import os
-import torch.optim as optim
-from torch.optim.lr_scheduler import StepLR, CyclicLR
-
-# import shutil
-# import json
-from packages.detr import detr_args
 import time
-from packages.detr.models import build_model
+
+import torch.optim as optim
 from tensorboardX import SummaryWriter
+from torch.optim.lr_scheduler import StepLR
 from torch.utils import data
-import matplotlib.pyplot as plt
+
+from main.components.CLMDataset import CLMDataset, get_def_transform, get_data_list
+from main.components.evaluate_model import *
+from main.refactor.functions import train_epoch, validate_epoch, single_image_train
 # import pandas as pd
 # import torch
 # import wandb
-from common.losslog import CLossLog
-from common.modelhandler import CModelHandler
 from main.refactor.nnstats import CnnStats
-from main.components.CLMDataset import CLMDataset, get_def_transform, get_data_list
-from main.components.evaluate_model import *
-from main.components.optimizer import OptimizerCLS
-from main.components.scheduler_cls import ScheduleCLS
-from main.refactor.functions import train_epoch, validate_epoch
 from main.refactor.utils import save_checkpoint
-from models import hrnet_config
-from models import model_LMDT01, HRNET
+# import shutil
+# import json
+from packages.detr import detr_args
+from packages.detr.models import build_model
 from utils.file_handler import FileHandler
 
 torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
+
 # TODO: Load tensorboard logs as df/dict
 
 
 class LDMTrain(object):
-    def __init__(self, params):
+    def __init__(self, params, single_image_train=False):
+        self.single_image_train = single_image_train
         self.pr = params
         self.workset_path = os.path.join(self.ds['dataset_dir'], self.ds['workset_name'])
         self.last_epoch = self.get_last_epoch()
@@ -51,13 +47,13 @@ class LDMTrain(object):
         self.writer = self.init_writer()
         self.trn_loss = 0
         self.update_last_epoch_in_components()
-    
+
     def get_last_epoch(self):
         return 0
 
     def update_last_epoch_in_components(self):
         return
-    
+
     @property
     def hm_amp_factor(self):
         return self.tr['hm_amp_factor']
@@ -116,7 +112,7 @@ class LDMTrain(object):
 
         kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
-        batch_size = self.tr['batch_size']
+        batch_size = self.tr['batch_size'] if not self.ex['single_image_train'] else 1
         train_loader = data.DataLoader(trainset, batch_size=batch_size, shuffle=True, **kwargs)
         valid_loader = data.DataLoader(validset, batch_size=batch_size, shuffle=False, **kwargs)
 
@@ -138,7 +134,7 @@ class LDMTrain(object):
     def load_optimizer(self):
         args_op = self.pr['optimizer'][self.tr['optimizer']]
         optimizer = optim.AdamW(params=filter(lambda p: p.requires_grad, self.model.parameters()),
-                                lr=args_op['lr'],
+                                lr=float(args_op['lr']),
                                 weight_decay=args_op['weight_decay'])
         return optimizer
 
@@ -162,10 +158,19 @@ class LDMTrain(object):
         return device
 
     def train(self):
-        run_valid = self.tr['run_valid']
-
         # TODO: support multiple gpus
         self.model = torch.nn.DataParallel(self.model, device_ids=[0]).cuda()
+
+        if self.single_image_train:
+            single_image_train(train_loader=self.train_loader,
+                               model=self.model,
+                               criterion=self.criterion,
+                               optimizer=self.optimizer,
+                               epochs=500,
+                               writer_dict=self.writer,
+                               **{'log_interval': 20})
+
+        run_valid = self.tr['run_valid']
 
         epochs = self.tr['epochs'] + self.last_epoch + 1
         best_nme = 100
@@ -223,5 +228,5 @@ class LDMTrain(object):
                 torch.save(self.model.state_dict(), final_model_state_file)
             self.writer['writer'].close()
 
-
-
+    def single_image_train(self):
+        pass

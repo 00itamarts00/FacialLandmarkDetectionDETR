@@ -68,6 +68,7 @@ def train_epoch(train_loader, model, criterion, optimizer,
         # compute the output
         input_ = input_.cuda()
         bs = target.shape[0]
+        target = torch.cat((target, 16*torch.ones_like(target)), dim=2)
         target_dict = [{'labels': torch.range(start=0, end=target.shape[1]-1).cuda(),
                         'coords': target[i].cuda()} for i in range(bs)]
         output = model(input_)
@@ -83,7 +84,7 @@ def train_epoch(train_loader, model, criterion, optimizer,
 
         # NME
         preds = output['pred_coords'].cpu().detach().numpy() * 256
-        nme_batch = compute_nme(preds, opts.cpu().numpy())
+        nme_batch = compute_nme(preds[:, :, :-2], opts.cpu().numpy())
         nme_batch_sum = nme_batch_sum + np.sum(nme_batch)
         nme_count = nme_count + preds.shape[0]
 
@@ -161,6 +162,7 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
             # compute the output
             input_ = input_.cuda()
             bs = target.shape[0]
+            target = torch.cat((target, 16*torch.ones_like(target)), dim=2)
             target_dict = [{'labels': torch.range(start=0, end=target.shape[1] - 1).cuda(),
                             'coords': target[i].cuda()} for i in range(bs)]
             output = model(input_)
@@ -172,7 +174,7 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
 
             # NME
             preds = output['pred_coords'].cpu().detach().numpy() * 256
-            nme_batch = compute_nme(preds, opts.cpu().numpy())
+            nme_batch = compute_nme(preds[:, :, :-2], opts.cpu().numpy())
             # scatter_prediction_gt(preds, opts)
 
             # Failure Rate under different threshold
@@ -284,4 +286,74 @@ def inference(model, data_loader, **kwargs):
     return nme, predictions
 
 
+def single_image_train(train_loader, model, criterion, optimizer, epochs, writer_dict, **kwargs):
+    log_interval = kwargs.get('log_interval', 20)
+    batch_time = AverageMeter()
+    data_time = AverageMeter()
+    losses = AverageMeter()
 
+    model.train()
+    criterion.train()
+    max_norm = 0
+    nme_count = nme_batch_sum = 0
+    end = time.time()
+
+    item = next(iter(train_loader))
+    data_time.update(time.time() - end)
+
+    input_, target, opts = item['img'], item['target'], item['opts']
+    scale, hm_factor = item['sfactor'], item['hmfactor']
+
+    # compute the output
+    input_ = input_.cuda()
+    bs = target.shape[0]
+    target = torch.cat((target, 16 * torch.ones_like(target)), dim=2)
+    target_dict = [{'labels': torch.range(start=0, end=target.shape[1] - 1).cuda(),
+                    'coords': target[i].cuda()} for i in range(bs)]
+
+    for epoch in range(0, epochs + 1):
+
+        output = model(input_)
+        # Loss
+        loss_dict = criterion(output, target_dict)
+        weight_dict = criterion.weight_dict
+        lossv = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
+
+        if not math.isfinite(lossv.item()):
+            print("Loss is {}, stopping training".format(lossv.item()))
+            sys.exit(1)
+
+        # NME
+        preds = output['pred_coords'].cpu().detach().numpy() * 256
+        nme_batch = compute_nme(preds[:, :, :-2], opts.cpu().numpy())
+        nme_batch_sum = nme_batch_sum + np.sum(nme_batch)
+        nme_count = nme_count + preds.shape[0]
+
+        # optimize
+        optimizer.zero_grad()
+        lossv.backward()
+        if max_norm > 0:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+        optimizer.step()
+
+        losses.update(lossv.item(), input_.size(0))
+
+        batch_time.update(time.time() - end)
+        end = time.time()
+
+        nme = nme_batch_sum / nme_count
+        if writer_dict:
+            writer = writer_dict['writer']
+            log = writer_dict['log']
+            log[epoch] = {}
+            global_steps = writer_dict['train_global_steps']
+            writer.add_scalar('train_loss', losses.val, global_steps)
+            log[epoch].update({'train_loss': losses.val})
+            writer.add_scalar('train_nme', nme, global_steps)
+            log[epoch].update({'train_nme': nme})
+            writer.add_scalar('batch_time.avg', batch_time.avg, global_steps)
+            log[epoch].update({'batch_time.avg': batch_time.avg})
+            writer_dict['train_global_steps'] = global_steps + 1
+        msg = 'Train Epoch {} time:{:.4f} loss:{:.4f} nme:{:.4f}'\
+            .format(epoch, batch_time.avg, losses.avg, nme)
+        logger.info(msg)
