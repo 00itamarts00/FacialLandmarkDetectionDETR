@@ -166,7 +166,7 @@ class LDMTrain(object):
                                model=self.model,
                                criterion=self.criterion,
                                optimizer=self.optimizer,
-                               epochs=500,
+                               epochs=2000,
                                writer_dict=self.writer,
                                **{'log_interval': 20})
 

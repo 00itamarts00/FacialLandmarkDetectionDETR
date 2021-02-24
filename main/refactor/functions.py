@@ -307,7 +307,7 @@ def single_image_train(train_loader, model, criterion, optimizer, epochs, writer
     # compute the output
     input_ = input_.cuda()
     bs = target.shape[0]
-    target = torch.cat((target, 16 * torch.ones_like(target)), dim=2)
+    # target = torch.cat((target, 16 * torch.ones_like(target)), dim=2)
     target_dict = [{'labels': torch.range(start=0, end=target.shape[1] - 1).cuda(),
                     'coords': target[i].cuda()} for i in range(bs)]
 
@@ -325,7 +325,7 @@ def single_image_train(train_loader, model, criterion, optimizer, epochs, writer
 
         # NME
         preds = output['pred_coords'].cpu().detach().numpy() * 256
-        nme_batch = compute_nme(preds[:, :, :-2], opts.cpu().numpy())
+        nme_batch = compute_nme(preds, opts.cpu().numpy())
         nme_batch_sum = nme_batch_sum + np.sum(nme_batch)
         nme_count = nme_count + preds.shape[0]
 
@@ -342,6 +342,10 @@ def single_image_train(train_loader, model, criterion, optimizer, epochs, writer
         end = time.time()
 
         nme = nme_batch_sum / nme_count
+
+        dbg_img = plot_gt_pred_on_img(item=item, predictions=preds, index=-1)
+        grid = torch.tensor(np.swapaxes(np.swapaxes(dbg_img, 0, -1), 1, 2))
+
         if writer_dict:
             writer = writer_dict['writer']
             log = writer_dict['log']
@@ -353,6 +357,10 @@ def single_image_train(train_loader, model, criterion, optimizer, epochs, writer
             log[epoch].update({'train_nme': nme})
             writer.add_scalar('batch_time.avg', batch_time.avg, global_steps)
             log[epoch].update({'batch_time.avg': batch_time.avg})
+            [log[epoch].update({k: v}) for (k, v) in loss_dict.items()]
+            [writer.add_scalar(k, v, global_steps) for (k, v) in loss_dict.items()]
+            writer.add_image('images', grid, global_steps)
+            log[epoch].update({'dbg_img': dbg_img})
             writer_dict['train_global_steps'] = global_steps + 1
         msg = 'Train Epoch {} time:{:.4f} loss:{:.4f} nme:{:.4f}'\
             .format(epoch, batch_time.avg, losses.avg, nme)
