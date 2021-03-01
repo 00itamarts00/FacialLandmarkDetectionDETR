@@ -2,10 +2,10 @@ experiment:
   name: detr
   workspace_path: '/home/itamar/thesis/outputs'
   log_interval: 20
-  single_image_train: True
+  single_image_train: False
   pretrained:
-    use_pretrained: False
-    timestamp: '260121_012626'
+    use_pretrained: True
+    timestamp: '010321_004013'
   save_model: True
   single_batch_debug: False
 
@@ -26,7 +26,7 @@ train:
   partition_seed: 42
   num_landmarks: 68
   trainset_partition: 0.8
-  epochs: 200
+  epochs: 1000
   torch_seed: 0
   batch_size: 32
   step_size: 5

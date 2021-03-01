@@ -36,8 +36,8 @@ class LDMTrain(object):
         self.single_image_train = single_image_train
         self.pr = params
         self.workset_path = os.path.join(self.ds['dataset_dir'], self.ds['workset_name'])
-        self.last_epoch = self.get_last_epoch()
         self.paths = self.create_workspace()
+        self.last_epoch = self.get_last_epoch()
         self.device = self.backend_operations()
         self.train_loader, self.valid_loader = self.create_dataloaders()
         self.model, self.criterion, self.postprocessors = self.load_model()
@@ -49,6 +49,10 @@ class LDMTrain(object):
         self.update_last_epoch_in_components()
 
     def get_last_epoch(self):
+        meta_path = os.path.join(self.paths.stats, 'meta.pkl')
+        if os.path.exists(meta_path):
+            meta = FileHandler.load_pkl(meta_path)
+            return list(meta.keys())[-1]
         return 0
 
     def update_last_epoch_in_components(self):
@@ -136,10 +140,18 @@ class LDMTrain(object):
         optimizer = optim.AdamW(params=filter(lambda p: p.requires_grad, self.model.parameters()),
                                 lr=float(args_op['lr']),
                                 weight_decay=args_op['weight_decay'])
+        if self.ex['pretrained']['use_pretrained']:
+            latest_path = os.path.join(self.paths.checkpoint, 'latest.pth')
+            optimizer.load_state_dict(torch.load(latest_path)['optimizer'])
         return optimizer
 
     def load_model(self):
         model, criterion, postprocessors = build_model(args=detr_args)
+        if self.ex['pretrained']['use_pretrained']:
+            latest_path = os.path.join(self.paths.checkpoint, 'latest.pth')
+            state_dict = torch.load(latest_path)['state_dict'].state_dict()
+            stdict = {k.replace('module.', ""): v for (k, v) in state_dict.items()}
+            model.load_state_dict(stdict)
         return model, criterion, postprocessors
 
     def load_scheduler(self):
@@ -169,6 +181,7 @@ class LDMTrain(object):
                                epochs=2000,
                                writer_dict=self.writer,
                                **{'log_interval': 20})
+            return
 
         run_valid = self.tr['run_valid']
 

@@ -68,7 +68,7 @@ def train_epoch(train_loader, model, criterion, optimizer,
         # compute the output
         input_ = input_.cuda()
         bs = target.shape[0]
-        target = torch.cat((target, 16*torch.ones_like(target)), dim=2)
+        # target = torch.cat((target, 16*torch.ones_like(target)), dim=2)
         target_dict = [{'labels': torch.range(start=0, end=target.shape[1]-1).cuda(),
                         'coords': target[i].cuda()} for i in range(bs)]
         output = model(input_)
@@ -84,7 +84,7 @@ def train_epoch(train_loader, model, criterion, optimizer,
 
         # NME
         preds = output['pred_coords'].cpu().detach().numpy() * 256
-        nme_batch = compute_nme(preds[:, :, :-2], opts.cpu().numpy())
+        nme_batch = compute_nme(preds, opts.cpu().numpy())
         nme_batch_sum = nme_batch_sum + np.sum(nme_batch)
         nme_count = nme_count + preds.shape[0]
 
@@ -162,7 +162,6 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
             # compute the output
             input_ = input_.cuda()
             bs = target.shape[0]
-            target = torch.cat((target, 16*torch.ones_like(target)), dim=2)
             target_dict = [{'labels': torch.range(start=0, end=target.shape[1] - 1).cuda(),
                             'coords': target[i].cuda()} for i in range(bs)]
             output = model(input_)
@@ -174,7 +173,7 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
 
             # NME
             preds = output['pred_coords'].cpu().detach().numpy() * 256
-            nme_batch = compute_nme(preds[:, :, :-2], opts.cpu().numpy())
+            nme_batch = compute_nme(preds, opts.cpu().numpy())
             # scatter_prediction_gt(preds, opts)
 
             # Failure Rate under different threshold
