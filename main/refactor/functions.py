@@ -68,7 +68,7 @@ def train_epoch(train_loader, model, criterion, optimizer,
         # compute the output
         input_ = input_.cuda()
         bs = target.shape[0]
-        # target = torch.cat((target, 16*torch.ones_like(target)), dim=2)
+
         target_dict = [{'labels': torch.range(start=0, end=target.shape[1]-1).cuda(),
                         'coords': target[i].cuda()} for i in range(bs)]
         output = model(input_)
@@ -169,7 +169,7 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
             # loss
             loss_dict = criterion(output, target_dict)
             weight_dict = criterion.weight_dict
-            lossv = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
+            lossv = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)*10
 
             # NME
             preds = output['pred_coords'].cpu().detach().numpy() * 256

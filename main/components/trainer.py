@@ -152,7 +152,7 @@ class LDMTrain(object):
             state_dict = torch.load(latest_path)['state_dict'].state_dict()
             stdict = {k.replace('module.', ""): v for (k, v) in state_dict.items()}
             model.load_state_dict(stdict)
-        return model, criterion, postprocessors
+        return model.cuda(), criterion, postprocessors
 
     def load_scheduler(self):
         args_sc = self.pr['scheduler'][self.tr['scheduler']]
@@ -171,7 +171,8 @@ class LDMTrain(object):
 
     def train(self):
         # TODO: support multiple gpus
-        self.model = torch.nn.DataParallel(self.model, device_ids=[0]).cuda()
+        # self.model = torch.nn.DataParallel(self.model, device_ids=[0]).cuda()
+        self.model.to(device=self.device)
 
         if self.single_image_train:
             single_image_train(train_loader=self.train_loader,
