@@ -69,8 +69,11 @@ def train_epoch(train_loader, model, criterion, optimizer,
         input_ = input_.cuda()
         bs = target.shape[0]
 
-        target_dict = [{'labels': torch.range(start=0, end=target.shape[1]-1).cuda(),
-                        'coords': target[i].cuda()} for i in range(bs)]
+        # target_dict = [{'labels': torch.range(start=0, end=target.shape[1]-1).cuda(),
+        #                 'coords': target[i].cuda()} for i in range(bs)]
+        target_dict = {'labels': [torch.range(start=0, end=target.shape[1]-1).cuda() for i in range(bs)],
+                        'coords': target.cuda()}
+
         output = model(input_)
 
         # Loss
