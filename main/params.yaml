@@ -5,7 +5,7 @@ experiment:
   single_image_train: False
   pretrained:
     use_pretrained: False
-    timestamp: '010321_004013'
+    timestamp: '070321_195217'
   save_model: True
   single_batch_debug: False
 

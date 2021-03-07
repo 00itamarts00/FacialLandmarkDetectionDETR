@@ -87,7 +87,8 @@ def train_epoch(train_loader, model, criterion, optimizer,
 
         # NME
         preds = output['pred_coords'].cpu().detach().numpy() * 256
-        nme_batch = compute_nme(preds, opts.cpu().numpy())
+        opts_scaled = np.array([i * s for i, s in zip(opts.numpy(), scale.numpy())])
+        nme_batch = compute_nme(preds, opts_scaled)
         nme_batch_sum = nme_batch_sum + np.sum(nme_batch)
         nme_count = nme_count + preds.shape[0]
 
@@ -173,11 +174,13 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
             # loss
             loss_dict = criterion(output, target_dict)
             weight_dict = criterion.weight_dict
-            lossv = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)*10
+            lossv = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
 
             # NME
             preds = output['pred_coords'].cpu().detach().numpy() * 256
-            nme_batch = compute_nme(preds, opts.cpu().numpy())
+            opts_scaled = np.array([i * s for i, s in zip(opts.numpy(), scale.numpy())])
+            nme_batch = compute_nme(preds, opts_scaled)
+
             # scatter_prediction_gt(preds, opts)
 
             # Failure Rate under different threshold
