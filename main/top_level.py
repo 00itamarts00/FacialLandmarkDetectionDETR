@@ -68,7 +68,6 @@ class TopLevel(object):
         pass
 
     def evaluate_model(self):
-        self.setup_pretrained(force=True)
         self.setup_workspace()
         self.setup_logger(name='evaluate_model')
         lmd_eval = Evaluator(params=self.params)

@@ -180,8 +180,6 @@ class CLMDataset(data.Dataset):
         heatmaps, hm_pts = create_heatmaps2(pts, np.shape(img), self.hmsize, self.imga, self.gaurfactor)
         heatmaps = np.float32(heatmaps)  # /np.max(hm)
         heatmaps = torch.Tensor(heatmaps)
-        # target = torch.Tensor([np.append(i, pt) for i, pt in enumerate(pts)])
-        # target = torch.Tensor({'labels': torch.Tensor([j for j in range(len(pts))]), 'coords': torch.Tensor(pts)})
         target = torch.Tensor(pts/256)
 
         img = (np.float32(img)/255 - self.mean) / self.std

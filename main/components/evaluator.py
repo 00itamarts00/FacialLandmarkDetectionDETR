@@ -4,26 +4,27 @@ import os
 import torch
 import wandb
 from torch.utils import data
-
+from prettytable import PrettyTable
 from common.modelhandler import CModelHandler
 from main.components.CLMDataset import CLMDataset, get_data_list
 from main.refactor.evaluation import evaluate_model, analyze_results
 from models import HRNET
 from models import hrnet_config
 from utils.file_handler import FileHandler
-
+from main.components.trainer import LDMTrain
 torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
 
-class Evaluator(object):
+class Evaluator(LDMTrain):
     def __init__(self, params):
-        self.pr = params
-        self.workspace_path = self.pr['workspace_path']
-        self.workset_path = os.path.join(self.ds['dataset_dir'], self.ds['workset_name'])
-        self.device = self.backend_operations()
-        self.paths = self.create_workspace()
-        self.mdhl = self.load_model()
+        super().__init__(params)
+        # self.pr = params
+        # self.workspace_path = self.pr['workspace_path']
+        # self.workset_path = os.path.join(self.ds['dataset_dir'], self.ds['workset_name'])
+        # self.device = self.backend_operations()
+        # self.paths = self.create_workspace()
+        # self.mdhl = self.load_model()
 
     @property
     def hm_amp_factor(self):
@@ -72,16 +73,7 @@ class Evaluator(object):
         torch.backends.benchmark = self.tr['backend']['use_torch']
         return device
 
-    def load_model(self):
-        model = None
-        kwargs = {'workspace_path': self.paths.workspace, 'epochs_to_save': None, 'load_mode': 'best'}
-        if self.tr['model'] == 'HRNET':
-            config = hrnet_config._C
-            model = HRNET.get_face_alignment_net(config)
-        mdhl = CModelHandler(model=model, checkpoint_path=self.paths.checkpoint, args=self.paths.args, **kwargs)
-        return mdhl
-
-    def create_data_loaders(self, dataset):
+    def create_test_data_loader(self, dataset):
         use_cuda = self.tr['cuda']['use']
         kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
         batch_size = self.tr['batch_size']
@@ -95,18 +87,18 @@ class Evaluator(object):
     def evaluate(self):
         res, dataset_eval = dict(), dict()
         batch_size = self.tr['batch_size']
-        self.mdhl.model.eval()
-        self.mdhl.model.to(self.device)
+        self.model.eval()
+        self.model.to(self.device)
         for dataset in self.ev['datasets']:
             setnick = dataset.replace('/', '_')
             results_file = os.path.join(self.paths.eval, f'{setnick}.pkl')
             if not os.path.exists(results_file):
                 logger.info(f'Evaluating {setnick} testset')
-                test_loader = self.create_data_loaders(dataset=dataset)
+                test_loader = self.create_test_data_loader(dataset=dataset)
                 kwargs = {'log_interval': self.log_interval}
                 dataset_eval[setnick] = evaluate_model(device=self.device,
                                                        test_loader=test_loader,
-                                                       model=self.mdhl.model,
+                                                       model=self.model,
                                                        **kwargs)
                 res.update(dataset_eval)
                 FileHandler.save_dict_to_pkl(dict_arg=dataset_eval, dict_path=results_file)
@@ -120,23 +112,23 @@ class Evaluator(object):
         rCOFW68 = analyze_results(res, ['COFW68/COFW_test_color'], 'COFW68')
         rWFLW = analyze_results(res, ['WFLW/testset'], 'WFLW')
         #
-        logger.info('SET NAME \t\t\t\t AUC08  \t\t NLE ')
-        logger.info('----------------------------------------------------')
-        logger.info('{} \t\t & {:.03f} \t\t & {:.03f}'.format(r300WPub['setnick'], r300WPub['auc08'], r300WPub['NLE']))
-        logger.info('{} \t\t & {:.03f} \t\t & {:.03f}'.format(r300WPri['setnick'], r300WPri['auc08'], r300WPri['NLE']))
-        logger.info(
-            '{} \t\t\t\t\t & {:.03f} \t\t & {:.03f}'.format(rCOFW68['setnick'], rCOFW68['auc08'], rCOFW68['NLE']))
-        logger.info('{} \t\t\t\t\t & {:.03f} \t\t & {:.03f}'.format(rWFLW['setnick'], rWFLW['auc08'], rWFLW['NLE']))
+        p = PrettyTable()
+        p.field_names = ["SET NAME", "AUC08", "FAIL08", "NLE"]
+        p.add_row([r300WPub['setnick'], r300WPub['auc08'], r300WPub['fail08'], r300WPub['NLE']])
+        p.add_row([r300WPri['setnick'], r300WPri['auc08'], r300WPri['fail08'], r300WPri['NLE']])
+        p.add_row([rCOFW68['setnick'], rCOFW68['auc08'], rCOFW68['fail08'], rCOFW68['NLE']])
+        p.add_row([rWFLW['setnick'], rWFLW['auc08'], rWFLW['fail08'], rWFLW['NLE']])
+        logger.info(p)
 
-        wblog = wandb.init(name=f'{self.ex["name"]}_{str(self.mdhl.final_epoch).zfill(5)}',
+        wblog = wandb.init(name=f'{self.ex["name"]}_{str(self.last_epoch).zfill(5)}',
                            project='landmark-detection',
                            sync_tensorboard=False,
                            dir=self.paths.wandb,
                            reinit=True)
-        wblog.watch(self.mdhl.model, log="all")
+        wblog.watch(self.model, log="all")
         wblog.config.update(self.pr)
         wblog.log({'r300WPub': r300WPub})
         wblog.log({'r300WPri': r300WPri})
         wblog.log({'rCOFW68': rCOFW68})
         wblog.log({'rWFLW': rWFLW})
-        wblog.log({'epoch': self.mdhl.final_epoch})
+        wblog.log({'epoch': self.last_epoch})

@@ -46,7 +46,7 @@ def compute_nme(preds, opts, box_size=None):
     rmse = np.zeros(batch_size)
 
     for i in range(batch_size):
-        pts_pred, pts_gt = preds[i,], target[i,]
+        pts_pred, pts_gt = preds[i, ], target[i, ]
         if num_landmarks == 19:  # aflw
             interocular = box_size
         elif num_landmarks == 29:  # cofw
@@ -112,8 +112,8 @@ def analyze_results(datastets_inst, datasets, setnick):
         if setnick_ not in datasets:
             continue
         for b_idx, b_idx_inst in dataset_inst.items():
-            [preds.append(i) for i in b_idx_inst['preds'].numpy()]
-            [opts.append(i) for i in b_idx_inst['opts'].numpy()]
+            [preds.append(b) for b in b_idx_inst['preds']]
+            [opts.append(b.numpy()) for b in b_idx_inst['opts']]
     preds = np.squeeze(preds)
     opts = np.squeeze(opts)
     err = compute_nme(preds, opts)
@@ -149,9 +149,9 @@ def evaluate_model(device, test_loader, model, **kwargs):
             scale, hm_factor = item['sfactor'], item['hmfactor']
             input_, target = input_.to(device), target.to(device)
             output = model(input_)
-            score_map = output.data.cpu()
-            preds = extract_pts_from_hm(score_maps=score_map, scale=scale, hm_input_ratio=hm_factor)
+            preds = output['pred_coords'].cpu().detach().numpy() * 256
             item['preds'] = preds
+            item['opts'] = [i * s for (i, s) in zip(opts, scale)]
             epts_batch[batch_idx] = item
             percent = f' ({100. * (batch_idx + 1) / len(test_loader):.02f}%)]'
             sys.stdout.write(f"\rTesting batch {batch_idx}\t{percent}")
