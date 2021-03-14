@@ -6,10 +6,12 @@ import os
 import time
 
 import torch.optim as optim
+import wandb
 from tensorboardX import SummaryWriter
 from torch.optim.lr_scheduler import StepLR
 from torch.utils import data
 
+import main.globals as g
 from main.components.CLMDataset import CLMDataset, get_def_transform, get_data_list
 from main.components.evaluate_model import *
 from main.refactor.functions import train_epoch, validate_epoch, single_image_train
@@ -47,6 +49,39 @@ class LDMTrain(object):
         self.writer = self.init_writer()
         self.trn_loss = 0
         self.update_last_epoch_in_components()
+        self.init_wandb_logger()
+
+    def init_wandb_logger(self):
+        # Start a new run, tracking hyperparameters in config
+        wandb.init(project="detr_landmark_detection",
+                   # group='nothing',
+                   config={
+                       "lr_trans": detr_args.lr,
+                       "lr_backbone": detr_args.lr_backbone,
+                       "clip_max_norm": detr_args.clip_max_norm,
+                       'backbone': detr_args.backbone,
+                       "dropout": detr_args.dropout,
+                       "architecture": "DETR",
+                       'detr_hidden_dim': detr_args.hidden_dim,
+                       'detr_dim_feedforward': detr_args.dim_feedforward,
+                       "enc_layers": detr_args.enc_layers,
+                       "dec_layers": detr_args.dec_layers,
+                       "transoformer_heads": detr_args.nheads,
+                       "transoformer_position_embedding": detr_args.position_embedding,
+                       'batch_size': self.tr['batch_size'],
+                       'step_size': self.tr['step_size'],
+                       'epochs': self.tr['epochs'],
+                       'timestamp': g.TIMESTAMP,
+                       "dataset": "WS02",
+                   },
+                   # notes=None,
+                   # tags=[None],
+                   )
+        wandb.watch(self.model, log='all')
+        config = wandb.config
+        id = wandb.util.generate_id()
+        g.WANDB_INIT = id
+        logger.info(f'WandB ID: {id}')
 
     def get_last_epoch(self):
         meta_path = os.path.join(self.paths.stats, 'meta.pkl')
@@ -129,7 +164,8 @@ class LDMTrain(object):
                      'args': os.path.join(workspace_path, 'args'),
                      'logs': os.path.join(workspace_path, 'logs'),
                      'stats': os.path.join(workspace_path, 'stats'),
-                     'workset': self.workset_path
+                     'workset': self.workset_path,
+                     'wandb': os.path.join(workspace_path, 'wandb')
                      }
         paths = FileHandler.dict_to_nested_namedtuple(structure)
         [os.makedirs(i, exist_ok=True) for i in paths]
@@ -196,8 +232,7 @@ class LDMTrain(object):
             if self.train_loader is not None:
                 starttime = time.time()
                 # train
-                kwargs = {'log_interval': 20,
-                          'debug': self.ex['single_batch_debug']}
+                kwargs = {'log_interval': 20, 'debug': self.ex['single_batch_debug']}
                 train_epoch(train_loader=self.train_loader,
                             model=self.model,
                             criterion=self.criterion,

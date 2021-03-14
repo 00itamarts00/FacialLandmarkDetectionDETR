@@ -2,29 +2,23 @@ import logging
 import os
 
 import torch
-import wandb
-from torch.utils import data
 from prettytable import PrettyTable
-from common.modelhandler import CModelHandler
+from torch.utils import data
+
+import main.globals as g
 from main.components.CLMDataset import CLMDataset, get_data_list
-from main.refactor.evaluation import evaluate_model, analyze_results
-from models import HRNET
-from models import hrnet_config
-from utils.file_handler import FileHandler
 from main.components.trainer import LDMTrain
+from main.refactor.evaluation import evaluate_model, analyze_results
+from utils.file_handler import FileHandler
+
 torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
+import wandb
 
 
 class Evaluator(LDMTrain):
     def __init__(self, params):
         super().__init__(params)
-        # self.pr = params
-        # self.workspace_path = self.pr['workspace_path']
-        # self.workset_path = os.path.join(self.ds['dataset_dir'], self.ds['workset_name'])
-        # self.device = self.backend_operations()
-        # self.paths = self.create_workspace()
-        # self.mdhl = self.load_model()
 
     @property
     def hm_amp_factor(self):
@@ -120,15 +114,11 @@ class Evaluator(LDMTrain):
         p.add_row([rWFLW['setnick'], rWFLW['auc08'], rWFLW['fail08'], rWFLW['NLE']])
         logger.info(p)
 
-        wblog = wandb.init(name=f'{self.ex["name"]}_{str(self.last_epoch).zfill(5)}',
-                           project='landmark-detection',
-                           sync_tensorboard=False,
-                           dir=self.paths.wandb,
-                           reinit=True)
-        wblog.watch(self.model, log="all")
-        wblog.config.update(self.pr)
-        wblog.log({'r300WPub': r300WPub})
-        wblog.log({'r300WPri': r300WPri})
-        wblog.log({'rCOFW68': rCOFW68})
-        wblog.log({'rWFLW': rWFLW})
-        wblog.log({'epoch': self.last_epoch})
+        wandb.init(project="detr_landmark_detection",
+                   id=g.WANDB_INIT,
+                   resume='must')
+        wandb.log({'r300WPub': r300WPub})
+        wandb.log({'r300WPri': r300WPri})
+        wandb.log({'rCOFW68': rCOFW68})
+        wandb.log({'rWFLW': rWFLW})
+        wandb.log({'epoch': self.last_epoch})

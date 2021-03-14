@@ -26,7 +26,7 @@ train:
   partition_seed: 42
   num_landmarks: 68
   trainset_partition: 0.8
-  epochs: 1000
+  epochs: 1
   torch_seed: 0
   batch_size: 32
   step_size: 5

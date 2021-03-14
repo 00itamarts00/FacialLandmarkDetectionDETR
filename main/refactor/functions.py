@@ -12,6 +12,7 @@ import time
 import logging
 import math
 import torch
+import wandb
 from torchvision.utils import make_grid
 import numpy as np
 from utils.plot_utils import plot_score_maps, plot_gt_pred_on_img
@@ -119,13 +120,17 @@ def train_epoch(train_loader, model, criterion, optimizer,
         end = time.time()
 
     nme = nme_batch_sum / nme_count
+    wandb.log({'train/nme': nme, 'epoch': epoch})
+    wandb.log({'train/loss': losses.avg, 'epoch': epoch})
+    wandb.log({'train/batch_time': batch_time.avg, 'epoch': epoch})
+
     if writer_dict:
         writer = writer_dict['writer']
         log = writer_dict['log']
         log[epoch] = {}
         global_steps = writer_dict['train_global_steps']
-        writer.add_scalar('train_loss', losses.val, global_steps)
-        log[epoch].update({'train_loss': losses.val})
+        writer.add_scalar('train_loss', losses.avg, global_steps)
+        log[epoch].update({'train_loss': losses.avg})
         writer.add_scalar('train_nme', nme, global_steps)
         log[epoch].update({'train_nme': nme})
         writer.add_scalar('batch_time.avg', batch_time.avg, global_steps)
@@ -212,6 +217,13 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
 
     dbg_img = plot_gt_pred_on_img(item=item, predictions=preds, index=-1)
     grid = torch.tensor(np.swapaxes(np.swapaxes(dbg_img, 0, -1), 1, 2))
+
+    wandb.log({'valid/nme': nme, 'epoch': epoch})
+    wandb.log({'valid/loss': losses.avg, 'epoch': epoch})
+    wandb.log({'valid/fail_rate_008': failure_008_rate, 'epoch': epoch})
+    wandb.log({'valid/fail_rate_010': failure_010_rate, 'epoch': epoch})
+    wandb.log({'valid/batch_time': batch_time.avg, 'epoch': epoch})
+    wandb.log({"debug_image": dbg_img})
 
     if writer_dict:
         writer = writer_dict['writer']
