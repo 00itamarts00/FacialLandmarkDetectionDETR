@@ -223,7 +223,7 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
     wandb.log({'valid/fail_rate_008': failure_008_rate, 'epoch': epoch})
     wandb.log({'valid/fail_rate_010': failure_010_rate, 'epoch': epoch})
     wandb.log({'valid/batch_time': batch_time.avg, 'epoch': epoch})
-    wandb.log({"debug_image": dbg_img})
+    # wandb.log({"debug_image": dbg_img})
 
     if writer_dict:
         writer = writer_dict['writer']

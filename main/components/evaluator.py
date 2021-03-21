@@ -121,4 +121,3 @@ class Evaluator(LDMTrain):
         wandb.log({'r300WPri': r300WPri})
         wandb.log({'rCOFW68': rCOFW68})
         wandb.log({'rWFLW': rWFLW})
-        wandb.log({'epoch': self.last_epoch})

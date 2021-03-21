@@ -29,6 +29,8 @@ from utils.file_handler import FileHandler
 torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
+os.environ["WANDB_API_KEY"] = g.WANDB_API_KEY
+# os.environ["WANDB_MODE"] = "dryrun"
 
 # TODO: Load tensorboard logs as df/dict
 
@@ -66,10 +68,10 @@ class LDMTrain(object):
                        'detr_dim_feedforward': detr_args.dim_feedforward,
                        "enc_layers": detr_args.enc_layers,
                        "dec_layers": detr_args.dec_layers,
-                       "transoformer_heads": detr_args.nheads,
-                       "transoformer_position_embedding": detr_args.position_embedding,
+                       "transformer_heads": detr_args.nheads,
+                       "transformer_position_embedding": detr_args.position_embedding,
                        'batch_size': self.tr['batch_size'],
-                       'step_size': self.tr['step_size'],
+                       'step_size': self.pr['scheduler'][self.tr['scheduler']]['step_size'],
                        'epochs': self.tr['epochs'],
                        'timestamp': g.TIMESTAMP,
                        "dataset": "WS02",
@@ -77,7 +79,7 @@ class LDMTrain(object):
                    # notes=None,
                    # tags=[None],
                    )
-        wandb.watch(self.model, log='all')
+        # wandb.watch(self.model)
         config = wandb.config
         id = wandb.util.generate_id()
         g.WANDB_INIT = id
