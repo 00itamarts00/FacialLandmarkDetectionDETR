@@ -179,17 +179,15 @@ class LDMTrain(object):
                                 lr=float(args_op['lr']),
                                 weight_decay=args_op['weight_decay'])
         if self.ex['pretrained']['use_pretrained']:
-            latest_path = os.path.join(self.paths.checkpoint, 'latest.pth')
-            optimizer.load_state_dict(torch.load(latest_path)['optimizer'])
+            model_best_pth = os.path.join(self.paths.checkpoint, 'model_best.pth')
+            optimizer.load_state_dict(torch.load(model_best_pth)['optimizer'])
         return optimizer
 
     def load_model(self):
         model, criterion, postprocessors = build_model(args=detr_args)
         if self.ex['pretrained']['use_pretrained']:
-            latest_path = os.path.join(self.paths.checkpoint, 'latest.pth')
-            state_dict = torch.load(latest_path)['state_dict'].state_dict()
-            stdict = {k.replace('module.', ""): v for (k, v) in state_dict.items()}
-            model.load_state_dict(stdict)
+            model_best_pth = os.path.join(self.paths.checkpoint, 'model_best.pth')
+            model = torch.load(model_best_pth)
         return model.cuda(), criterion, postprocessors
 
     def load_scheduler(self):
