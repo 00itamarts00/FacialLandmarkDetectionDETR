@@ -187,7 +187,8 @@ class LDMTrain(object):
         model, criterion, postprocessors = build_model(args=detr_args)
         if self.ex['pretrained']['use_pretrained']:
             model_best_pth = os.path.join(self.paths.checkpoint, 'model_best.pth')
-            model = torch.load(model_best_pth)
+            model_best_state = torch.load(model_best_pth)
+            model.load_state_dict(model_best_state['state_dict'].state_dict())
         return model.cuda(), criterion, postprocessors
 
     def load_scheduler(self):

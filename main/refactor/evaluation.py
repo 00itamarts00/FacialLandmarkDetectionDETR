@@ -7,7 +7,7 @@
 import logging
 import math
 import sys
-
+from tqdm import tqdm
 import numpy as np
 import torch
 
@@ -107,6 +107,7 @@ def analyze_results(datastets_inst, datasets, setnick):
     datasets = [i.replace('/', '_') for i in datasets]
     preds, opts = list(), list()
     mean_err, max_err, std_err = [], [], []
+    tot_err = list()
     for dataset, dataset_inst in datastets_inst.items():
         setnick_ = dataset.replace('/', '_')
         if setnick_ not in datasets:
@@ -114,21 +115,21 @@ def analyze_results(datastets_inst, datasets, setnick):
         for b_idx, b_idx_inst in dataset_inst.items():
             [preds.append(b) for b in b_idx_inst['preds']]
             [opts.append(b.numpy()) for b in b_idx_inst['opts']]
-    preds = np.squeeze(preds)
-    opts = np.squeeze(opts)
-    err = compute_nme(preds, opts)
-    mean_err.append(np.mean(err))
-    max_err.append(np.max(err))
-    std_err.append(np.std(err))
-    auc08, fail08, bins, ced68 = calc_CED(mean_err)
-    nle = 100 * np.mean(mean_err)
+        err = compute_nme(np.array(preds), np.array(opts))
+        [tot_err.insert(0, i) for i in err]
+        mean_err.append(np.mean(err))
+        max_err.append(np.max(err))
+        std_err.append(np.std(err))
+    tot_err = np.array(tot_err)
+    auc08, fail08, bins, ced68 = calc_CED(tot_err)
+    nle = 100 * np.mean(tot_err)
     return {'setnick': setnick, 'auc08': auc08, 'NLE': nle, 'fail08': fail08, 'bins': bins, 'ced68': ced68}
 
 
 def calc_CED(err, x_limit=0.08):
     bins = np.linspace(0, 1, num=10000)
     ced68 = np.zeros(len(bins))
-    th_idx = np.argmax(bins >= x_limit)
+    th_idx = np.where(bins >= x_limit)[0][0]
 
     for i in range(len(bins)):
         ced68[i] = np.sum(np.array(err) < bins[i]) / len(err)

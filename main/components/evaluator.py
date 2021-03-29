@@ -100,8 +100,8 @@ class Evaluator(LDMTrain):
                 logger.info(f'Loading {setnick} testset results')
                 dataset_eval = FileHandler.load_pkl(results_file)
                 res.update(dataset_eval)
-        #
-        r300WPub = analyze_results(res, ['helen/testset', 'lfpw/testset', 'ibug'], '300W Public Set')
+
+        r300WPub = analyze_results(res, ['helen/testset', 'lfpw/testset', 'ibug', 'AFW'], '300W Public Set')
         r300WPri = analyze_results(res, ['300W'], '300W Private Set')
         rCOFW68 = analyze_results(res, ['COFW68/COFW_test_color'], 'COFW68')
         rWFLW = analyze_results(res, ['WFLW/testset'], 'WFLW')
