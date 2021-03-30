@@ -10,11 +10,13 @@ import sys
 from tqdm import tqdm
 import numpy as np
 import torch
-
+from PIL import Image
+import os
 logger = logging.getLogger(__name__)
 # import wandb
 
 from main.refactor.transforms import transform_preds
+from utils.plot_utils import plot_score_maps, plot_gt_pred_on_img, plot_grid_of_ldm
 
 
 def get_preds(scores):
@@ -102,27 +104,51 @@ def decode_preds(output, center, scale, res):
     return preds
 
 
-def analyze_results(datastets_inst, datasets, setnick):
+def save_tough_images(dataset, dataset_inst, ds_err, output):
+    num_images_to_analyze = 16
+    idx_argmax = ds_err.argsort()[-num_images_to_analyze:][::-1]
+    imgs, sfactor, preds, opts = [], [], [], []
+
+    for b_idx, b_idx_inst in dataset_inst.items():
+        [preds.append(b) for b in b_idx_inst['preds']]
+        [opts.append(b.numpy()) for b in b_idx_inst['opts']]
+        [sfactor.append(b.numpy()) for b in b_idx_inst['sfactor']]
+        [imgs.append(b) for b in b_idx_inst['img']]
+
+    img_plot = [imgs[i] for i in idx_argmax]
+    preds_plot = [preds[i] for i in idx_argmax]
+    opts_plot = [opts[i] for i in idx_argmax]
+    sfactor_plot = [sfactor[i] for i in idx_argmax]
+
+    analyze_pic = plot_grid_of_ldm(dataset, img_plot, preds_plot, opts_plot, sfactor_plot)
+    im = Image.fromarray(analyze_pic)
+    im.save(os.path.join(output, f'{dataset}_analysis_image.png'))
+
+
+def analyze_results(datastets_inst, datasets, setnick, output=None):
     logger.info(f'Analyzing results on {setnick} Datasets')
     datasets = [i.replace('/', '_') for i in datasets]
-    preds, opts = list(), list()
     mean_err, max_err, std_err = [], [], []
     tot_err = list()
     for dataset, dataset_inst in datastets_inst.items():
+        preds, opts = list(), list()
         setnick_ = dataset.replace('/', '_')
         if setnick_ not in datasets:
             continue
         for b_idx, b_idx_inst in dataset_inst.items():
             [preds.append(b) for b in b_idx_inst['preds']]
             [opts.append(b.numpy()) for b in b_idx_inst['opts']]
-        err = compute_nme(np.array(preds), np.array(opts))
-        [tot_err.insert(0, i) for i in err]
-        mean_err.append(np.mean(err))
-        max_err.append(np.max(err))
-        std_err.append(np.std(err))
+        ds_err = compute_nme(np.array(preds), np.array(opts))
+        [tot_err.append(i) for i in ds_err]
+        mean_err.append(np.mean(ds_err))
+        max_err.append(np.max(ds_err))
+        std_err.append(np.std(ds_err))
+        if output is not None:
+            save_tough_images(f'{setnick.replace(" ", "_")}-{dataset}', dataset_inst, ds_err, output)
     tot_err = np.array(tot_err)
     auc08, fail08, bins, ced68 = calc_CED(tot_err)
     nle = 100 * np.mean(tot_err)
+
     return {'setnick': setnick, 'auc08': auc08, 'NLE': nle, 'fail08': fail08, 'bins': bins, 'ced68': ced68}
 
 

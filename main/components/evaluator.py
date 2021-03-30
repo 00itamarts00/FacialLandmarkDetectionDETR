@@ -52,8 +52,8 @@ class Evaluator(LDMTrain):
                      'logs': os.path.join(workspace_path, 'logs'),
                      'stats': os.path.join(workspace_path, 'stats'),
                      'eval': os.path.join(workspace_path, 'evaluation'),
-                     'wandb': os.path.join(workspace_path, 'wandb'),
-                     'workset': self.workset_path
+                     'workset': self.workset_path,
+                     'analysis': os.path.join(workspace_path, 'analysis')
                      }
         paths = FileHandler.dict_to_nested_namedtuple(structure)
         [os.makedirs(i, exist_ok=True) for i in paths]
@@ -101,11 +101,14 @@ class Evaluator(LDMTrain):
                 dataset_eval = FileHandler.load_pkl(results_file)
                 res.update(dataset_eval)
 
-        r300WPub = analyze_results(res, ['helen/testset', 'lfpw/testset', 'ibug', 'AFW'], '300W Public Set')
-        r300WPri = analyze_results(res, ['300W'], '300W Private Set')
-        rCOFW68 = analyze_results(res, ['COFW68/COFW_test_color'], 'COFW68')
-        rWFLW = analyze_results(res, ['WFLW/testset'], 'WFLW')
+        r300WPub = analyze_results(res, ['helen/testset', 'lfpw/testset', 'ibug'], '300W Public Set',
+                                   output=self.paths.analysis)
+        r300WPri = analyze_results(res, ['300W'], '300W Private Set', output=self.paths.analysis)
+        rCOFW68 = analyze_results(res, ['COFW68/COFW_test_color'], 'COFW68', output=self.paths.analysis)
+        rWFLW = analyze_results(res, ['WFLW/testset'], 'WFLW', output=self.paths.analysis)
         #
+
+
         p = PrettyTable()
         p.field_names = ["SET NAME", "AUC08", "FAIL08", "NLE"]
         p.add_row([r300WPub['setnick'], r300WPub['auc08'], r300WPub['fail08'], r300WPub['NLE']])

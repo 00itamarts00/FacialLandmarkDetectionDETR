@@ -1,9 +1,20 @@
+import math
+import warnings
+
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
-import warnings
+from mpl_toolkits.axes_grid1 import ImageGrid
+
 warnings.filterwarnings('ignore')
+
+
+def closest_divisors(n):
+    a = round(math.sqrt(n))
+    while n % a > 0:
+        a -= 1
+    return a, n//a
 
 
 def plot_ldm_on_image(image, pts, channels_last=False):
@@ -91,3 +102,30 @@ def renorm_image(img):
     img_[img_ < 0] = 0
 
     return np.ubyte(img_)
+
+
+def plot_grid_of_ldm(dataset, imgs, preds, opts, sfactors):
+    fig = plt.figure(figsize=(10., 6.))
+    canvas = FigureCanvas(fig)
+    w, h = closest_divisors(imgs.__len__())
+    grid = ImageGrid(fig, 111,  # similar to subplot(111)
+                     nrows_ncols=(w, h),  # creates 16x16 grid of axes
+                     axes_pad=0.0,  # pad between axes in inch.
+                     )
+    for ax, img, pred, opt, scale in zip(grid, imgs, preds, opts, sfactors):
+        img = renorm_image(img)
+        img = np.array(img).astype(np.uint8)
+        ax.imshow(img)
+        ax.axis('off')
+        a = ax.scatter(pred.T[0], pred.T[1], s=2, c='r', label='pred')
+        b = ax.scatter(opt.T[0], opt.T[1], s=2, c='b', label='gt')
+
+    plt.suptitle(f'Dataset: {dataset}\nToughest Predictions', y=0.98)
+    fig.legend((a, b), ['gt', 'pred'], loc='lower center')
+    canvas.draw()
+    width, height = fig.get_size_inches() * fig.get_dpi()
+    image = np.fromstring(canvas.tostring_rgb(), dtype='uint8').reshape(int(height), int(width), 3)
+    return image
+
+
+

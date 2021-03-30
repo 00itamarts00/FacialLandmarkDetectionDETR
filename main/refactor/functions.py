@@ -210,8 +210,8 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
     failure_008_rate = count_failure_008 / nme_count
     failure_010_rate = count_failure_010 / nme_count
 
-    msg = 'Test Epoch {} time:{:.4f} loss:{:.4f} nme:{:.4f} [008]:{:.4f} ' \
-          '[010]:{:.4f}'.format(epoch, batch_time.avg, losses.avg, nme,
+    msg = 'Test Epoch {} time: {:.4f} loss:{:.4f} nme: {:.4f} [008]: {:.4f} ' \
+          '[010]: {:.4f}'.format(epoch, batch_time.avg, losses.avg, nme,
                                 failure_008_rate, failure_010_rate)
     logger.info(msg)
 
