@@ -69,7 +69,7 @@ class Evaluator(LDMTrain):
 
     def create_test_data_loader(self, dataset):
         use_cuda = self.tr['cuda']['use']
-        kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
+        kwargs = {'num_workers': self.tr['cuda']['num_workers'], 'pin_memory': True} if use_cuda else {}
         batch_size = self.tr['batch_size']
         setnick = dataset.replace('/', '_')
         dflist = get_data_list(self.paths.workset, [dataset], setnick)
