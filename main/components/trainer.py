@@ -151,7 +151,8 @@ class LDMTrain(object):
         trainset = CLMDataset(self.pr, self.paths, dftrain, transform=transform)
         validset = CLMDataset(self.pr, self.paths, dfvalid)
 
-        kwargs = {'num_workers': self.tr['cuda']['num_workers'], 'pin_memory': True} if use_cuda else {}
+        num_workers = self.tr['cuda']['num_workers'] if sys.gettrace() is None else 0
+        kwargs = {'num_workers': num_workers, 'pin_memory': True} if use_cuda else {}
 
         batch_size = self.tr['batch_size'] if not self.ex['single_image_train'] else 1
         train_loader = data.DataLoader(trainset, batch_size=batch_size, shuffle=True, **kwargs)

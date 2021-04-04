@@ -87,7 +87,7 @@ def train_epoch(train_loader, model, criterion, optimizer,
             sys.exit(1)
 
         # NME
-        preds = output['pred_coords'].cpu().detach().numpy() * 256
+        preds = output['pred_coords'].cpu().detach().numpy()[-1] * 256
         opts_scaled = np.array([i * s for i, s in zip(opts.numpy(), scale.numpy())])
         nme_batch = compute_nme(preds, opts_scaled)
         nme_batch_sum = nme_batch_sum + np.sum(nme_batch)
@@ -182,7 +182,7 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
             lossv = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
 
             # NME
-            preds = output['pred_coords'].cpu().detach().numpy() * 256
+            preds = output['pred_coords'].cpu().detach().numpy()[-1] * 256
             opts_scaled = np.array([i * s for i, s in zip(opts.numpy(), scale.numpy())])
             nme_batch = compute_nme(preds, opts_scaled)
 
@@ -342,7 +342,7 @@ def single_image_train(train_loader, model, criterion, optimizer, epochs, writer
             sys.exit(1)
 
         # NME
-        preds = output['pred_coords'].cpu().detach().numpy() * 256
+        preds = output['pred_coords'].cpu().detach().numpy()[-1] * 256
         nme_batch = compute_nme(preds, opts.cpu().numpy())
         nme_batch_sum = nme_batch_sum + np.sum(nme_batch)
         nme_count = nme_count + preds.shape[0]

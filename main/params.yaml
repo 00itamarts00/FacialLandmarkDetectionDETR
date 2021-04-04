@@ -26,7 +26,7 @@ train:
   partition_seed: 42
   num_landmarks: 68
   trainset_partition: 0.8
-  epochs: 100
+  epochs: 250
   torch_seed: 0
   batch_size: 32
   trainable_parameters: null
@@ -36,7 +36,7 @@ train:
     use: True
     device: 'cuda:0'
     device_type: 'cuda'
-    num_workers: 0
+    num_workers: 6
     pin_memory: True
   backend:
     use_torch: True
