@@ -4,7 +4,7 @@ experiment:
   log_interval: 20
   single_image_train: False
   pretrained:
-    use_pretrained: True
+    use_pretrained: False
     timestamp: '040421_094336'
   save_model: True
   single_batch_debug: False
@@ -13,11 +13,11 @@ dataset:
   dataset_dir: '/home/itamar/thesis/DATASET'
   workset_name: 'WS02'
   to_use: ['300W', 'AFW', 'COFW68', 'helen/trainset', 'helen/testset',
-           'ibug', 'lfpw/trainset', 'lfpw/testset', 'menpo/trainset'] #, 'WFLW/trainset', 'WFLW/testset']
+           'ibug', 'lfpw/trainset', 'lfpw/testset', 'menpo/trainset', 'WFLW/trainset', 'WFLW/testset']
 
 train:
   datasets:
-    to_use: [ 'lfpw/trainset', 'lfpw/testset', 'menpo/trainset'] #, 'WFLW/trainset' ]
+    to_use: [ 'WFLW/trainset', 'helen/trainset', 'lfpw/trainset', 'menpo/trainset', 'AFW' ]
     use_augmentations: True
     augmentations:
       scale: 0.25
@@ -100,5 +100,5 @@ loss:
 
 evaluation:
 #  datasets: [ 'helen/testset', 'lfpw/testset']
-  datasets: ['helen/testset', 'lfpw/testset', '300W', 'ibug', 'COFW68/COFW_test_color'] #, 'WFLW/testset']
+  datasets: ['helen/testset', 'lfpw/testset', 'WFLW/testset', '300W', 'ibug', 'COFW68/COFW_test_color']
   exp_name: 'itsayag'
