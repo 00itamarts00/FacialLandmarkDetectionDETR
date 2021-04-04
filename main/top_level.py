@@ -50,8 +50,8 @@ class TopLevel(object):
     def single_batch_train(self):
         self.setup_workspace()
         self.setup_logger(name='single_batch_train')
-        override_params = {'train': {'epochs': 150, 'batch_size': 2,
-                                     'cuda': {'use': False}
+        override_params = {'train': {'epochs': 150, 'batch_size': 32,
+                                     'cuda': {'use': True}
                                      },
                            'experiment': {'single_batch_debug': True}}
         self.params = self.override_params_dict(dict_override=override_params)

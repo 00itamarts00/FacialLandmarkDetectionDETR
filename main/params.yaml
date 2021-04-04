@@ -5,7 +5,7 @@ experiment:
   single_image_train: False
   pretrained:
     use_pretrained: True
-    timestamp: '300321_003545'
+    timestamp: '040421_094336'
   save_model: True
   single_batch_debug: False
 
@@ -13,11 +13,11 @@ dataset:
   dataset_dir: '/home/itamar/thesis/DATASET'
   workset_name: 'WS02'
   to_use: ['300W', 'AFW', 'COFW68', 'helen/trainset', 'helen/testset',
-           'ibug', 'lfpw/trainset', 'lfpw/testset', 'menpo/trainset', 'WFLW/trainset', 'WFLW/testset']
+           'ibug', 'lfpw/trainset', 'lfpw/testset', 'menpo/trainset'] #, 'WFLW/trainset', 'WFLW/testset']
 
 train:
   datasets:
-    to_use: [ 'lfpw/trainset', 'lfpw/testset', 'menpo/trainset', 'WFLW/trainset' ]
+    to_use: [ 'lfpw/trainset', 'lfpw/testset', 'menpo/trainset'] #, 'WFLW/trainset' ]
     use_augmentations: True
     augmentations:
       scale: 0.25
@@ -26,7 +26,7 @@ train:
   partition_seed: 42
   num_landmarks: 68
   trainset_partition: 0.8
-  epochs: 250
+  epochs: 100
   torch_seed: 0
   batch_size: 32
   trainable_parameters: null
@@ -36,7 +36,7 @@ train:
     use: True
     device: 'cuda:0'
     device_type: 'cuda'
-    num_workers: 1
+    num_workers: 0
     pin_memory: True
   backend:
     use_torch: True
@@ -100,5 +100,5 @@ loss:
 
 evaluation:
 #  datasets: [ 'helen/testset', 'lfpw/testset']
-  datasets: ['helen/testset', 'lfpw/testset', 'WFLW/testset', '300W', 'ibug', 'COFW68/COFW_test_color']
+  datasets: ['helen/testset', 'lfpw/testset', '300W', 'ibug', 'COFW68/COFW_test_color'] #, 'WFLW/testset']
   exp_name: 'itsayag'

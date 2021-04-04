@@ -105,7 +105,7 @@ class Evaluator(LDMTrain):
                                    output=self.paths.analysis)
         r300WPri = analyze_results(res, ['300W'], '300W Private Set', output=self.paths.analysis)
         rCOFW68 = analyze_results(res, ['COFW68/COFW_test_color'], 'COFW68', output=self.paths.analysis)
-        rWFLW = analyze_results(res, ['WFLW/testset'], 'WFLW', output=self.paths.analysis)
+        # rWFLW = analyze_results(res, ['WFLW/testset'], 'WFLW', output=self.paths.analysis)
         #
 
 
@@ -114,7 +114,7 @@ class Evaluator(LDMTrain):
         p.add_row([r300WPub['setnick'], r300WPub['auc08'], r300WPub['fail08'], r300WPub['NLE']])
         p.add_row([r300WPri['setnick'], r300WPri['auc08'], r300WPri['fail08'], r300WPri['NLE']])
         p.add_row([rCOFW68['setnick'], rCOFW68['auc08'], rCOFW68['fail08'], rCOFW68['NLE']])
-        p.add_row([rWFLW['setnick'], rWFLW['auc08'], rWFLW['fail08'], rWFLW['NLE']])
+        # p.add_row([rWFLW['setnick'], rWFLW['auc08'], rWFLW['fail08'], rWFLW['NLE']])
         logger.info(p)
 
         wandb.init(project="detr_landmark_detection",
@@ -123,4 +123,4 @@ class Evaluator(LDMTrain):
         wandb.log({'r300WPub': r300WPub})
         wandb.log({'r300WPri': r300WPri})
         wandb.log({'rCOFW68': rCOFW68})
-        wandb.log({'rWFLW': rWFLW})
+        # wandb.log({'rWFLW': rWFLW})

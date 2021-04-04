@@ -105,7 +105,7 @@ def decode_preds(output, center, scale, res):
 
 
 def save_tough_images(dataset, dataset_inst, ds_err, output):
-    num_images_to_analyze = 16
+    num_images_to_analyze = 12
     idx_argmax = ds_err.argsort()[-num_images_to_analyze:][::-1]
     imgs, sfactor, preds, opts = [], [], [], []
 
