@@ -176,7 +176,9 @@ def evaluate_model(device, test_loader, model, **kwargs):
             scale, hm_factor = item['sfactor'], item['hmfactor']
             input_, target = input_.to(device), target.to(device)
             output = model(input_)
-            preds = output['pred_coords'].cpu().detach().numpy() * 256
+            output_coords = output['pred_coords'].cpu().detach().numpy()[-1] if output['pred_coords'].dim() == 4 else\
+                output['pred_coords'].cpu().detach().numpy()
+            preds = output_coords * 256
             item['preds'] = preds
             item['opts'] = [i * s for (i, s) in zip(opts, scale)]
             epts_batch[batch_idx] = item

@@ -4,8 +4,8 @@ experiment:
   log_interval: 20
   single_image_train: False
   pretrained:
-    use_pretrained: False
-    timestamp: '040421_094336'
+    use_pretrained: True
+    timestamp: '040421_232714'
   save_model: True
   single_batch_debug: False
 
