@@ -30,7 +30,7 @@ torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
 os.environ["WANDB_API_KEY"] = g.WANDB_API_KEY
-# os.environ["WANDB_MODE"] = "dryrun"
+os.environ["WANDB_MODE"] = "dryrun"
 
 # TODO: Load tensorboard logs as df/dict
 
@@ -51,7 +51,7 @@ class LDMTrain(object):
         self.writer = self.init_writer()
         self.trn_loss = 0
         self.update_last_epoch_in_components()
-        self.init_wandb_logger()
+        self.wandb = self.init_wandb_logger()
 
     def init_wandb_logger(self):
         # Start a new run, tracking hyperparameters in config
@@ -75,7 +75,7 @@ class LDMTrain(object):
                        'epochs': self.tr['epochs'],
                        'timestamp': g.TIMESTAMP,
                        "dataset": "WS02",
-                       "detr_args": detr_args
+                       "multi_dec_loss": detr_args.multi_dec_loss,
                    },
                    # notes=None,
                    # tags=[None],
@@ -85,6 +85,7 @@ class LDMTrain(object):
         id = wandb.util.generate_id()
         g.WANDB_INIT = id
         logger.info(f'WandB ID: {id}')
+        return wandb
 
     def get_last_epoch(self):
         meta_path = os.path.join(self.paths.stats, 'meta.pkl')
@@ -190,7 +191,10 @@ class LDMTrain(object):
         if self.ex['pretrained']['use_pretrained']:
             model_best_pth = os.path.join(self.paths.checkpoint, 'model_best.pth')
             model_best_state = torch.load(model_best_pth)
-            model.load_state_dict(model_best_state['state_dict'].state_dict())
+            try:
+                model.load_state_dict(model_best_state['state_dict'].state_dict())
+            except:
+                model = model_best_state['state_dict']
         return model.cuda(), criterion, postprocessors
 
     def load_scheduler(self):
