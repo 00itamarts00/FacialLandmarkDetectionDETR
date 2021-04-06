@@ -16,7 +16,7 @@ import wandb
 from torchvision.utils import make_grid
 import numpy as np
 from utils.plot_utils import plot_score_maps, plot_gt_pred_on_img
-from main.refactor.evaluation import decode_preds, compute_nme, extract_pts_from_hm
+from main.refactor.evaluation_functions import decode_preds, compute_nme, extract_pts_from_hm
 logger = logging.getLogger(__name__)
 
 
