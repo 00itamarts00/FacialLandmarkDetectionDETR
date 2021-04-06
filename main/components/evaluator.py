@@ -9,7 +9,7 @@ from torch.utils import data
 import main.globals as g
 from main.components.CLMDataset import CLMDataset, get_data_list
 from main.components.trainer import LDMTrain
-from main.refactor.evaluation import evaluate_model, analyze_results
+from main.refactor.evaluation_functions import evaluate_model, analyze_results
 from utils.file_handler import FileHandler
 
 torch.cuda.empty_cache()
@@ -88,26 +88,31 @@ class Evaluator(LDMTrain):
         for dataset in self.ev['datasets']:
             setnick = dataset.replace('/', '_')
             results_file = os.path.join(self.paths.eval, f'{setnick}.pkl')
-            if not os.path.exists(results_file):
-                logger.info(f'Evaluating {setnick} testset')
-                test_loader = self.create_test_data_loader(dataset=dataset)
-                kwargs = {'log_interval': self.log_interval}
-                dataset_eval[setnick] = evaluate_model(device=self.device,
-                                                       test_loader=test_loader,
-                                                       model=self.model,
-                                                       **kwargs)
-                res.update(dataset_eval)
-                FileHandler.save_dict_to_pkl(dict_arg=dataset_eval, dict_path=results_file)
-            else:
-                logger.info(f'Loading {setnick} testset results')
-                dataset_eval = FileHandler.load_pkl(results_file)
-                res.update(dataset_eval)
+            # if not os.path.exists(results_file):
+            logger.info(f'Evaluating {setnick} testset')
+            test_loader = self.create_test_data_loader(dataset=dataset)
+            kwargs = {'log_interval': self.log_interval}
+            logger.info(f'Evaluating model using decoder head: {self.ev["prediction_from_decoder_head"]}')
+            dataset_eval[setnick] = evaluate_model(device=self.device,
+                                                   test_loader=test_loader,
+                                                   model=self.model,
+                                                   decoder_head=self.ev['prediction_from_decoder_head'],
+                                                   **kwargs)
+            res.update(dataset_eval)
+            FileHandler.save_dict_to_pkl(dict_arg=dataset_eval, dict_path=results_file)
+            # else:
+            #     logger.info(f'Loading {setnick} testset results')
+            #     dataset_eval = FileHandler.load_pkl(results_file)
+            #     res.update(dataset_eval)
 
         r300WPub = analyze_results(res, ['helen/testset', 'lfpw/testset', 'ibug'], '300W Public Set',
-                                   output=self.paths.analysis)
-        r300WPri = analyze_results(res, ['300W'], '300W Private Set', output=self.paths.analysis)
-        rCOFW68 = analyze_results(res, ['COFW68/COFW_test_color'], 'COFW68', output=self.paths.analysis)
-        rWFLW = analyze_results(res, ['WFLW/testset'], 'WFLW', output=self.paths.analysis)
+                                   output=self.paths.analysis, decoder_head=self.ev['prediction_from_decoder_head'])
+        r300WPri = analyze_results(res, ['300W'], '300W Private Set',
+                                   output=self.paths.analysis, decoder_head=self.ev['prediction_from_decoder_head'])
+        rCOFW68 = analyze_results(res, ['COFW68/COFW_test_color'], 'COFW68',
+                                  output=self.paths.analysis, decoder_head=self.ev['prediction_from_decoder_head'])
+        rWFLW = analyze_results(res, ['WFLW/testset'], 'WFLW',
+                                output=self.paths.analysis, decoder_head=self.ev['prediction_from_decoder_head'])
         #
 
         p = PrettyTable()
@@ -124,4 +129,4 @@ class Evaluator(LDMTrain):
         wandb.log({'r300WPub': r300WPub})
         wandb.log({'r300WPri': r300WPri})
         wandb.log({'rCOFW68': rCOFW68})
-        # wandb.log({'rWFLW': rWFLW})
+        wandb.log({'rWFLW': rWFLW})
