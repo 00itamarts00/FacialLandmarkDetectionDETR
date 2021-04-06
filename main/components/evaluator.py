@@ -88,7 +88,6 @@ class Evaluator(LDMTrain):
         for dataset in self.ev['datasets']:
             setnick = dataset.replace('/', '_')
             results_file = os.path.join(self.paths.eval, f'{setnick}.pkl')
-            # if not os.path.exists(results_file):
             logger.info(f'Evaluating {setnick} testset')
             test_loader = self.create_test_data_loader(dataset=dataset)
             kwargs = {'log_interval': self.log_interval}
@@ -100,10 +99,6 @@ class Evaluator(LDMTrain):
                                                    **kwargs)
             res.update(dataset_eval)
             FileHandler.save_dict_to_pkl(dict_arg=dataset_eval, dict_path=results_file)
-            # else:
-            #     logger.info(f'Loading {setnick} testset results')
-            #     dataset_eval = FileHandler.load_pkl(results_file)
-            #     res.update(dataset_eval)
 
         r300WPub = analyze_results(res, ['helen/testset', 'lfpw/testset', 'ibug'], '300W Public Set',
                                    output=self.paths.analysis, decoder_head=self.ev['prediction_from_decoder_head'])

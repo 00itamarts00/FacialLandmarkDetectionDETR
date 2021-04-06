@@ -68,7 +68,7 @@ class TopLevel(object):
         pass
 
     def evaluate_model(self):
-        for dec_head in range(7):
+        for dec_head in range(6):
             override_params = {'evaluation': {'prediction_from_decoder_head': dec_head}}
             self.params = self.override_params_dict(dict_override=override_params)
 
