@@ -8,7 +8,7 @@ import torch
 
 # import wandb
 logger = logging.getLogger(__name__)
-from main.refactor.evaluation import decode_preds, compute_nme, extract_pts_from_hm
+from main.refactor.evaluation_functions import decode_preds, compute_nme, extract_pts_from_hm
 
 
 def calc_accuarcy(epts_batch):
