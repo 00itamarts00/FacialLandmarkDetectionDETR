@@ -13,7 +13,6 @@ PARAMS = 'main/params.yaml'
 class TopLevel(object):
     def __init__(self, override_params=None):
         self.params = self.load_params()
-        self.setup_pretrained()
 
     def override_params_dict(self, dict_override):
         if dict_override is None or dict_override == dict():
@@ -33,6 +32,7 @@ class TopLevel(object):
         return fname
 
     def setup_workspace(self):
+        self.setup_pretrained()
         wp = self.params['experiment']['workspace_path']
         name = self.params['experiment']['name']
         ex_workspace_path = os.path.join(wp, name, g.TIMESTAMP)
@@ -68,7 +68,15 @@ class TopLevel(object):
         pass
 
     def evaluate_model(self):
-        for dec_head in range(6):
+        override_params = {'experiment':
+                               {'pretrained':
+                                    {'use_pretrained': True,
+                                     'timestamp': '070421_084015'
+                                     }
+                                }
+                           }
+        self.params = self.override_params_dict(dict_override=override_params)
+        for dec_head in range(9):
             override_params = {'evaluation': {'prediction_from_decoder_head': dec_head}}
             self.params = self.override_params_dict(dict_override=override_params)
 
@@ -76,6 +84,10 @@ class TopLevel(object):
             self.setup_logger(name='evaluate_model')
             lmd_eval = Evaluator(params=self.params)
             lmd_eval.evaluate()
+        # self.setup_workspace()
+        # self.setup_logger(name='evaluate_model')
+        # lmd_eval = Evaluator(params=self.params)
+        # lmd_eval.evaluate()
 
 
     def run_experiment(self):
