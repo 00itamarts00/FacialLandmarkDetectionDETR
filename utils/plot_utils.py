@@ -117,13 +117,17 @@ def plot_grid_of_ldm(dataset, imgs, preds, opts, sfactors):
         img = np.array(img).astype(np.uint8)
         ax.imshow(img)
         ax.axis('off')
-        a = ax.scatter(pred.T[0], pred.T[1], s=1, c='r', label='pred')
-        b = ax.scatter(opt.T[0], opt.T[1], s=1, c='b', label='gt')
-        for ptp, ptgt in zip(pred, opt):
-            ax.plot([ptp.T[0], ptgt.T[0]], [ptp.T[1], ptgt.T[1]], 'g-', linewidth=0.5)
+        pred_plot = pred.T * scale
+        opt_plot = opt.T * scale
+
+        a = ax.scatter(pred_plot[0], pred_plot[1], s=1, c='r', label='pred')
+        b = ax.scatter(opt_plot[0], opt_plot[1], s=1, c='b', label='gt')
+        for ptp, ptgt in zip(pred_plot.T, opt_plot.T):
+            ax.plot([ptp[0], ptgt[0]], [ptp[1], ptgt[1]], 'g-', linewidth=0.5)
 
     plt.suptitle(f'Dataset: {dataset}\nToughest Predictions', y=0.98)
     fig.legend((a, b), ['pred', 'gt'], loc='lower center')
+
     canvas.draw()
     width, height = fig.get_size_inches() * fig.get_dpi()
     image = np.fromstring(canvas.tostring_rgb(), dtype='uint8').reshape(int(height), int(width), 3)

@@ -136,8 +136,9 @@ def analyze_results(datastets_inst, datasets, setnick, output=None, decoder_head
         if setnick_ not in datasets:
             continue
         for b_idx, b_idx_inst in dataset_inst.items():
-            [preds.append(b) for b in b_idx_inst['preds']]
+            [preds.append(b.numpy()) for b in b_idx_inst['preds']]
             [opts.append(b.numpy()) for b in b_idx_inst['opts']]
+        preds = np.array([np.array(i) for i in preds])
         ds_err = compute_nme(np.array(preds), np.array(opts))
         [tot_err.append(i) for i in ds_err]
         mean_err.append(np.mean(ds_err))
@@ -181,7 +182,8 @@ def evaluate_model(device, test_loader, model, decoder_head=-1, **kwargs):
                 output['pred_coords'].cpu().detach().numpy()
             preds = output_coords * 256
             item['preds'] = preds
-            item['opts'] = [i * s for (i, s) in zip(opts, scale)]
+            item['preds'] = [i / s for (i, s) in zip(preds, scale)]
+            # item['opts'] = [i * s for (i, s) in zip(opts, scale)]
             epts_batch[batch_idx] = item
             percent = f' ({100. * (batch_idx + 1) / len(test_loader):.02f}%)]'
             sys.stdout.write(f"\rTesting batch {batch_idx}\t{percent}")
