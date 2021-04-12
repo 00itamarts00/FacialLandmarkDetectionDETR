@@ -76,18 +76,18 @@ class TopLevel(object):
                                 }
                            }
         self.params = self.override_params_dict(dict_override=override_params)
-        for dec_head in range(9):
-            override_params = {'evaluation': {'prediction_from_decoder_head': dec_head}}
-            self.params = self.override_params_dict(dict_override=override_params)
-
-            self.setup_workspace()
-            self.setup_logger(name='evaluate_model')
-            lmd_eval = Evaluator(params=self.params)
-            lmd_eval.evaluate()
-        # self.setup_workspace()
-        # self.setup_logger(name='evaluate_model')
-        # lmd_eval = Evaluator(params=self.params)
-        # lmd_eval.evaluate()
+        # for dec_head in range(9):
+        #     override_params = {'evaluation': {'prediction_from_decoder_head': dec_head}}
+        #     self.params = self.override_params_dict(dict_override=override_params)
+        #
+        #     self.setup_workspace()
+        #     self.setup_logger(name='evaluate_model')
+        #     lmd_eval = Evaluator(params=self.params)
+        #     lmd_eval.evaluate()
+        self.setup_workspace()
+        self.setup_logger(name='evaluate_model')
+        lmd_eval = Evaluator(params=self.params)
+        lmd_eval.evaluate()
 
 
     def run_experiment(self):
