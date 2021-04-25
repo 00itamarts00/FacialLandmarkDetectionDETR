@@ -75,7 +75,7 @@ def train_epoch(train_loader, model, criterion, optimizer,
         target_dict = {'labels': [torch.range(start=0, end=target.shape[1]-1).cuda() for i in range(bs)],
                         'coords': target.cuda()}
 
-        output = model(input_)
+        output, hm_encoder = model(input_)
 
         # Loss
         loss_dict = criterion(output, target_dict)
