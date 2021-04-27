@@ -6,17 +6,18 @@
 
 import logging
 import math
+import os
 import sys
-from tqdm import tqdm
+
 import numpy as np
 import torch
 from PIL import Image
-import os
+
 logger = logging.getLogger(__name__)
 # import wandb
 
 from main.refactor.transforms import transform_preds
-from utils.plot_utils import plot_score_maps, plot_gt_pred_on_img, plot_grid_of_ldm
+from utils.plot_utils import plot_grid_of_ldm
 
 
 def get_preds(scores):
@@ -40,29 +41,33 @@ def get_preds(scores):
     return preds
 
 
-def compute_nme(preds, opts, box_size=None):
-    target = opts
-
+def compute_nme(preds, opts, box_size=None, tensor=True):
+    norm_func = torch.norm if tensor else np.linalg.norm
+    sum_func = torch.sum if tensor else np.sum
     batch_size = preds.shape[0]
     num_landmarks = preds.shape[1]
-    rmse = np.zeros(batch_size)
+    interoculars = [get_interocular_distance(pts_gt, num_landmarks=num_landmarks, tensor=tensor) for pts_gt in opts]
+    rmse_vec = [norm_func(preds[i, ] - opts[i, ]) for i in range(batch_size)]
+    if tensor:
+        nme = sum_func(torch.Tensor(rmse_vec).cuda()) / (torch.Tensor(interoculars).cuda() * num_landmarks)
+    else:
+        nme = sum_func(np.array(rmse_vec)) / np.array(interoculars * num_landmarks)
+    return nme
 
-    for i in range(batch_size):
-        pts_pred, pts_gt = preds[i, ], target[i, ]
-        if num_landmarks == 19:  # aflw
-            interocular = box_size
-        elif num_landmarks == 29:  # cofw
-            interocular = np.linalg.norm(pts_gt[8,] - pts_gt[9,])
-        elif num_landmarks == 68:  # 300w
-            # interocular
-            interocular = np.linalg.norm(pts_gt[36,] - pts_gt[45,])
-        elif num_landmarks == 98:
-            interocular = np.linalg.norm(pts_gt[60,] - pts_gt[72,])
-        else:
-            raise ValueError('Number of landmarks is wrong')
-        rmse[i] = np.sum(np.linalg.norm(pts_pred - pts_gt, axis=1)) / (interocular * num_landmarks)
 
-    return rmse
+def get_interocular_distance(pts, num_landmarks=68, box_size=None, tensor=True):
+    norm_func = torch.norm if tensor else np.linalg.norm
+    if num_landmarks == 19:   # aflw
+        interocular = box_size
+    elif num_landmarks == 29:  # COFW
+        interocular = norm_func(pts[8, ] - pts[9, ])
+    elif num_landmarks == 68:  # 300w
+        interocular = norm_func(pts[36, ] - pts[45, ])
+    elif num_landmarks == 98:
+        interocular = norm_func(pts[60, ] - pts[72, ])
+    else:
+        raise ValueError('Number of landmarks is wrong')
+    return interocular
 
 
 def extract_pts_from_hm(score_maps, scale, hm_input_ratio):
@@ -178,7 +183,8 @@ def evaluate_model(device, test_loader, model, decoder_head=-1, **kwargs):
             scale, hm_factor = item['sfactor'], item['hmfactor']
             input_, target = input_.to(device), target.to(device)
             output = model(input_)
-            output_coords = output['pred_coords'].cpu().detach().numpy()[decoder_head] if output['pred_coords'].dim() == 4 else\
+            output_coords = output['pred_coords'].cpu().detach().numpy()[decoder_head] if output[
+                                                                                              'pred_coords'].dim() == 4 else \
                 output['pred_coords'].cpu().detach().numpy()
             preds = output_coords * 256
             item['preds'] = preds

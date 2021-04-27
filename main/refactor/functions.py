@@ -43,10 +43,11 @@ class AverageMeter(object):
 
 
 def train_epoch(train_loader, model, criterion, optimizer,
-                epoch, writer_dict, **kwargs):
+                epoch, writer_dict, multi_dec_loss=False, **kwargs):
     max_norm = 0
     log_interval = kwargs.get('log_interval', 20)
     debug = kwargs.get('debug', False)
+
 
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -63,35 +64,34 @@ def train_epoch(train_loader, model, criterion, optimizer,
         # measure data time
         data_time.update(time.time() - end)
 
-        input_, target, opts = item['img'], item['target'], item['opts']
-        scale, hm_factor = item['sfactor'], item['hmfactor']
+        input_, target, opts = item['img'], item['target'].cuda(), item['opts'].cuda()
+        scale, hm_factor = item['sfactor'].cuda(), item['hmfactor']
 
         # compute the output
         input_ = input_.cuda()
         bs = target.shape[0]
 
-        # target_dict = [{'labels': torch.range(start=0, end=target.shape[1]-1).cuda(),
-        #                 'coords': target[i].cuda()} for i in range(bs)]
         target_dict = {'labels': [torch.range(start=0, end=target.shape[1]-1).cuda() for i in range(bs)],
-                        'coords': target.cuda()}
+                        'coords': target}
 
         output, hm_encoder = model(input_)
 
         # Loss
         loss_dict = criterion(output, target_dict)
-        weight_dict = criterion.weight_dict
-        lossv = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
+        coords_dec_loss = loss_dict['coords']
+        lossv = sum(coords_dec_loss) if multi_dec_loss else coords_dec_loss[-1]
 
         if not math.isfinite(lossv.item()):
             print("Loss is {}, stopping training".format(lossv.item()))
             sys.exit(1)
 
         # NME
-        preds = output['pred_coords'].cpu().detach().numpy()[-1] * 256
-        opts_scaled = np.array([i * s for i, s in zip(opts.numpy(), scale.numpy())])
-        nme_batch = compute_nme(preds, opts_scaled)
-        nme_batch_sum = nme_batch_sum + np.sum(nme_batch)
-        nme_count = nme_count + preds.shape[0]
+        preds = output['pred_coords'][-1] * 256
+        scale_matrix = scale[:, np.newaxis, np.newaxis] * torch.ones_like(preds)
+        opts_scaled = opts * scale_matrix
+        nme_batch = compute_nme(preds, opts_scaled, tensor=True)
+        nme_batch_sum += nme_batch.sum()
+        nme_count += preds.shape[0]
 
         # optimize
         optimizer.zero_grad()
@@ -119,7 +119,7 @@ def train_epoch(train_loader, model, criterion, optimizer,
 
         end = time.time()
 
-    nme = nme_batch_sum / nme_count
+    nme = torch.true_divide(nme_batch_sum, nme_count)
     wandb.log({'train/nme': nme, 'epoch': epoch})
     wandb.log({'train/loss': losses.avg, 'epoch': epoch})
     wandb.log({'train/batch_time': batch_time.avg, 'epoch': epoch})
@@ -142,7 +142,7 @@ def train_epoch(train_loader, model, criterion, optimizer,
     logger.info(msg)
 
 
-def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
+def validate_epoch(val_loader, model, criterion, epoch, writer_dict, multi_dec_loss, **kwargs):
     batch_time = AverageMeter()
     data_time = AverageMeter()
 
@@ -165,8 +165,8 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
     with torch.no_grad():
         for i, item in enumerate(val_loader):
             data_time.update(time.time() - end)
-            input_, target, opts = item['img'], item['target'], item['opts']
-            scale, hm_factor = item['sfactor'], item['hmfactor']
+            input_, target, opts = item['img'], item['target'].cuda(), item['opts'].cuda()
+            scale, hm_factor = item['sfactor'].cuda(), item['hmfactor']
 
             # compute the output
             input_ = input_.cuda()
@@ -174,16 +174,17 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
 
             target_dict = {'labels': [torch.range(start=0, end=target.shape[1] - 1).cuda() for i in range(bs)],
                            'coords': target.cuda()}
-            output = model(input_)
+            output, hm_encoder = model(input_)
 
             # loss
             loss_dict = criterion(output, target_dict)
-            weight_dict = criterion.weight_dict
-            lossv = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
+            coords_dec_loss = loss_dict['coords']
+            lossv = sum(coords_dec_loss) if multi_dec_loss else coords_dec_loss[-1]
 
             # NME
-            preds = output['pred_coords'].cpu().detach().numpy()[-1] * 256
-            opts_scaled = np.array([i * s for i, s in zip(opts.numpy(), scale.numpy())])
+            preds = output['pred_coords'][-1] * 256
+            scale_matrix = scale[:, np.newaxis, np.newaxis] * torch.ones_like(preds)
+            opts_scaled = opts * scale_matrix
             nme_batch = compute_nme(preds, opts_scaled)
 
             # scatter_prediction_gt(preds, opts)
@@ -194,8 +195,8 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
             count_failure_008 += failure_008
             count_failure_010 += failure_010
 
-            nme_batch_sum += np.sum(nme_batch)
-            nme_count = nme_count + preds.shape[0]
+            nme_batch_sum += nme_batch.sum()
+            nme_count += preds.shape[0]
 
             losses.update(lossv.item(), input_.size(0))
 
@@ -207,8 +208,8 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
                 break
 
     nme = nme_batch_sum / nme_count
-    failure_008_rate = count_failure_008 / nme_count
-    failure_010_rate = count_failure_010 / nme_count
+    failure_008_rate = torch.true_divide(count_failure_008, nme_count)
+    failure_010_rate = torch.true_divide(count_failure_010, nme_count)
 
     msg = 'Test Epoch {} time: {:.4f} loss:{:.4f} nme: {:.4f} [008]: {:.4f} ' \
           '[010]: {:.4f}'.format(epoch, batch_time.avg, losses.avg, nme,
@@ -239,7 +240,7 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, **kwargs):
         writer.add_scalar('valid_failure_010_rate', failure_010_rate, global_steps)
         log[epoch].update({'valid_failure_010_rate': failure_010_rate})
         [log[epoch].update({k: v}) for (k, v) in loss_dict.items()]
-        [writer.add_scalar(k, v, global_steps) for (k, v) in loss_dict.items()]
+        [writer.add_scalar(f'loss_coords_dec_{i}', v, global_steps) for (i, v) in enumerate(loss_dict['coords'])]
         writer.add_image('images', grid, global_steps)
         log[epoch].update({'dbg_img': dbg_img})
         writer_dict['valid_global_steps'] = global_steps + 1

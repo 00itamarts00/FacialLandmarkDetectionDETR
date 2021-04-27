@@ -30,7 +30,7 @@ torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
 os.environ["WANDB_API_KEY"] = g.WANDB_API_KEY
-# os.environ["WANDB_MODE"] = "dryrun"
+os.environ["WANDB_MODE"] = "dryrun"
 
 # TODO: Load tensorboard logs as df/dict
 
@@ -246,6 +246,7 @@ class LDMTrain(object):
                             optimizer=self.optimizer,
                             epoch=epoch,
                             writer_dict=self.writer,
+                            multi_dec_loss=detr_args.multi_dec_loss,
                             **kwargs)
 
                 # evaluate
@@ -256,6 +257,7 @@ class LDMTrain(object):
                                                   criterion=self.criterion,
                                                   epoch=epoch,
                                                   writer_dict=self.writer,
+                                                  multi_dec_loss=detr_args.multi_dec_loss,
                                                   **kwargs)
 
             self.scheduler.step()
