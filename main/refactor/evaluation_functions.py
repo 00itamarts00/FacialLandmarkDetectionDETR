@@ -41,20 +41,6 @@ def get_preds(scores):
     return preds
 
 
-def compute_nme_v2(preds, opts, box_size=None, tensor=True):
-    norm_func = torch.norm if tensor else np.linalg.norm
-    sum_func = torch.sum if tensor else np.sum
-    batch_size = preds.shape[0]
-    num_landmarks = preds.shape[1]
-    interoculars = [get_interocular_distance(pts_gt, num_landmarks=num_landmarks, tensor=tensor) for pts_gt in opts]
-    rmse_vec = [norm_func(preds[i, ] - opts[i, ]) for i in range(batch_size)]
-    if tensor:
-        nme = sum_func(torch.Tensor(rmse_vec).cuda()) / (torch.Tensor(interoculars).cuda() * num_landmarks)
-    else:
-        nme = sum_func(np.array(rmse_vec)) / np.array(interoculars * num_landmarks)
-    return nme
-
-
 def compute_nme(preds, opts, box_size=None):
 
     target = opts.detach().cpu().numpy()

@@ -56,6 +56,7 @@ def train_epoch(train_loader, model, criterion, optimizer,
 
     model.train()
     criterion['coord_loss_criterion'].train()
+    criterion['enc_loss_criterion'].train()
 
     nme_count = nme_batch_sum = 0
 
@@ -160,9 +161,9 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, multi_dec_l
 
     model.eval()
     criterion['coord_loss_criterion'].eval()
+    criterion['enc_loss_criterion'].eval()
 
-    nme_count = 0
-    nme_batch_sum = 0
+    nme_count = nme_batch_sum = 0
     count_failure_008 = 0
     count_failure_010 = 0
     end = time.time()
@@ -197,6 +198,8 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, multi_dec_l
             scale_matrix = scale[:, np.newaxis, np.newaxis] * torch.ones_like(preds)
             opts_scaled = opts * scale_matrix
             nme_batch = compute_nme(preds, opts_scaled)
+            nme_batch_sum += nme_batch.sum()
+            nme_count += preds.shape[0]
 
             # scatter_prediction_gt(preds, opts)
 
@@ -205,9 +208,6 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, multi_dec_l
             failure_010 = (nme_batch > 0.10).sum()
             count_failure_008 += failure_008
             count_failure_010 += failure_010
-
-            nme_batch_sum += nme_batch.sum()
-            nme_count += preds.shape[0]
 
             losses.update(lossv.item(), input_.size(0))
 
@@ -218,7 +218,7 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, multi_dec_l
             if debug:
                 break
 
-    nme = nme_batch_sum / nme_count
+    nme = torch.true_divide(nme_batch_sum, nme_count)
     failure_008_rate = torch.true_divide(count_failure_008, nme_count)
     failure_010_rate = torch.true_divide(count_failure_010, nme_count)
 
