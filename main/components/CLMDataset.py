@@ -173,8 +173,6 @@ class CLMDataset(data.Dataset):
         img = ia.imresize_single_image(im_, self.input_size)
         sfactor = img.shape[0] / im_.shape[0]
         pts = pts_ * sfactor
-        weighted_loss_mask_awing_bin = (dilation(rgb2gray(img), square(3)) / 256) >= 0.2
-        weighted_loss_mask_awing = torch.Tensor(resize(weighted_loss_mask_awing_bin, self.hmsize))
         if self.transform is not None and self.is_train:
             if random.random() > 0.5:
                 img, pts = fliplr(img, pts)
@@ -182,8 +180,12 @@ class CLMDataset(data.Dataset):
 
         heatmaps, hm_pts = create_heatmaps2(pts, np.shape(img), self.hmsize, self.imga, self.gaurfactor)
         heatmaps = np.float32(heatmaps)  # /np.max(hm)
+        hm_sum = np.sum(heatmaps, axis=0)
+
         heatmaps = torch.Tensor(heatmaps)
         target = torch.Tensor(pts/255)
+        # see: https://arxiv.org/pdf/1904.07399v3.pdf
+        weighted_loss_mask_awing = dilation(hm_sum, square(3)) >= 0.2
 
         img = (np.float32(img)/255 - self.mean) / self.std
         # img = np.float32(img) / 255

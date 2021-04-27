@@ -89,7 +89,6 @@ class TopLevel(object):
         lmd_eval = Evaluator(params=self.params)
         lmd_eval.evaluate()
 
-
     def run_experiment(self):
         self.train()
         override_params = {'experiment':
@@ -97,5 +96,3 @@ class TopLevel(object):
                                     {'timestamp': g.TIMESTAMP}}}
         self.params = self.override_params_dict(dict_override=override_params)
         self.evaluate_model()
-
-

@@ -21,17 +21,19 @@ from main.refactor.functions import train_epoch, validate_epoch, single_image_tr
 # import wandb
 from main.refactor.nnstats import CnnStats
 from main.refactor.utils import save_checkpoint
+from packages.Adaptive_Wing_Loss_for_Robust_Face_Alignment_via_Heatmap_Regression.losses.loss import Loss_weighted
 # import shutil
 # import json
 from packages.detr import detr_args
 from packages.detr.models import build_model
 from utils.file_handler import FileHandler
-from packages.Adaptive_Wing_Loss_for_Robust_Face_Alignment_via_Heatmap_Regression.losses.loss import Loss_weighted
+
 torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
 os.environ["WANDB_API_KEY"] = g.WANDB_API_KEY
 os.environ["WANDB_MODE"] = "dryrun"
+
 
 # TODO: Load tensorboard logs as df/dict
 
