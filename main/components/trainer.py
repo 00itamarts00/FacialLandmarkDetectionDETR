@@ -5,6 +5,7 @@ import math
 import os
 import time
 
+import torch.backends.cudnn
 import torch.optim as optim
 import wandb
 from tensorboardX import SummaryWriter
@@ -210,6 +211,7 @@ class LDMTrain(object):
         use_cuda = cuda['use'] and torch.cuda.is_available()
         device = torch.device(cuda['device_type'] if use_cuda else 'cpu')
         torch.backends.benchmark = self.tr['backend']['use_torch']
+        torch.backends.cudnn.benchmark = True
         return device
 
     def train(self):
