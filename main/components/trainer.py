@@ -26,7 +26,7 @@ from main.refactor.utils import save_checkpoint
 from packages.detr import detr_args
 from packages.detr.models import build_model
 from utils.file_handler import FileHandler
-
+from packages.Adaptive_Wing_Loss_for_Robust_Face_Alignment_via_Heatmap_Regression.losses.loss import Loss_weighted
 torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,10 @@ class LDMTrain(object):
         self.last_epoch = self.get_last_epoch()
         self.device = self.backend_operations()
         self.train_loader, self.valid_loader = self.create_dataloaders()
-        self.model, self.criterion, self.postprocessors = self.load_model()
+        self.criterions = {}
+        self.model, coord_loss_criterion, self.postprocessors = self.load_model()
+        self.criterions['coord_loss_criterion'] = coord_loss_criterion
+        self.criterions['enc_loss_criterion'] = self.load_enc_loss_criteria()
         self.optimizer = self.load_optimizer()
         self.scheduler = self.load_scheduler()
         self.nnstats = CnnStats(self.paths.stats, self.model)
@@ -94,6 +97,10 @@ class LDMTrain(object):
             meta = FileHandler.load_pkl(meta_path)
             return list(meta.keys())[-1]
         return 0
+
+    def load_enc_loss_criteria(self):
+        criteria = Loss_weighted()
+        return criteria
 
     def update_last_epoch_in_components(self):
         return
@@ -222,7 +229,7 @@ class LDMTrain(object):
         if self.single_image_train:
             single_image_train(train_loader=self.train_loader,
                                model=self.model,
-                               criterion=self.criterion,
+                               criterion=self.criterions,
                                optimizer=self.optimizer,
                                epochs=2000,
                                writer_dict=self.writer,
@@ -244,11 +251,12 @@ class LDMTrain(object):
                 kwargs = {'log_interval': 20, 'debug': self.ex['single_batch_debug']}
                 train_epoch(train_loader=self.train_loader,
                             model=self.model,
-                            criterion=self.criterion,
+                            criterion=self.criterions,
                             optimizer=self.optimizer,
                             epoch=epoch,
                             writer_dict=self.writer,
                             multi_dec_loss=detr_args.multi_dec_loss,
+                            multi_enc_loss=detr_args.multi_enc_loss,
                             **kwargs)
 
                 # evaluate
@@ -256,10 +264,11 @@ class LDMTrain(object):
                           'debug': self.ex['single_batch_debug']}
                 nme, predictions = validate_epoch(val_loader=self.valid_loader,
                                                   model=self.model,
-                                                  criterion=self.criterion,
+                                                  criterion=self.criterions,
                                                   epoch=epoch,
                                                   writer_dict=self.writer,
                                                   multi_dec_loss=detr_args.multi_dec_loss,
+                                                  multi_enc_loss=detr_args.multi_enc_loss,
                                                   **kwargs)
 
             self.scheduler.step()

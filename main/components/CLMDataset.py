@@ -17,7 +17,9 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.utils.data as data
-
+from skimage.morphology import dilation, square
+from skimage.color import rgb2gray
+from skimage.transform import resize
 # from torchvision.utils.transforms import fliplr_joints, crop, generate_target, transform_pixel
 import common.fileutils as fu
 from common.ptsutils import imshowpts, create_heatmaps2, create_base_gaussian
@@ -171,7 +173,8 @@ class CLMDataset(data.Dataset):
         img = ia.imresize_single_image(im_, self.input_size)
         sfactor = img.shape[0] / im_.shape[0]
         pts = pts_ * sfactor
-
+        weighted_loss_mask_awing_bin = (dilation(rgb2gray(img), square(3)) / 256) >= 0.2
+        weighted_loss_mask_awing = torch.Tensor(resize(weighted_loss_mask_awing_bin, self.hmsize))
         if self.transform is not None and self.is_train:
             if random.random() > 0.5:
                 img, pts = fliplr(img, pts)
@@ -180,7 +183,7 @@ class CLMDataset(data.Dataset):
         heatmaps, hm_pts = create_heatmaps2(pts, np.shape(img), self.hmsize, self.imga, self.gaurfactor)
         heatmaps = np.float32(heatmaps)  # /np.max(hm)
         heatmaps = torch.Tensor(heatmaps)
-        target = torch.Tensor(pts/256)
+        target = torch.Tensor(pts/255)
 
         img = (np.float32(img)/255 - self.mean) / self.std
         # img = np.float32(img) / 255
@@ -192,7 +195,8 @@ class CLMDataset(data.Dataset):
 
         item = {'index': idx, 'img_name': img_name, 'dataset': dataset,
                 'img': img, 'heatmaps': heatmaps, 'hm_pts': hm_pts, 'opts': pts_, 'sfactor': sfactor,
-                'hmfactor': hmfactor, 'tpts': pts, 'target': target}
+                'hmfactor': hmfactor, 'tpts': pts, 'target': target,
+                'weighted_loss_mask_awing': weighted_loss_mask_awing}
         return item
 
     def update_mean_and_std(self):

@@ -17,6 +17,7 @@ from torchvision.utils import make_grid
 import numpy as np
 from utils.plot_utils import plot_score_maps, plot_gt_pred_on_img
 from main.refactor.evaluation_functions import decode_preds, compute_nme, extract_pts_from_hm
+from main.components.hm_regression import *
 logger = logging.getLogger(__name__)
 
 
@@ -43,7 +44,7 @@ class AverageMeter(object):
 
 
 def train_epoch(train_loader, model, criterion, optimizer,
-                epoch, writer_dict, multi_dec_loss=False, **kwargs):
+                epoch, writer_dict, multi_dec_loss=False, multi_enc_loss=False, **kwargs):
     max_norm = 0
     log_interval = kwargs.get('log_interval', 20)
     debug = kwargs.get('debug', False)
@@ -54,7 +55,7 @@ def train_epoch(train_loader, model, criterion, optimizer,
     losses = AverageMeter()
 
     model.train()
-    criterion.train()
+    criterion['coord_loss_criterion'].train()
 
     nme_count = nme_batch_sum = 0
 
@@ -65,8 +66,8 @@ def train_epoch(train_loader, model, criterion, optimizer,
         data_time.update(time.time() - end)
 
         input_, target, opts = item['img'], item['target'].cuda(), item['opts'].cuda()
-        scale, hm_factor = item['sfactor'].cuda(), item['hmfactor']
-
+        scale, hm_factor, heatmaps = item['sfactor'].cuda(), item['hmfactor'], item['heatmaps'].cuda()
+        weighted_loss_mask_awing = item['weighted_loss_mask_awing'].cuda()
         # compute the output
         input_ = input_.cuda()
         bs = target.shape[0]
@@ -77,10 +78,14 @@ def train_epoch(train_loader, model, criterion, optimizer,
         output, hm_encoder = model(input_)
 
         # Loss
-        loss_dict = criterion(output, target_dict)
+        loss_dict = criterion['coord_loss_criterion'](output, target_dict)
         coords_dec_loss = loss_dict['coords']
         lossv = sum(coords_dec_loss) if multi_dec_loss else coords_dec_loss[-1]
 
+        enc_loss = torch.stack(
+            [criterion['enc_loss_criterion'](hm, heatmaps, M=weighted_loss_mask_awing) for hm in hm_encoder])
+        tot_enc_loss = torch.sum(enc_loss)
+        lossv = lossv.add_(tot_enc_loss) if multi_enc_loss else lossv
         if not math.isfinite(lossv.item()):
             print("Loss is {}, stopping training".format(lossv.item()))
             sys.exit(1)
@@ -154,7 +159,7 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, multi_dec_l
     predictions = torch.zeros((len(val_loader.dataset), num_classes, 2))
 
     model.eval()
-    criterion.eval()
+    criterion['coord_loss_criterion'].eval()
 
     nme_count = 0
     nme_batch_sum = 0
@@ -177,7 +182,7 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, multi_dec_l
             output, hm_encoder = model(input_)
 
             # loss
-            loss_dict = criterion(output, target_dict)
+            loss_dict = criterion['coord_loss_criterion'](output, target_dict)
             coords_dec_loss = loss_dict['coords']
             lossv = sum(coords_dec_loss) if multi_dec_loss else coords_dec_loss[-1]
 
@@ -312,7 +317,7 @@ def single_image_train(train_loader, model, criterion, optimizer, epochs, writer
     losses = AverageMeter()
 
     model.train()
-    criterion.train()
+    criterion['coord_loss_criterion'].train()
     max_norm = 0
     nme_count = nme_batch_sum = 0
     end = time.time()
@@ -334,8 +339,8 @@ def single_image_train(train_loader, model, criterion, optimizer, epochs, writer
 
         output = model(input_)
         # Loss
-        loss_dict = criterion(output, target_dict)
-        weight_dict = criterion.weight_dict
+        loss_dict = criterion['coord_loss_criterion'](output, target_dict)
+        weight_dict = criterion['coord_loss_criterion'].weight_dict
         lossv = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
 
         if not math.isfinite(lossv.item()):

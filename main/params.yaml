@@ -37,7 +37,7 @@ train:
     use: True
     device: 'cuda:0'
     device_type: 'cuda'
-    num_workers: 6
+    num_workers: 4
     pin_memory: True
   backend:
     use_torch: True
