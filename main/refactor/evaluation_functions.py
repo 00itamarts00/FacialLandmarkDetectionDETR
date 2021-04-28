@@ -43,8 +43,8 @@ def get_preds(scores):
 
 def compute_nme(preds, opts, box_size=None):
 
-    target = opts.detach().cpu().numpy()
-    preds = preds.detach().cpu().numpy()
+    target = opts.detach().cpu().numpy() if not isinstance(opts, np.ndarray) else opts
+    preds = preds.detach().cpu().numpy() if not isinstance(preds, np.ndarray) else preds
 
     N = preds.shape[0]
     L = preds.shape[1]
@@ -195,7 +195,7 @@ def evaluate_model(device, test_loader, model, decoder_head=-1, **kwargs):
             input_, target, opts = item['img'], item['target'], item['opts']
             scale, hm_factor = item['sfactor'], item['hmfactor']
             input_, target = input_.to(device), target.to(device)
-            output = model(input_)
+            output, hm_encoder = model(input_)
             output_coords = output['pred_coords'].cpu().detach().numpy()[decoder_head] if output[
                                                                                               'pred_coords'].dim() == 4 else \
                 output['pred_coords'].cpu().detach().numpy()
