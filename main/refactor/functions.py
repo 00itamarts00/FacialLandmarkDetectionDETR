@@ -45,7 +45,7 @@ class AverageMeter(object):
 
 
 def train_epoch(train_loader, model, criterion, optimizer,
-                epoch, writer_dict, multi_dec_loss=False, multi_enc_loss=False, **kwargs):
+                epoch, writer_dict, multi_dec_loss=False, **kwargs):
     max_norm = 0
     log_interval = kwargs.get('log_interval', 20)
     debug = kwargs.get('debug', False)
@@ -73,7 +73,7 @@ def train_epoch(train_loader, model, criterion, optimizer,
         input_ = input_.cuda()
         bs = target.shape[0]
 
-        target_dict = {'labels': [torch.range(start=0, end=target.shape[1] - 1).cuda() for i in range(bs)],
+        target_dict = {'labels': [torch.range(start=0, end=target.shape[1] - 1) for i in range(bs)],
                        'coords': target}
 
         output, hm_encoder = model(input_)
@@ -81,18 +81,22 @@ def train_epoch(train_loader, model, criterion, optimizer,
         # Loss
         loss_dict = criterion['coord_loss_criterion'](output, target_dict)
         coords_dec_loss = loss_dict['coords']
+
         lossv = sum(coords_dec_loss) if multi_dec_loss else coords_dec_loss[-1]
 
-        enc_loss = torch.stack(
-            [criterion['enc_loss_criterion'](hm, heatmaps, M=weighted_loss_mask_awing) for hm in hm_encoder])
-        tot_enc_loss = torch.sum(enc_loss)
-        lossv = lossv.add_(tot_enc_loss) if multi_enc_loss else lossv
+        multi_enc_loss = not all([i is None for i in hm_encoder])
+        if multi_enc_loss:
+            enc_loss = torch.stack(
+                [criterion['enc_loss_criterion'](hm, heatmaps, M=weighted_loss_mask_awing) for hm in hm_encoder])
+            tot_enc_loss = torch.sum(enc_loss)
+            lossv = lossv.add_(tot_enc_loss) if multi_enc_loss else lossv
+
         if not math.isfinite(lossv.item()):
             print("Loss is {}, stopping training".format(lossv.item()))
             sys.exit(1)
 
         # NME
-        preds = output['pred_coords'][-1] * 256
+        preds = output['pred_coords'][-1] * 255
         scale_matrix = scale[:, np.newaxis, np.newaxis] * torch.ones_like(preds)
         opts_scaled = opts * scale_matrix
         nme_batch = compute_nme(preds, opts_scaled)
@@ -148,7 +152,7 @@ def train_epoch(train_loader, model, criterion, optimizer,
     logger.info(msg)
 
 
-def validate_epoch(val_loader, model, criterion, epoch, writer_dict, multi_dec_loss, multi_enc_loss, **kwargs):
+def validate_epoch(val_loader, model, criterion, epoch, writer_dict, multi_dec_loss, **kwargs):
     batch_time = AverageMeter()
     data_time = AverageMeter()
 
@@ -179,7 +183,7 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, multi_dec_l
             input_ = input_.cuda()
             bs = target.shape[0]
 
-            target_dict = {'labels': [torch.range(start=0, end=target.shape[1] - 1).cuda() for i in range(bs)],
+            target_dict = {'labels': [torch.range(start=0, end=target.shape[1] - 1) for i in range(bs)],
                            'coords': target.cuda()}
             output, hm_encoder = model(input_)
 
@@ -188,10 +192,12 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, multi_dec_l
             coords_dec_loss = loss_dict['coords']
             lossv = sum(coords_dec_loss) if multi_dec_loss else coords_dec_loss[-1]
 
-            enc_loss = torch.stack(
-                [criterion['enc_loss_criterion'](hm, heatmaps, M=weighted_loss_mask_awing) for hm in hm_encoder])
-            tot_enc_loss = torch.sum(enc_loss)
-            lossv = lossv.add_(tot_enc_loss) if multi_enc_loss else lossv
+            multi_enc_loss = not all([i is None for i in hm_encoder])
+            if multi_enc_loss:
+                enc_loss = torch.stack(
+                    [criterion['enc_loss_criterion'](hm, heatmaps, M=weighted_loss_mask_awing) for hm in hm_encoder])
+                tot_enc_loss = torch.sum(enc_loss)
+                lossv = lossv.add_(tot_enc_loss) if multi_enc_loss else lossv
 
             # NME
             preds = output['pred_coords'][-1] * 256
@@ -252,7 +258,8 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, multi_dec_l
         log[epoch].update({'valid_failure_010_rate': failure_010_rate})
         [log[epoch].update({k: v}) for (k, v) in loss_dict.items()]
         [writer.add_scalar(f'loss_coords_dec_{i}', v, global_steps) for (i, v) in enumerate(loss_dict['coords'])]
-        [writer.add_scalar(f'loss_hm_enc_{i}', v, global_steps) for (i, v) in enumerate(enc_loss)]
+        if multi_enc_loss:
+            [writer.add_scalar(f'loss_hm_enc_{i}', v, global_steps) for (i, v) in enumerate(enc_loss)]
 
         writer.add_image('images', grid, global_steps)
         log[epoch].update({'dbg_img': dbg_img})

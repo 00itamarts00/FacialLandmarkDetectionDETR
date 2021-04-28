@@ -258,7 +258,6 @@ class LDMTrain(object):
                             epoch=epoch,
                             writer_dict=self.writer,
                             multi_dec_loss=detr_args.multi_dec_loss,
-                            multi_enc_loss=detr_args.multi_enc_loss,
                             **kwargs)
 
                 # evaluate
@@ -270,7 +269,6 @@ class LDMTrain(object):
                                                   epoch=epoch,
                                                   writer_dict=self.writer,
                                                   multi_dec_loss=detr_args.multi_dec_loss,
-                                                  multi_enc_loss=detr_args.multi_enc_loss,
                                                   **kwargs)
 
             self.scheduler.step()
