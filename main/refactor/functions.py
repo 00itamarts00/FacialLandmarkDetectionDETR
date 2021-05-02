@@ -84,7 +84,8 @@ def train_epoch(train_loader, model, criterion, optimizer,
 
         lossv = sum(coords_dec_loss) if multi_dec_loss else coords_dec_loss[-1]
 
-        if output['hm_output'] is not None:
+        hm_backbone_regression = True if output['hm_output'] is not None else False
+        if hm_backbone_regression:
             hm_loss = criterion['hm_regression_criterion'](output['hm_output'], heatmaps, M=weighted_loss_mask_awing)
             lossv = lossv.add(hm_loss)
 
@@ -168,8 +169,7 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, multi_dec_l
     predictions = torch.zeros((len(val_loader.dataset), num_classes, 2))
 
     model.eval()
-    criterion['coord_loss_criterion'].eval()
-    criterion['enc_loss_criterion'].eval()
+    [criteria.eval() for criteria in criterion.values()]
 
     nme_count = nme_batch_sum = 0
     count_failure_008 = 0
@@ -195,6 +195,13 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, multi_dec_l
             loss_dict = criterion['coord_loss_criterion'](output, target_dict)
             coords_dec_loss = loss_dict['coords']
             lossv = sum(coords_dec_loss) if multi_dec_loss else coords_dec_loss[-1]
+
+            hm_backbone_regression = True if output['hm_output'] is not None else False
+            if hm_backbone_regression:
+                hm_loss = criterion['hm_regression_criterion'](output['hm_output'], heatmaps,
+                                                               M=weighted_loss_mask_awing)
+                lossv = lossv.add(hm_loss)
+                hm_regression_loss = hm_loss
 
             multi_enc_loss = not all([i is None for i in hm_encoder])
             if multi_enc_loss:
@@ -264,7 +271,8 @@ def validate_epoch(val_loader, model, criterion, epoch, writer_dict, multi_dec_l
         [writer.add_scalar(f'loss_coords_dec_{i}', v, global_steps) for (i, v) in enumerate(loss_dict['coords'])]
         if multi_enc_loss:
             [writer.add_scalar(f'loss_hm_enc_{i}', v, global_steps) for (i, v) in enumerate(enc_loss)]
-
+        if hm_backbone_regression:
+            log[epoch].update({'hm_backbone_regression': hm_loss})
         writer.add_image('images', grid, global_steps)
         log[epoch].update({'dbg_img': dbg_img})
         writer_dict['valid_global_steps'] = global_steps + 1
