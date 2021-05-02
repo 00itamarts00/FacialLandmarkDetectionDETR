@@ -48,9 +48,10 @@ class LDMTrain(object):
         self.device = self.backend_operations()
         self.train_loader, self.valid_loader = self.create_dataloaders()
         self.criterions = {}
-        self.model, coord_loss_criterion, self.postprocessors = self.load_model()
+        self.model, coord_loss_criterion = self.load_model()
         self.criterions['coord_loss_criterion'] = coord_loss_criterion
-        self.criterions['enc_loss_criterion'] = self.load_enc_loss_criteria()
+        self.criterions['enc_loss_criterion'] = self.load_awing_criteria()
+        self.criterions['hm_regression_criterion'] = self.load_awing_criteria()
         self.optimizer = self.load_optimizer()
         self.scheduler = self.load_scheduler()
         self.nnstats = CnnStats(self.paths.stats, self.model)
@@ -100,7 +101,7 @@ class LDMTrain(object):
             return list(meta.keys())[-1]
         return 0
 
-    def load_enc_loss_criteria(self):
+    def load_awing_criteria(self):
         criteria = Loss_weighted()
         return criteria
 
@@ -197,7 +198,7 @@ class LDMTrain(object):
         return optimizer
 
     def load_model(self):
-        model, criterion, postprocessors = build_model(args=detr_args)
+        model, criterion = build_model(args=detr_args)
         if self.ex['pretrained']['use_pretrained']:
             model_best_pth = os.path.join(self.paths.checkpoint, 'model_best.pth')
             model_best_state = torch.load(model_best_pth)
@@ -205,7 +206,7 @@ class LDMTrain(object):
                 model.load_state_dict(model_best_state['state_dict'].state_dict())
             except:
                 model = model_best_state['state_dict']
-        return model.cuda(), criterion, postprocessors
+        return model.cuda(), criterion
 
     def load_scheduler(self):
         args_sc = self.pr['scheduler'][self.tr['scheduler']]

@@ -12,6 +12,7 @@ import logging
 import sys
 import time
 
+import torch
 import wandb
 
 from main.components.hm_regression import *
@@ -55,8 +56,7 @@ def train_epoch(train_loader, model, criterion, optimizer,
     losses = AverageMeter()
 
     model.train()
-    criterion['coord_loss_criterion'].train()
-    criterion['enc_loss_criterion'].train()
+    [criteria.train() for criteria in criterion.values()]
 
     nme_count = nme_batch_sum = 0
 
@@ -83,6 +83,10 @@ def train_epoch(train_loader, model, criterion, optimizer,
         coords_dec_loss = loss_dict['coords']
 
         lossv = sum(coords_dec_loss) if multi_dec_loss else coords_dec_loss[-1]
+
+        if output['hm_output'] is not None:
+            hm_loss = criterion['hm_regression_criterion'](output['hm_output'], heatmaps, M=weighted_loss_mask_awing)
+            lossv = lossv.add(hm_loss)
 
         multi_enc_loss = not all([i is None for i in hm_encoder])
         if multi_enc_loss:
