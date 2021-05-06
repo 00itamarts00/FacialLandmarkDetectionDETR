@@ -29,23 +29,19 @@ def get_def_transform():
     ia.seed(random.randint(0, 1000))
 
     aug_pipeline = iaa.Sequential([
-
         # iaa.Sometimes(0.2, iaa.Fliplr(1.0)),
         iaa.Sometimes(0.1, iaa.CropAndPad(percent=(-0.10, 0.10))),
-        iaa.Sometimes(0.1, iaa.Affine(rotate=5)),
+        iaa.Sometimes(0.1, iaa.Affine(rotate=(-15, 15))),
 
-        # apply Gaussian blur with a sigma between 0 and 3 to 50% of the images
-        # apply one of the augmentations: Dropout or CoarseDropout
-        # iaa.OneOf([
-        #    iaa.Sometimes(0.02, iaa.Dropout((0.01, 0.1), per_channel=0.5)),  # randomly remove up to 10% of the pixels
-        #    iaa.Sometimes(0.02, iaa.CoarseDropout((0.03, 0.15), size_percent=(0.02, 0.05), per_channel=0.2)),
-        # ]),
+        iaa.SomeOf((0, 3), [
+            iaa.Sometimes(0.1, iaa.contrast.LinearContrast(alpha=(0.6, 1.4))),
+        ]),
 
         # apply from 0 to 3 of the augmentations from the list
         iaa.SomeOf((0, 3), [
             iaa.Sometimes(0.05, iaa.Sharpen(alpha=(0, 1.0), lightness=(0.75, 1.2))),  # sharpen images
             iaa.Sometimes(0.05, iaa.Emboss(alpha=(0, 1.0), strength=(0, 1.2))),  # emboss images
-            iaa.Sometimes(0.05, iaa.GaussianBlur((0, 3.0))),
+            iaa.Sometimes(0.1, iaa.GaussianBlur((0, 2.0))),
         ])
     ],
         random_order=True  # apply the augmentations in random order
