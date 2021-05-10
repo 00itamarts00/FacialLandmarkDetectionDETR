@@ -6,8 +6,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from packages.detr.util.misc import (NestedTensor, nested_tensor_from_tensor_list, get_world_size,
-                                     is_dist_avail_and_initialized)
+from main.detr.misc import (NestedTensor, nested_tensor_from_tensor_list, get_world_size,
+                            is_dist_avail_and_initialized)
 from .backbone import build_backbone
 from .transformer import build_transformer
 
