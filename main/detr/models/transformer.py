@@ -19,11 +19,11 @@ class Transformer(nn.Module):
     def __init__(self, d_model=512, nhead=8, num_encoder_layers=6,
                  num_decoder_layers=6, dim_feedforward=2048, dropout=0.1,
                  activation="relu", normalize_before=False,
-                 return_intermediate_dec=False, multi_enc_loss=False):
+                 return_intermediate_dec=False):
         super().__init__()
 
         encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward,
-                                                dropout, activation, normalize_before, multi_enc_loss)
+                                                dropout, activation, normalize_before)
         encoder_norm = nn.LayerNorm(d_model) if normalize_before else None
         self.encoder = TransformerEncoder(encoder_layer, num_encoder_layers, encoder_norm)
 
@@ -52,10 +52,10 @@ class Transformer(nn.Module):
         mask = mask.flatten(1)
 
         tgt = torch.zeros_like(query_embed)
-        memory, hm_encoder = self.encoder(src, src_key_padding_mask=mask, pos=pos_embed)
+        memory = self.encoder(src, src_key_padding_mask=mask, pos=pos_embed)
         hs = self.decoder(tgt, memory, memory_key_padding_mask=mask,
                           pos=pos_embed, query_pos=query_embed)
-        return hs.transpose(1, 2), memory.permute(1, 2, 0).view(bs, c, h, w), hm_encoder
+        return hs.transpose(1, 2), memory.permute(1, 2, 0).view(bs, c, h, w)
 
 
 class TransformerEncoder(nn.Module):
@@ -71,16 +71,14 @@ class TransformerEncoder(nn.Module):
                 src_key_padding_mask: Optional[Tensor] = None,
                 pos: Optional[Tensor] = None):
         output = src
-        hmap_enc_arr = []
         for layer in self.layers:
-            output, hm_encoder = layer(output, src_mask=mask,
-                                       src_key_padding_mask=src_key_padding_mask, pos=pos)
-            hmap_enc_arr.append(hm_encoder)
+            output = layer(output, src_mask=mask,
+                           src_key_padding_mask=src_key_padding_mask, pos=pos)
 
         if self.norm is not None:
             output = self.norm(output)
 
-        return output, hmap_enc_arr
+        return output
 
 
 class TransformerDecoder(nn.Module):
@@ -143,7 +141,7 @@ class TransformerEncoderLayer(nn.Module):
         self.activation = _get_activation_fn(activation)
         self.normalize_before = normalize_before
 
-        self.hm_encoder = EncoderHeatMap() if multi_enc_loss else None
+        # self.hm_encoder = EncoderHeatMap() if multi_enc_loss else None
 
     def with_pos_embed(self, tensor, pos: Optional[Tensor]):
         return tensor if pos is None else tensor + pos
@@ -185,8 +183,8 @@ class TransformerEncoderLayer(nn.Module):
             output = self.forward_pre(src, src_mask, src_key_padding_mask, pos)
         else:
             output = self.forward_post(src, src_mask, src_key_padding_mask, pos)
-        hm_encoder = self.hm_encoder(src) if self.hm_encoder is not None else None
-        return output, hm_encoder
+        # hm_encoder = self.hm_encoder(src) if self.hm_encoder is not None else None
+        return output
 
 
 class EncoderHeatMap(nn.Module):
@@ -313,7 +311,6 @@ def build_transformer(args):
         num_decoder_layers=args.dec_layers,
         normalize_before=args.pre_norm,
         return_intermediate_dec=True,
-        multi_enc_loss=args.multi_enc_loss,
     )
 
 

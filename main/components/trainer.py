@@ -10,6 +10,7 @@ import wandb
 from tensorboardX import SummaryWriter
 from torch.optim.lr_scheduler import StepLR
 from torch.utils import data
+from main.components.Awing.awing_loss import Loss_weighted
 
 import main.globals as g
 from main.components.CLMDataset import CLMDataset, get_def_transform, get_data_list
@@ -20,7 +21,7 @@ from main.detr.models.detr import load_criteria as load_criteria_detr
 from main.refactor.functions import train_epoch, validate_epoch, single_image_train
 from main.refactor.nnstats import CnnStats
 from main.refactor.utils import save_checkpoint
-from models.HRNET import hrnet_config
+from models.HRNET import hrnet_config, update_config
 from models.HRNET.HRNET import get_face_alignment_net
 from utils.file_handler import FileHandler
 from models.HRNET.hrnet_utils import get_optimizer
@@ -37,13 +38,13 @@ os.environ["WANDB_MODE"] = "dryrun"
 class LDMTrain(object):
     def __init__(self, params, single_image_train=False):
         self.single_image_train = single_image_train
-        self.pr = params
+        self.params = params
         self.workset_path = os.path.join(self.ds['dataset_dir'], self.ds['workset_name'])
         self.paths = self.create_workspace()
         self.last_epoch = self.get_last_epoch()
         self.device = self.backend_operations()
         self.train_loader, self.valid_loader = self.create_dataloaders()
-        self.model, self.criteria = self.load_model()
+        self.model = self.load_model()
         self.criteria = self.load_criteria()
         self.optimizer = self.load_optimizer()
         self.scheduler = self.load_scheduler()
@@ -97,7 +98,12 @@ class LDMTrain(object):
         if self.tr['model'] == 'DETR':
             return load_criteria_detr(args=detr_args)
         if self.tr['model'] == 'HRNET':
+            # return Loss_weighted().cuda()
             return torch.nn.MSELoss(size_average=True).cuda()
+
+    @property
+    def pr(self):
+        return self.params
 
     @property
     def ds(self):
@@ -184,16 +190,19 @@ class LDMTrain(object):
                 except:
                     model = model_best_state['state_dict']
         if self.tr['model'] == 'HRNET':
-            pretrained_path = self.pr['model']['HRNET']['pretrained_weights']
-            hrnet_config._C.MODEL.PRETRAINED = pretrained_path
+            config_path = self.pr['model']['HRNET']['config']
+            update_config(hrnet_config._C, config_path)
             model = get_face_alignment_net(hrnet_config._C)
         return model.cuda()
 
     def load_scheduler(self):
-        args_sc = self.pr['scheduler'][self.tr['scheduler']]
-        scheduler = StepLR(optimizer=self.optimizer,
-                           step_size=args_sc['step_size'],
-                           gamma=args_sc['gamma'])
+        if self.tr['model'] == 'DETR':
+            args_sc = self.pr['scheduler'][self.tr['scheduler']]
+            scheduler = StepLR(optimizer=self.optimizer,
+                               step_size=args_sc['step_size'],
+                               gamma=args_sc['gamma'])
+        if self.tr['model'] == 'HRNET':
+            scheduler = None
         return scheduler
 
     def backend_operations(self):
@@ -213,7 +222,7 @@ class LDMTrain(object):
         if self.single_image_train:
             single_image_train(train_loader=self.train_loader,
                                model=self.model,
-                               criterion=self.criterions,
+                               criterion=self.criteria,
                                optimizer=self.optimizer,
                                epochs=2000,
                                writer_dict=self.writer,
@@ -231,7 +240,7 @@ class LDMTrain(object):
                 break
             if self.train_loader is not None:
                 # train
-                kwargs = {'log_interval': 20, 'debug': self.ex['single_batch_debug']}
+                kwargs = {'log_interval': 20, 'debug': self.ex['single_batch_debug'], 'model_name': self.tr['model']}
                 train_epoch(train_loader=self.train_loader,
                             model=self.model,
                             criteria=self.criteria,
@@ -243,7 +252,7 @@ class LDMTrain(object):
 
                 # evaluate
                 kwargs = {'num_landmarks': self.tr['num_landmarks'],
-                          'debug': self.ex['single_batch_debug']}
+                          'debug': self.ex['single_batch_debug'], 'model_name': self.tr['model']}
                 nme, predictions = validate_epoch(val_loader=self.valid_loader,
                                                   model=self.model,
                                                   criteria=self.criteria,

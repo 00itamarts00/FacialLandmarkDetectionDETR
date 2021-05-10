@@ -48,6 +48,7 @@ def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **
     max_norm = 0
     log_interval = kwargs.get('log_interval', 20)
     debug = kwargs.get('debug', False)
+    model_name = kwargs.get('model_name', None)
 
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -75,10 +76,15 @@ def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **
                        'coords': target, 'heatmap_bb': heatmaps,
                        'weighted_loss_mask_awing': weighted_loss_mask_awing}
 
-        output, hm_encoder = model(input_)
+        output = model(input_)
 
         # Loss
-        loss_dict, lossv = criteria(output, target_dict)
+        if model_name == 'HRNET':
+            lossv = criteria(output, heatmaps * 1000)
+            # lossv = criteria(output, heatmaps * 1000, M=weighted_loss_mask_awing)
+            loss_dict = {'MSE_loss': lossv.item()}
+        else:
+            loss_dict, lossv = criteria(output, target_dict)
 
         if not math.isfinite(lossv.item()):
             print("Loss is {}, stopping training".format(lossv.item()))
@@ -149,6 +155,7 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
 
     num_classes = kwargs.get('num_landmarks', 20)
     debug = kwargs.get('debug', False)
+    model_name = kwargs.get('model_name', None)
 
     predictions = torch.zeros((len(val_loader.dataset), num_classes, 2))
 
@@ -175,10 +182,15 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
                            'coords': target, 'heatmap_bb': heatmaps,
                            'weighted_loss_mask_awing': weighted_loss_mask_awing}
 
-            output, hm_encoder = model(input_)
+            output = model(input_)
 
-            # loss
-            loss_dict, lossv = criteria(output, target_dict)
+            # Loss
+            if model_name == 'HRNET':
+                lossv = criteria(output, heatmaps * 1000)
+                # lossv = criteria(output, heatmaps * 1000, M=weighted_loss_mask_awing)
+                loss_dict = {'MSE_loss': lossv.item()}
+            else:
+                loss_dict, lossv = criteria(output, target_dict)
 
             # NME
             preds = output['pred_coords'][-1] * 256

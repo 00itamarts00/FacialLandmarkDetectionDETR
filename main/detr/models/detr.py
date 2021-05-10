@@ -35,7 +35,6 @@ class DETR(nn.Module):
         self.query_embed = nn.Embedding(num_queries, hidden_dim)
         self.input_proj = nn.Conv2d(backbone.num_channels, hidden_dim, kernel_size=1)
         self.backbone = backbone
-        # self.aux_loss = aux_loss
 
     def forward(self, samples: NestedTensor):
         """ The forward expects a NestedTensor, which consists of:
@@ -49,8 +48,6 @@ class DETR(nn.Module):
                                (center_x, center_y, height, width). These values are normalized in [0, 1],
                                relative to the size of each individual image (disregarding possible padding).
                                See PostProcess for information on how to retrieve the un-normalized bounding box.
-               - "aux_outputs": Optional, only returned when auxilary losses are activated. It is a list of
-                                dictionaries containing the two above keys for each decoder layer.
         """
         if isinstance(samples, (list, torch.Tensor)):
             samples = nested_tensor_from_tensor_list(samples)
@@ -58,13 +55,13 @@ class DETR(nn.Module):
 
         src, mask = features[-1].decompose()
         assert mask is not None
-        hs, memory, hm_encoder = self.transformer(self.input_proj(src), mask, self.query_embed.weight, pos[-1])
+        hs, memory = self.transformer(self.input_proj(src), mask, self.query_embed.weight, pos[-1])
 
         outputs_class = self.class_embed(hs)
         outputs_coord = self.bbox_embed(hs).sigmoid()
         out = {'pred_logits': outputs_class, 'pred_coords': outputs_coord, 'hm_output': hm_reg}
 
-        return out, hm_encoder
+        return out
 
 
 class SetCriterion(nn.Module):
