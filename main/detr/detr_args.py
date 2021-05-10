@@ -24,8 +24,8 @@ coco_path = '/home/itamar/thesis/DATASET/WS02'
 output_dir = '/home/itamar/thesis/outputs/detr'
 device = 'cuda'
 seed = 42
-world_size = 1
-multi_dec_loss = False
+# losses
+multi_dec_loss = True
 multi_enc_loss = False
-heatmap_regression_via_backbone = False
-l1_coord_loss = True
+heatmap_regression_via_backbone = True
+last_dec_coord_loss = True

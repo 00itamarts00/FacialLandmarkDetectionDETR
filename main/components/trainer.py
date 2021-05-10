@@ -21,10 +21,10 @@ from main.refactor.functions import train_epoch, validate_epoch, single_image_tr
 # import wandb
 from main.refactor.nnstats import CnnStats
 from main.refactor.utils import save_checkpoint
-from models.awing_loss import Loss_weighted
+from main.components.Awing.awing_loss import Loss_weighted
 # import shutil
 # import json
-from packages.detr import detr_args
+from main.detr import detr_args
 from main.detr.models.detr import build as build_model
 from utils.file_handler import FileHandler
 
@@ -247,7 +247,6 @@ class LDMTrain(object):
             if math.isnan(self.trn_loss) or math.isinf(self.trn_loss):
                 break
             if self.train_loader is not None:
-                starttime = time.time()
                 # train
                 kwargs = {'log_interval': 20, 'debug': self.ex['single_batch_debug']}
                 train_epoch(train_loader=self.train_loader,
@@ -264,10 +263,9 @@ class LDMTrain(object):
                           'debug': self.ex['single_batch_debug']}
                 nme, predictions = validate_epoch(val_loader=self.valid_loader,
                                                   model=self.model,
-                                                  criterion=self.criterions,
+                                                  criteria=self.criteria,
                                                   epoch=epoch,
                                                   writer_dict=self.writer,
-                                                  multi_dec_loss=detr_args.multi_dec_loss,
                                                   **kwargs)
 
             self.scheduler.step()

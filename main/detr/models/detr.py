@@ -5,6 +5,7 @@ DETR model and criterion classes.
 import torch
 import torch.nn.functional as F
 from torch import nn
+from main.components.Awing.awing_loss import Loss_weighted
 
 from main.detr.misc import (NestedTensor, nested_tensor_from_tensor_list, get_world_size,
                             is_dist_avail_and_initialized)
@@ -73,7 +74,7 @@ class SetCriterion(nn.Module):
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
 
-    def __init__(self, l1_coord_loss=True, multi_dec_loss=False, multi_enc_loss=False,
+    def __init__(self, last_dec_coord_loss=True, multi_dec_loss=False, multi_enc_loss=False,
                  heatmap_regression_via_backbone=False):
         """ Create the criterion.
         Parameters:
@@ -83,25 +84,62 @@ class SetCriterion(nn.Module):
             hm_regression_via_bb: flag, HM regression from the backbone intermediate layer
         """
         super().__init__()
-        self.l1_coord_loss = l1_coord_loss
-        self.multi_dec_loss = multi_dec_loss
-        self.multi_enc_loss = multi_enc_loss
-        self.hm_regression_via_bb = heatmap_regression_via_backbone
+        self.last_dec_coord_loss_flag = last_dec_coord_loss
+        self.multi_dec_loss_flag = multi_dec_loss
+        self.multi_enc_loss_flag = multi_enc_loss
+        self.hm_regression_via_bb_flag = heatmap_regression_via_backbone
+        self.losses = self.get_loss_map()
+        self.awing_loss = self.load_awing_loss()
 
-    def l1_coord_loss(self, outputs, targets):
-        num_coords = len(targets)
-        return F.l1_loss(outputs, targets, reduction='none') / num_coords
+    def load_awing_loss(self):
+        if self.hm_regression_via_bb_flag or self.multi_enc_loss_flag:
+            return Loss_weighted()
+        else:
+            return None
 
-    def
+    @staticmethod
+    def l1_coord_loss(opts, preds, num_coords):
+        return F.l1_loss(opts, preds, reduction='sum')
 
-    def get_loss(self, loss, outputs, targets, num_coords, **kwargs):
-        loss_map = {
-            'l1_coord_loss': self.l1_coord_loss,
-            'multi_dec_loss': self.multi_dec_loss,
-            'multi_enc_loss': self.multi_enc_loss,
-            'heatmap_regression_via_backbone': self.hm_regression_via_bb
-        }
-        return loss_map[loss](outputs, targets, num_coords, **kwargs)
+    @staticmethod
+    def l2_coord_loss(outputs, targets, num_coords):
+        return F.mse_loss(outputs, targets, reduction='sum')
+
+    def last_dec_coord_loss(self, outputs, targets, num_coords, type='l2'):
+        preds = outputs['pred_coords'][-1]
+        opts = targets['coords']
+        loss = self.l2_coord_loss if type == 'l2' else self.l1_coord_loss
+        res = loss(outputs=preds, targets=opts, num_coords=num_coords)
+        return res
+
+    def multi_dec_loss(self, outputs, targets, num_coords, type='l2'):
+        preds = outputs['pred_coords']
+        opts = targets['coords']
+        loss = self.l2_coord_loss if type == 'l2' else self.l1_coord_loss
+        res = [loss(outputs=dec_head, targets=opts, num_coords=num_coords) for dec_head in preds]
+        return sum(res)
+
+    def multi_enc_loss(self, outputs, targets, num_coords):
+        raise NotImplementedError()
+
+    def hm_regression_via_bb(self, outputs, targets, num_coords):
+        heatmaps_opts = targets['heatmap_bb']
+        heatmaps_pred = outputs['hm_output']
+        weighted_loss_mask_awing = targets['weighted_loss_mask_awing']
+        loss = self.awing_loss(heatmaps_pred, heatmaps_opts, M=weighted_loss_mask_awing)
+        return loss
+
+    def get_loss_map(self, **kwargs):
+        loss_map = dict()
+        if self.last_dec_coord_loss_flag and not self.multi_dec_loss_flag:
+            loss_map.update({'last_dec_coord_loss': self.last_dec_coord_loss})
+        if self.multi_dec_loss_flag:
+            loss_map.update({'multi_dec_loss': self.multi_dec_loss})
+        if self.multi_enc_loss_flag:
+            loss_map.update({'multi_enc_loss': self.multi_enc_loss})
+        if self.hm_regression_via_bb_flag:
+            loss_map.update({'hm_regression_via_bb': self.hm_regression_via_bb})
+        return loss_map
 
     def forward(self, outputs, targets):
         """ This performs the loss computation.
@@ -120,10 +158,12 @@ class SetCriterion(nn.Module):
 
         # Compute all the requested losses
         losses = {}
-        for loss in self.losses:
-            losses.update({loss: self.get_loss(loss, outputs, targets, num_coords)})
-
-        return losses
+        for loss_name, loss_func in self.losses.items():
+            losses.update({loss_name: loss_func(outputs, targets, num_coords)})
+        lossv = 0
+        for loss in losses.values():
+            lossv += loss
+        return losses, lossv
 
 
 class MLP(nn.Module):
@@ -157,7 +197,7 @@ def build(args):
         num_queries=args.num_queries,
     )
 
-    criterion = SetCriterion(l1_coord_loss=args.l1_coord_loss,
+    criterion = SetCriterion(last_dec_coord_loss=args.last_dec_coord_loss,
                              multi_dec_loss=args.multi_dec_loss,
                              multi_enc_loss=args.multi_enc_loss,
                              heatmap_regression_via_backbone=args.heatmap_regression_via_backbone)
