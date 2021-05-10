@@ -257,12 +257,13 @@ class HighResolutionNet(nn.Module):
         self.inplanes = 64
         extra = config.MODEL.EXTRA
         super(HighResolutionNet, self).__init__()
-        # loss function
-        self.loss_fuction = torch.nn.MSELoss(reduction='mean').cuda()
+
         # stem net
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=2, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=2, padding=1,
+                               bias=False)
         self.bn1 = BatchNorm2d(64, momentum=BN_MOMENTUM)
-        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1, bias=False)
+        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1,
+                               bias=False)
         self.bn2 = BatchNorm2d(64, momentum=BN_MOMENTUM)
         self.relu = nn.ReLU(inplace=True)
         self.sf = nn.Softmax(dim=1)
@@ -297,6 +298,7 @@ class HighResolutionNet(nn.Module):
             pre_stage_channels, num_channels)
         self.stage4, pre_stage_channels = self._make_stage(
             self.stage4_cfg, num_channels, multi_scale_output=True)
+
         final_inp_channels = sum(pre_stage_channels)
 
         self.head = nn.Sequential(
@@ -316,12 +318,8 @@ class HighResolutionNet(nn.Module):
                 padding=1 if extra.FINAL_CONV_KERNEL == 3 else 0)
         )
 
-    def loss(self, args, **kwargs):
-        output, target, opts = args
-        return [self.loss_fuction(output, target)]
-
-    @staticmethod
-    def _make_transition_layer(num_channels_pre_layer, num_channels_cur_layer):
+    def _make_transition_layer(
+            self, num_channels_pre_layer, num_channels_cur_layer):
         num_branches_cur = len(num_channels_cur_layer)
         num_branches_pre = len(num_channels_pre_layer)
 
@@ -438,9 +436,9 @@ class HighResolutionNet(nn.Module):
 
         # Head Part
         height, width = x[0].size(2), x[0].size(3)
-        x1 = F.interpolate(x[1], size=(height, width), mode='bilinear')
-        x2 = F.interpolate(x[2], size=(height, width), mode='bilinear')
-        x3 = F.interpolate(x[3], size=(height, width), mode='bilinear')
+        x1 = F.interpolate(x[1], size=(height, width), mode='bilinear', align_corners=False)
+        x2 = F.interpolate(x[2], size=(height, width), mode='bilinear', align_corners=False)
+        x3 = F.interpolate(x[3], size=(height, width), mode='bilinear', align_corners=False)
         x = torch.cat([x[0], x1, x2, x3], 1)
         x = self.head(x)
 

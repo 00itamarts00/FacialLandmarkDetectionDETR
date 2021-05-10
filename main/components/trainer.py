@@ -1,10 +1,9 @@
 from __future__ import print_function
 
-import copy
 import math
 import os
-import time
 
+import torch
 import torch.backends.cudnn
 import torch.optim as optim
 import wandb
@@ -15,19 +14,16 @@ from torch.utils import data
 import main.globals as g
 from main.components.CLMDataset import CLMDataset, get_def_transform, get_data_list
 from main.components.evaluate_model import *
-from main.refactor.functions import train_epoch, validate_epoch, single_image_train
-# import pandas as pd
-# import torch
-# import wandb
-from main.refactor.nnstats import CnnStats
-from main.refactor.utils import save_checkpoint
-from main.components.Awing.awing_loss import Loss_weighted
-# import shutil
-# import json
 from main.detr import detr_args
 from main.detr.models.detr import build as build_model
+from main.detr.models.detr import load_criteria as load_criteria_detr
+from main.refactor.functions import train_epoch, validate_epoch, single_image_train
+from main.refactor.nnstats import CnnStats
+from main.refactor.utils import save_checkpoint
+from models.HRNET import hrnet_config
+from models.HRNET.HRNET import get_face_alignment_net
 from utils.file_handler import FileHandler
-
+from models.HRNET.hrnet_utils import get_optimizer
 torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
@@ -48,16 +44,13 @@ class LDMTrain(object):
         self.device = self.backend_operations()
         self.train_loader, self.valid_loader = self.create_dataloaders()
         self.model, self.criteria = self.load_model()
-        # self.criterions['coord_loss_criterion'] = coord_loss_criterion
-        # self.criterions['enc_loss_criterion'] = self.load_awing_criteria()
-        # self.criterions['hm_regression_criterion'] = self.load_awing_criteria()
+        self.criteria = self.load_criteria()
         self.optimizer = self.load_optimizer()
         self.scheduler = self.load_scheduler()
         self.nnstats = CnnStats(self.paths.stats, self.model)
         self.writer = self.init_writer()
-        self.trn_loss = 0
-        self.update_last_epoch_in_components()
         self.wandb = self.init_wandb_logger()
+        self.trn_loss = 0
 
     def init_wandb_logger(self):
         # Start a new run, tracking hyperparameters in config
@@ -100,19 +93,11 @@ class LDMTrain(object):
             return list(meta.keys())[-1]
         return 0
 
-    def load_awing_criteria(self):
-        return Loss_weighted()
-
-    def update_last_epoch_in_components(self):
-        return
-
-    @property
-    def hm_amp_factor(self):
-        return self.tr['hm_amp_factor']
-
-    @property
-    def log_interval(self):
-        return self.ex['log_interval']
+    def load_criteria(self):
+        if self.tr['model'] == 'DETR':
+            return load_criteria_detr(args=detr_args)
+        if self.tr['model'] == 'HRNET':
+            return torch.nn.MSELoss(size_average=True).cuda()
 
     @property
     def ds(self):
@@ -125,16 +110,6 @@ class LDMTrain(object):
     @property
     def ex(self):
         return self.pr['experiment']
-
-    @staticmethod
-    def _get_data_from_item(item):
-        sample = copy.deepcopy(item['img'])
-        target = copy.deepcopy(item['hm'])
-        opts = copy.deepcopy(item['opts'])
-        sfactor = item['sfactor']
-        for i in range(len(sfactor)):
-            opts[i] = np.multiply(opts[i], sfactor[i]) / sample.size(2)
-        return sample, target, opts
 
     def init_writer(self):
         writer_dict = {
@@ -186,25 +161,33 @@ class LDMTrain(object):
         return paths
 
     def load_optimizer(self):
-        args_op = self.pr['optimizer'][self.tr['optimizer']]
-        optimizer = optim.AdamW(params=filter(lambda p: p.requires_grad, self.model.parameters()),
-                                lr=float(args_op['lr']),
-                                weight_decay=args_op['weight_decay'])
-        if self.ex['pretrained']['use_pretrained']:
-            model_best_pth = os.path.join(self.paths.checkpoint, 'model_best.pth')
-            optimizer.load_state_dict(torch.load(model_best_pth)['optimizer'])
+        if self.tr['model'] == 'DETR':
+            args_op = self.pr['optimizer'][self.tr['optimizer']]
+            optimizer = optim.AdamW(params=filter(lambda p: p.requires_grad, self.model.parameters()),
+                                    lr=float(args_op['lr']),
+                                    weight_decay=args_op['weight_decay'])
+            if self.ex['pretrained']['use_pretrained']:
+                model_best_pth = os.path.join(self.paths.checkpoint, 'model_best.pth')
+                optimizer.load_state_dict(torch.load(model_best_pth)['optimizer'])
+        if self.tr['model'] == 'HRNET':
+            optimizer = get_optimizer(hrnet_config._C, self.model)
         return optimizer
 
     def load_model(self):
-        model, criterion = build_model(args=detr_args)
-        if self.ex['pretrained']['use_pretrained']:
-            model_best_pth = os.path.join(self.paths.checkpoint, 'model_best.pth')
-            model_best_state = torch.load(model_best_pth)
-            try:
-                model.load_state_dict(model_best_state['state_dict'].state_dict())
-            except:
-                model = model_best_state['state_dict']
-        return model.cuda(), criterion
+        if self.tr['model'] == 'DETR':
+            model = build_model(args=detr_args)
+            if self.ex['pretrained']['use_pretrained']:
+                model_best_pth = os.path.join(self.paths.checkpoint, 'model_best.pth')
+                model_best_state = torch.load(model_best_pth)
+                try:
+                    model.load_state_dict(model_best_state['state_dict'].state_dict())
+                except:
+                    model = model_best_state['state_dict']
+        if self.tr['model'] == 'HRNET':
+            pretrained_path = self.pr['model']['HRNET']['pretrained_weights']
+            hrnet_config._C.MODEL.PRETRAINED = pretrained_path
+            model = get_face_alignment_net(hrnet_config._C)
+        return model.cuda()
 
     def load_scheduler(self):
         args_sc = self.pr['scheduler'][self.tr['scheduler']]

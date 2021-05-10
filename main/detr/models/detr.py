@@ -181,6 +181,15 @@ class MLP(nn.Module):
         return x
 
 
+def load_criteria(args):
+    device = torch.device(args.device)
+    criterion = SetCriterion(last_dec_coord_loss=args.last_dec_coord_loss,
+                             multi_dec_loss=args.multi_dec_loss,
+                             multi_enc_loss=args.multi_enc_loss,
+                             heatmap_regression_via_backbone=args.heatmap_regression_via_backbone)
+    criterion.to(device)
+    return criterion
+
 def build(args):
     num_classes = args.num_classes
 
@@ -196,17 +205,10 @@ def build(args):
         num_classes=num_classes,
         num_queries=args.num_queries,
     )
-
-    criterion = SetCriterion(last_dec_coord_loss=args.last_dec_coord_loss,
-                             multi_dec_loss=args.multi_dec_loss,
-                             multi_enc_loss=args.multi_enc_loss,
-                             heatmap_regression_via_backbone=args.heatmap_regression_via_backbone)
-    criterion.to(device)
-
     # for param in model.parameters():
     #     param.requires_grad = True
 
-    return model, criterion
+    return model
 
 # class MultiTaskLoss(nn.Module):
 #     def __init__(self, tasks):

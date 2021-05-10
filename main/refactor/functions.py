@@ -238,9 +238,7 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
         writer.add_scalar('valid_failure_010_rate', failure_010_rate, global_steps)
         log[epoch].update({'valid_failure_010_rate': failure_010_rate})
         [log[epoch].update({k: v}) for (k, v) in loss_dict.items()]
-        [writer.add_scalar(f'loss_coords_dec_{i}', v, global_steps) for (i, v) in enumerate(loss_dict['coords'])]
-        for k, v in loss_dict.items():
-            writer.add_scalar(k, v, global_steps)
+        [writer.add_scalar(k, v, global_steps) for k, v in loss_dict.items()]
         writer.add_image('images', grid, global_steps)
         log[epoch].update({'dbg_img': dbg_img})
         writer_dict['valid_global_steps'] = global_steps + 1

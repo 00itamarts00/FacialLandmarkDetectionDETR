@@ -11,7 +11,6 @@ from __future__ import print_function
 
 from yacs.config import CfgNode as CN
 
-
 _C = CN()
 
 _C.OUTPUT_DIR = 'output'
@@ -33,7 +32,7 @@ _C.MODEL = CN()
 _C.MODEL.NAME = 'hrnet'
 _C.MODEL.INIT_WEIGHTS = True
 _C.MODEL.PRETRAINED = ''
-_C.MODEL.NUM_JOINTS = 68
+_C.MODEL.NUM_JOINTS = 17
 _C.MODEL.TARGET_TYPE = 'Gaussian'
 _C.MODEL.IMAGE_SIZE = [256, 256]  # width * height
 _C.MODEL.HEATMAP_SIZE = [64, 64]  # width * height
@@ -66,7 +65,7 @@ _C.MODEL.EXTRA.STAGE4 = CN()
 _C.MODEL.EXTRA.STAGE4.NUM_MODULES = 1
 _C.MODEL.EXTRA.STAGE4.NUM_BRANCHES = 4
 _C.MODEL.EXTRA.STAGE4.NUM_BLOCKS = [4, 4, 4, 4]
-_C.MODEL.EXTRA.STAGE4.NUM_CHANNELS = [18, 36, 72, 144]
+_C.MODEL.EXTRA.STAGE4.NUM_CHANNELS = [18, 32, 72, 144]
 _C.MODEL.EXTRA.STAGE4.BLOCK = 'BASIC'
 _C.MODEL.EXTRA.STAGE4.FUSE_METHOD = 'SUM'
 
@@ -118,5 +117,6 @@ def update_config(cfg, args):
 
 if __name__ == '__main__':
     import sys
+
     with open(sys.argv[1], 'w') as f:
         print(_C, file=f)

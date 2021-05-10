@@ -41,7 +41,7 @@ train:
     pin_memory: True
   backend:
     use_torch: True
-  model: 'DETR'
+  model: 'HRNET'  # 'DETR'
   optimizer: 'ADAMW'
   scheduler: 'StepLR'
   criteria: 'MSELoss'
@@ -82,6 +82,7 @@ model:
     input_size: [ 256, 256 ]
     heatmap_size: [ 64, 64 ]
     target_type: 'Gaussian'
+    pretrained_weights: '/home/itamar/thesis/MODELS/HRNET/hrnetv2_w18_imagenet_pretrained.pth'
   DETR:
     input_size: [ 256, 256 ]
     heatmap_size: [ 64, 64 ]
