@@ -45,7 +45,7 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def train_epoch(train_loader, model, criterion, optimizer,
+def train_epoch(train_loader, model, criteria, optimizer,
                 epoch, writer_dict, multi_dec_loss=False, **kwargs):
     max_norm = 0
     log_interval = kwargs.get('log_interval', 20)
@@ -56,7 +56,7 @@ def train_epoch(train_loader, model, criterion, optimizer,
     losses = AverageMeter()
 
     model.train()
-    [criteria.train() for criteria in criterion.values()]
+    criteria.train()
 
     nme_count = nme_batch_sum = 0
 
@@ -79,20 +79,20 @@ def train_epoch(train_loader, model, criterion, optimizer,
         output, hm_encoder = model(input_)
 
         # Loss
-        loss_dict = criterion['coord_loss_criterion'](output, target_dict)
+        loss_dict = criteria(output, target_dict)
         coords_dec_loss = loss_dict['coords']
 
         lossv = sum(coords_dec_loss) if multi_dec_loss else coords_dec_loss[-1]
 
         hm_backbone_regression = True if output['hm_output'] is not None else False
         if hm_backbone_regression:
-            hm_loss = criterion['hm_regression_criterion'](output['hm_output'], heatmaps, M=weighted_loss_mask_awing)
+            hm_loss = criteria['hm_regression_criterion'](output['hm_output'], heatmaps, M=weighted_loss_mask_awing)
             lossv = lossv.add(hm_loss)
 
         multi_enc_loss = not all([i is None for i in hm_encoder])
         if multi_enc_loss:
             enc_loss = torch.stack(
-                [criterion['enc_loss_criterion'](hm, heatmaps, M=weighted_loss_mask_awing) for hm in hm_encoder])
+                [criteria['enc_loss_criterion'](hm, heatmaps, M=weighted_loss_mask_awing) for hm in hm_encoder])
             tot_enc_loss = torch.sum(enc_loss)
             lossv = lossv.add_(tot_enc_loss) if multi_enc_loss else lossv
 
