@@ -83,15 +83,16 @@ def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **
             lossv = criteria(output, heatmaps * 1000)
             # lossv = criteria(output, heatmaps * 1000, M=weighted_loss_mask_awing)
             loss_dict = {'MSE_loss': lossv.item()}
-        else:
+            preds = decode_preds_heatmaps(output).cuda()
+        if model_name == 'DETR':
             loss_dict, lossv = criteria(output, target_dict)
+            preds = output['pred_coords'][-1] * 255
 
         if not math.isfinite(lossv.item()):
             print("Loss is {}, stopping training".format(lossv.item()))
             sys.exit(1)
 
         # NME
-        preds = output['pred_coords'][-1] * 255
         scale_matrix = scale[:, np.newaxis, np.newaxis] * torch.ones_like(preds)
         opts_scaled = opts * scale_matrix
         nme_batch = compute_nme(preds, opts_scaled)
@@ -189,11 +190,12 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
                 lossv = criteria(output, heatmaps * 1000)
                 # lossv = criteria(output, heatmaps * 1000, M=weighted_loss_mask_awing)
                 loss_dict = {'MSE_loss': lossv.item()}
-            else:
+                preds = decode_preds_heatmaps(output).cuda()
+            if model_name == 'DETR':
                 loss_dict, lossv = criteria(output, target_dict)
+                preds = output['pred_coords'][-1] * 255
 
             # NME
-            preds = output['pred_coords'][-1] * 256
             scale_matrix = scale[:, np.newaxis, np.newaxis] * torch.ones_like(preds)
             opts_scaled = opts * scale_matrix
             nme_batch = compute_nme(preds, opts_scaled)
@@ -257,62 +259,8 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
     return nme, predictions
 
 
-def inference(model, data_loader, **kwargs):
-    batch_time = AverageMeter()
-    data_time = AverageMeter()
-    losses = AverageMeter()
-
-    num_classes = kwargs.get('num_classes', 68)
-    predictions = torch.zeros((len(data_loader.dataset), num_classes, 2))
-
-    model.eval()
-
-    nme_count = 0
-    nme_batch_sum = 0
-    count_failure_008 = 0
-    count_failure_010 = 0
-    end = time.time()
-
-    with torch.no_grad():
-        for i, item in enumerate(data_loader):
-            data_time.update(time.time() - end)
-            input_, target = item['img'], item['target']
-            output = model(input_)
-
-            scale = item['sfactor']
-            score_map = output.data.cpu()
-            res = np.array(item['target'].shape[-2:])
-            center = np.zeros([score_map.shape[0], 2])
-            preds = decode_preds(score_map, center, scale, res)
-            opts = item['opts']
-
-            # NME
-            nme_temp = compute_nme(preds.numpy(), opts.cpu().numpy())
-
-            failure_008 = (nme_temp > 0.08).sum()
-            failure_010 = (nme_temp > 0.10).sum()
-            count_failure_008 += failure_008
-            count_failure_010 += failure_010
-
-            nme_batch_sum += np.sum(nme_temp)
-            nme_count = nme_count + preds.size(0)
-            for n in range(score_map.size(0)):
-                predictions[item['index'][n], :, :] = preds[n, :, :]
-
-            # measure elapsed time
-            batch_time.update(time.time() - end)
-            end = time.time()
-
-    nme = nme_batch_sum / nme_count
-    failure_008_rate = count_failure_008 / nme_count
-    failure_010_rate = count_failure_010 / nme_count
-
-    msg = 'Test Results time:{:.4f} loss:{:.4f} nme:{:.4f} [008]:{:.4f} ' \
-          '[010]:{:.4f}'.format(batch_time.avg, losses.avg, nme,
-                                failure_008_rate, failure_010_rate)
-    logger.info(msg)
-
-    return nme, predictions
+def inference(model, input, **kwargs):
+    raise NotImplementedError()
 
 
 def single_image_train(train_loader, model, criterion, optimizer, epochs, writer_dict, **kwargs):

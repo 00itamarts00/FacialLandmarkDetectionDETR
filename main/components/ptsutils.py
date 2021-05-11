@@ -1,8 +1,8 @@
 import math
 
-import matplotlib.pyplot as plt
 import numpy as np
 import skimage
+import torch
 from PIL import Image
 from scipy.stats import multivariate_normal
 from skimage import color
@@ -93,6 +93,49 @@ def extract_pts_from_hm(hm, res_factor=5):
     pts = np.true_divide(pts, res_factor)
 
     return pts
+
+
+def get_preds(scores):
+    """
+    get predictions from score maps in torch Tensor
+    return type: torch.LongTensor
+    """
+    assert scores.dim() == 4, 'Score maps should be 4-dim'
+    maxval, idx = torch.max(scores.view(scores.size(0), scores.size(1), -1), 2)
+
+    maxval = maxval.view(scores.size(0), scores.size(1), 1)
+    idx = idx.view(scores.size(0), scores.size(1), 1) + 1
+
+    preds = idx.repeat(1, 1, 2).float()
+
+    preds[:, :, 0] = (preds[:, :, 0] - 1) % scores.size(3) + 1
+    preds[:, :, 1] = torch.floor((preds[:, :, 1] - 1) / scores.size(3)) + 1
+
+    pred_mask = maxval.gt(0).repeat(1, 1, 2).float()
+    preds *= pred_mask
+    return preds
+
+
+def decode_preds_heatmaps(output, res=[64, 64]):
+    coords = get_preds(output)  # float type
+
+    coords = coords.cpu()
+    # post-processing
+    for n in range(coords.size(0)):
+        for p in range(coords.size(1)):
+            hm = output[n][p]
+            px = int(math.floor(coords[n][p][0]))
+            py = int(math.floor(coords[n][p][1]))
+            if (px > 1) and (px < res[0]) and (py > 1) and (py < res[1]):
+                diff = torch.Tensor([hm[py - 1][px] - hm[py - 1][px - 2], hm[py][px - 1] - hm[py - 2][px - 1]])
+                coords[n][p] += diff.sign() * .25
+    coords += 0.5
+    preds = coords.clone()
+
+    if preds.dim() < 3:
+        preds = preds.view(1, preds.size())
+
+    return preds * (256 / res[0])
 
 
 def crop_image_by_pts(im, pts, ppad=20):
