@@ -202,7 +202,9 @@ class LDMTrain(object):
                                step_size=args_sc['step_size'],
                                gamma=args_sc['gamma'])
         if self.tr['model'] == 'HRNET':
-            scheduler = None
+            scheduler = StepLR(optimizer=self.optimizer,
+                               step_size=hrnet_config._C.TRAIN.LR_STEP,
+                               gamma=hrnet_config._C.TRAIN.LR_FACTOR)
         return scheduler
 
     def backend_operations(self):
