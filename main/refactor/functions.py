@@ -49,7 +49,7 @@ def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **
     log_interval = kwargs.get('log_interval', 20)
     debug = kwargs.get('debug', False)
     model_name = kwargs.get('model_name', None)
-
+    hm_amp_factor = kwargs.get('hm_amp_factor', 1)
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -80,7 +80,7 @@ def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **
 
         # Loss
         if model_name == 'HRNET':
-            lossv = criteria(output, heatmaps * 1000)
+            lossv = criteria(output, heatmaps * hm_amp_factor)
             # lossv = criteria(output, heatmaps * 1000, M=weighted_loss_mask_awing)
             loss_dict = {'MSE_loss': lossv.item()}
             preds = decode_preds_heatmaps(output).cuda()
@@ -157,6 +157,7 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
     num_classes = kwargs.get('num_landmarks', 20)
     debug = kwargs.get('debug', False)
     model_name = kwargs.get('model_name', None)
+    hm_amp_factor = kwargs.get('hm_amp_factor', 1)
 
     predictions = torch.zeros((len(val_loader.dataset), num_classes, 2))
 
@@ -187,7 +188,7 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
 
             # Loss
             if model_name == 'HRNET':
-                lossv = criteria(output, heatmaps * 1000)
+                lossv = criteria(output, heatmaps * hm_amp_factor)
                 # lossv = criteria(output, heatmaps * 1000, M=weighted_loss_mask_awing)
                 loss_dict = {'MSE_loss': lossv.item()}
                 preds = decode_preds_heatmaps(output).cuda()

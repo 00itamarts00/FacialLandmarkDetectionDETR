@@ -241,6 +241,8 @@ class LDMTrain(object):
             if self.train_loader is not None:
                 # train
                 kwargs = {'log_interval': 20, 'debug': self.ex['single_batch_debug'], 'model_name': self.tr['model']}
+                if self.tr['model'] == 'HRNET':
+                    kwargs.update({'hm_amp_factor': self.tr['hm_amp_factor']})
                 train_epoch(train_loader=self.train_loader,
                             model=self.model,
                             criteria=self.criteria,
