@@ -29,7 +29,7 @@ torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
 os.environ["WANDB_API_KEY"] = g.WANDB_API_KEY
-os.environ["WANDB_MODE"] = "dryrun"
+# os.environ["WANDB_MODE"] = "dryrun"
 
 
 # TODO: Load tensorboard logs as df/dict
@@ -203,7 +203,7 @@ class LDMTrain(object):
                                gamma=args_sc['gamma'])
         if self.tr['model'] == 'HRNET':
             scheduler = StepLR(optimizer=self.optimizer,
-                               step_size=hrnet_config._C.TRAIN.LR_STEP,
+                               step_size=hrnet_config._C.TRAIN.LR_STEP[1],
                                gamma=hrnet_config._C.TRAIN.LR_FACTOR)
         return scheduler
 
