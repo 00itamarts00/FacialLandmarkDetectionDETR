@@ -3,14 +3,12 @@ from __future__ import print_function
 import math
 import os
 
-import torch
 import torch.backends.cudnn
 import torch.optim as optim
 import wandb
 from tensorboardX import SummaryWriter
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import StepLR, MultiStepLR
 from torch.utils import data
-from main.components.Awing.awing_loss import Loss_weighted
 
 import main.globals as g
 from main.components.CLMDataset import CLMDataset, get_def_transform, get_data_list
@@ -23,8 +21,9 @@ from main.refactor.nnstats import CnnStats
 from main.refactor.utils import save_checkpoint
 from models.HRNET import hrnet_config, update_config
 from models.HRNET.HRNET import get_face_alignment_net
-from utils.file_handler import FileHandler
 from models.HRNET.hrnet_utils import get_optimizer
+from utils.file_handler import FileHandler
+
 torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
@@ -202,9 +201,9 @@ class LDMTrain(object):
                                step_size=args_sc['step_size'],
                                gamma=args_sc['gamma'])
         if self.tr['model'] == 'HRNET':
-            scheduler = StepLR(optimizer=self.optimizer,
-                               step_size=hrnet_config._C.TRAIN.LR_STEP[1],
-                               gamma=hrnet_config._C.TRAIN.LR_FACTOR)
+            scheduler = MultiStepLR(optimizer=self.optimizer,
+                                    milestones=hrnet_config._C.TRAIN.LR_STEP,
+                                    gamma=hrnet_config._C.TRAIN.LR_FACTOR)
         return scheduler
 
     def backend_operations(self):
