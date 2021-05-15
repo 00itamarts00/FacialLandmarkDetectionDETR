@@ -91,6 +91,8 @@ class Evaluator(LDMTrain):
             logger.info(f'Evaluating {setnick} testset')
             test_loader = self.create_test_data_loader(dataset=dataset)
             kwargs = {'log_interval': self.log_interval}
+            kwargs.update({'hm_amp_factor': self.tr['hm_amp_factor']})
+            kwargs.update({'model_name': self.tr['model']})
             logger.info(f'Evaluating model using decoder head: {self.ev["prediction_from_decoder_head"]}')
             dataset_eval[setnick] = evaluate_model(device=self.device,
                                                    test_loader=test_loader,

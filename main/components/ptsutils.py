@@ -135,7 +135,7 @@ def decode_preds_heatmaps(output, res=[64, 64]):
     if preds.dim() < 3:
         preds = preds.view(1, preds.size())
 
-    return preds * (256 / res[0])
+    return preds * (255 / res[0])
 
 
 def crop_image_by_pts(im, pts, ppad=20):

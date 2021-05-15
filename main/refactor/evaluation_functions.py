@@ -12,6 +12,9 @@ import sys
 import numpy as np
 import torch
 from PIL import Image
+from main.detr import detr_args
+
+from main.components.ptsutils import decode_preds_heatmaps
 
 logger = logging.getLogger(__name__)
 # import wandb
@@ -42,7 +45,6 @@ def get_preds(scores):
 
 
 def compute_nme(preds, opts, box_size=None):
-
     target = opts.detach().cpu().numpy() if not isinstance(opts, np.ndarray) else opts
     preds = preds.detach().cpu().numpy() if not isinstance(preds, np.ndarray) else preds
 
@@ -51,16 +53,16 @@ def compute_nme(preds, opts, box_size=None):
     rmse = np.zeros(N)
 
     for i in range(N):
-        pts_pred, pts_gt = preds[i, ], target[i, ]
+        pts_pred, pts_gt = preds[i,], target[i,]
         if L == 19:  # aflw
             interocular = box_size[i]
         elif L == 29:  # cofw
-            interocular = np.linalg.norm(pts_gt[8, ] - pts_gt[9, ])
+            interocular = np.linalg.norm(pts_gt[8,] - pts_gt[9,])
         elif L == 68:  # 300w
             # interocular
-            interocular = np.linalg.norm(pts_gt[36, ] - pts_gt[45, ])
+            interocular = np.linalg.norm(pts_gt[36,] - pts_gt[45,])
         elif L == 98:
-            interocular = np.linalg.norm(pts_gt[60, ] - pts_gt[72, ])
+            interocular = np.linalg.norm(pts_gt[60,] - pts_gt[72,])
         else:
             raise ValueError('Number of landmarks is wrong')
         rmse[i] = np.sum(np.linalg.norm(pts_pred - pts_gt, axis=1)) / (interocular * L)
@@ -70,14 +72,14 @@ def compute_nme(preds, opts, box_size=None):
 
 def get_interocular_distance(pts, num_landmarks=68, box_size=None, tensor=True):
     norm_func = torch.norm if tensor else np.linalg.norm
-    if num_landmarks == 19:   # aflw
+    if num_landmarks == 19:  # aflw
         interocular = box_size
     elif num_landmarks == 29:  # COFW
-        interocular = norm_func(pts[8, ] - pts[9, ])
+        interocular = norm_func(pts[8,] - pts[9,])
     elif num_landmarks == 68:  # 300w
-        interocular = norm_func(pts[36, ] - pts[45, ])
+        interocular = norm_func(pts[36,] - pts[45,])
     elif num_landmarks == 98:
-        interocular = norm_func(pts[60, ] - pts[72, ])
+        interocular = norm_func(pts[60,] - pts[72,])
     else:
         raise ValueError('Number of landmarks is wrong')
     return interocular
@@ -189,20 +191,30 @@ def calc_CED(err, x_limit=0.08):
 
 def evaluate_model(device, test_loader, model, decoder_head=-1, **kwargs):
     log_interval = kwargs.get('log_interval', 20)
+    hm_amp_factor = kwargs.get('hm_amp_factor', 10)
+    model_name = kwargs.get('model_name', None)
+
     epts_batch = dict()
     with torch.no_grad():
         for batch_idx, item in enumerate(test_loader):
-            input_, target, opts = item['img'], item['target'], item['opts']
-            scale, hm_factor = item['sfactor'], item['hmfactor']
+            input_, target, opts = item['img'], item['target'].cuda(), item['opts'].cuda()
+            scale, hm_factor, heatmaps = item['sfactor'].cuda(), item['hmfactor'], item['heatmaps'].cuda()
+            weighted_loss_mask_awing = item['weighted_loss_mask_awing'].cuda()
+
+            target_dict = {'labels': [torch.range(start=0, end=target.shape[1] - 1) for i in range(bs)],
+                           'coords': target, 'heatmap_bb': heatmaps,
+                           'weighted_loss_mask_awing': weighted_loss_mask_awing}
+
             input_, target = input_.to(device), target.to(device)
-            output, hm_encoder = model(input_)
-            output_coords = output['pred_coords'].cpu().detach().numpy()[decoder_head] if output[
-                                                                                              'pred_coords'].dim() == 4 else \
-                output['pred_coords'].cpu().detach().numpy()
-            preds = output_coords * 256
+
+            output = model(input_)
+            if model_name == 'HRNET':
+                preds = decode_preds_heatmaps(output).cuda()
+            if model_name == 'DETR':
+                preds = output['pred_coords'][decoder_head] * 255
+
             item['preds'] = preds
             item['preds'] = [i / s for (i, s) in zip(preds, scale)]
-            # item['opts'] = [i * s for (i, s) in zip(opts, scale)]
             epts_batch[batch_idx] = item
             percent = f' ({100. * (batch_idx + 1) / len(test_loader):.02f}%)]'
             sys.stdout.write(f"\rTesting batch {batch_idx}\t{percent}")
