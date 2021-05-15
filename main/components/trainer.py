@@ -186,14 +186,19 @@ class LDMTrain(object):
             if self.ex['pretrained']['use_pretrained']:
                 model_best_pth = os.path.join(self.paths.checkpoint, 'model_best.pth')
                 model_best_state = torch.load(model_best_pth)
+                logging.info(f'Loading model: {model_best_pth}')
                 try:
                     model.load_state_dict(model_best_state['state_dict'].state_dict())
                 except:
                     model = model_best_state['state_dict']
         if self.tr['model'] == 'HRNET':
-            config_path = self.pr['model']['HRNET']['config']
-            update_config(hrnet_config._C, config_path)
-            model = get_face_alignment_net(hrnet_config._C)
+            if self.ex['pretrained']['use_pretrained']:
+                model_best_pth = os.path.join(self.paths.checkpoint, 'model_best.pth')
+                config_path = self.pr['model']['HRNET']['config']
+                update_config(hrnet_config._C, config_path)
+                kwargs = {'pretrained_path': model_best_pth}
+                model = get_face_alignment_net(hrnet_config._C, **kwargs)
+                logging.info(f'Loading model: {model_best_pth}')
         return model.cuda()
 
     def load_scheduler(self):
