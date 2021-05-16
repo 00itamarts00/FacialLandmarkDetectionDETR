@@ -2,6 +2,7 @@ import os
 
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 
 class CnnStats(object):
@@ -21,7 +22,7 @@ class CnnStats(object):
     def get_dataframe(stats_file, model):
         df = pd.read_csv(stats_file) if os.path.isfile(stats_file) else pd.DataFrame(columns=('name', 'size'))
 
-        for name, m in model.named_parameters():
+        for name, m in tqdm(model.named_parameters()):
             df.loc[len(df)] = {'name': name, 'size': np.array(m.size())}
 
         df.to_csv(stats_file)

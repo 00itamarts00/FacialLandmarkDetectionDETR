@@ -198,18 +198,16 @@ def evaluate_model(device, test_loader, model, decoder_head=-1, **kwargs):
     with torch.no_grad():
         for batch_idx, item in enumerate(test_loader):
             input_, target, opts = item['img'], item['target'].cuda(), item['opts'].cuda()
-            scale, hm_factor, heatmaps = item['sfactor'].cuda(), item['hmfactor'], item['heatmaps'].cuda()
-            weighted_loss_mask_awing = item['weighted_loss_mask_awing'].cuda()
+            scale, hm_factor, heatmaps = item['sfactor'], item['hmfactor'], item['heatmaps'].cuda()
 
-            target_dict = {'labels': [torch.range(start=0, end=target.shape[1] - 1) for i in range(bs)],
-                           'coords': target, 'heatmap_bb': heatmaps,
-                           'weighted_loss_mask_awing': weighted_loss_mask_awing}
+            # target_dict = {'coords': target, 'heatmap_bb': heatmaps,
+            #                'weighted_loss_mask_awing': weighted_loss_mask_awing}
 
             input_, target = input_.to(device), target.to(device)
 
             output = model(input_)
             if model_name == 'HRNET':
-                preds = decode_preds_heatmaps(output).cuda()
+                preds = decode_preds_heatmaps(output)
             if model_name == 'DETR':
                 preds = output['pred_coords'][decoder_head] * 255
 
