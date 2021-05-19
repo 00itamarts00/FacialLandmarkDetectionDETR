@@ -12,7 +12,7 @@ dilation = False
 position_embedding = 'learned'
 enc_layers = 6
 dec_layers = 6
-dim_feedforward = 2048
+dim_feedforward = 512
 hidden_dim = 256
 dropout = 0.1
 nheads = 8
@@ -27,5 +27,5 @@ seed = 42
 # losses
 multi_dec_loss = True
 multi_enc_loss = False
-heatmap_regression_via_backbone = True
+heatmap_regression_via_backbone = False
 last_dec_coord_loss = True

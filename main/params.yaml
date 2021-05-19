@@ -41,7 +41,7 @@ train:
     pin_memory: True
   backend:
     use_torch: True
-  model: 'HRNET'  # 'DETR', 'HRNET'
+  model: 'DETR'  # 'DETR', 'HRNET'
   optimizer: 'ADAMW'
   scheduler: 'StepLR'
   criteria: 'MSELoss'

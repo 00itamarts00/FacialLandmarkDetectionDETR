@@ -28,7 +28,7 @@ torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
 os.environ["WANDB_API_KEY"] = g.WANDB_API_KEY
-# os.environ["WANDB_MODE"] = "dryrun"
+os.environ["WANDB_MODE"] = "dryrun"
 
 # TODO: Load tensorboard logs as df/dict
 
@@ -179,6 +179,7 @@ class LDMTrain(object):
 
     def load_model(self):
         if self.tr['model'] == 'DETR':
+            logging.info(f'Loading DETR Model')
             model = build_model(args=detr_args)
             if self.ex['pretrained']['use_pretrained']:
                 model_best_pth = os.path.join(self.paths.checkpoint, 'model_best.pth')
@@ -189,6 +190,7 @@ class LDMTrain(object):
                 except:
                     model = model_best_state['state_dict']
         if self.tr['model'] == 'HRNET':
+            logging.info(f'Loading HRNET Model')
             if self.ex['pretrained']['use_pretrained']:
                 model_best_pth = os.path.join(self.paths.checkpoint, 'model_best.pth')
                 model_best_state = torch.load(model_best_pth)

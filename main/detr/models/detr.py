@@ -5,8 +5,8 @@ DETR model and criterion classes.
 import torch
 import torch.nn.functional as F
 from torch import nn
-from main.components.Awing.awing_loss import Loss_weighted
 
+from main.components.Awing.awing_loss import Loss_weighted
 from main.detr.misc import (NestedTensor, nested_tensor_from_tensor_list, get_world_size,
                             is_dist_avail_and_initialized)
 from .backbone import build_backbone
@@ -187,6 +187,7 @@ def load_criteria(args):
     criterion.to(device)
     return criterion
 
+
 def build(args):
     num_classes = args.num_classes
 
@@ -197,8 +198,8 @@ def build(args):
     transformer = build_transformer(args)
 
     model = DETR(
-        backbone,
-        transformer,
+        backbone=backbone,
+        transformer=transformer,
         num_classes=num_classes,
         num_queries=args.num_queries,
     )
