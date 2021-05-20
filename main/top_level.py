@@ -71,7 +71,7 @@ class TopLevel(object):
         override_params = {'experiment':
                                {'pretrained':
                                     {'use_pretrained': True,
-                                     'timestamp': '190521_211556_16x16_BB2ENC_multidecloss_enc2dec4'
+                                     'timestamp': '190521_205608_16x16_BB2ENC_multidecloss'
                                      }
                                 }
                            }

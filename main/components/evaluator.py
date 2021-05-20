@@ -9,7 +9,8 @@ from torch.utils import data
 import main.globals as g
 from main.components.CLMDataset import CLMDataset, get_data_list
 from main.components.trainer import LDMTrain
-from main.refactor.evaluation_functions import evaluate_model, analyze_results
+from main.refactor.evaluation_functions import analyze_results
+from main.components.evaluate_model import evaluate_model
 from utils.file_handler import FileHandler
 
 torch.cuda.empty_cache()

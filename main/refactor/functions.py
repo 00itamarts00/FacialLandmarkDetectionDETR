@@ -17,31 +17,9 @@ import wandb
 from main.components.hm_regression import *
 from main.refactor.evaluation_functions import evaluate_normalized_mean_error
 from utils.plot_utils import plot_gt_pred_on_img
+from utils.data_organizer import AverageMeter
 
 logger = logging.getLogger(__name__)
-
-
-class AverageMeter(object):
-    """Computes and stores the average and current value"""
-
-    def __init__(self):
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
-        self.count = 0
-        self.reset()
-
-    def reset(self):
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
-        self.count = 0
-
-    def update(self, val, n=1):
-        self.val = val
-        self.sum += val * n
-        self.count += n
-        self.avg = self.sum / self.count
 
 
 def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **kwargs):

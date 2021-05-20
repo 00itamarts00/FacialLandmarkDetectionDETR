@@ -9,6 +9,7 @@ import torch
 # import wandb
 logger = logging.getLogger(__name__)
 from main.refactor.evaluation_functions import decode_preds, compute_nme, extract_pts_from_hm
+from main.refactor.functions import inference
 
 
 def calc_accuarcy(epts_batch):
@@ -86,18 +87,16 @@ def add_metadata_to_result(epts, item):
     return epts
 
 
-def evaluate_model(device, test_loader, model, **kwargs):
-    log_interval = kwargs.get('log_interval', 20)
+def evaluate_model(test_loader, model, decoder_head=-1, **kwargs):
     epts_batch = dict()
     with torch.no_grad():
         for batch_idx, item in enumerate(test_loader):
-            input_, target, opts = item['img'], item['target'], item['opts']
-            scale, hm_factor = item['sfactor'], item['hmfactor']
-            input_, target = input_.to(device), target.to(device)
-            output = model(input_)
-            score_map = output.data.cpu()
-            preds = extract_pts_from_hm(score_maps=score_map, scale=scale, hm_input_ratio=hm_factor)
-            item['preds'] = preds
+            input_, target, opts = item['img'].cuda(), item['target'].cuda(), item['opts'].cuda()
+            scale, hm_factor, heatmaps = item['sfactor'].cuda(), item['hmfactor'], item['heatmaps'].cuda()
+
+            output, preds = inference(model, input_batch=input_, scale_factor=scale, **kwargs)
+
+            item['preds'] = [i.cpu().detach() for i in preds]
             epts_batch[batch_idx] = item
             percent = f' ({100. * (batch_idx + 1) / len(test_loader):.02f}%)]'
             sys.stdout.write(f"\rTesting batch {batch_idx}\t{percent}")
