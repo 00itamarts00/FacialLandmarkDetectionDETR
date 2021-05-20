@@ -8,7 +8,7 @@ import torch
 
 # import wandb
 logger = logging.getLogger(__name__)
-from main.refactor.evaluation_functions import decode_preds, compute_nme, extract_pts_from_hm
+from main.refactor.evaluation_functions import calc_CED
 from main.refactor.functions import inference
 
 
@@ -22,46 +22,6 @@ def calc_accuarcy(epts_batch):
     auc08, fail08, bins, ced68 = calc_CED(mean_err)
     nle = 100 * np.mean(mean_err)
     return auc08, nle, fail08, bins, ced68
-
-
-def analyze_results(datastets_inst, datasets, setnick):
-    logger.info(f'Analyzing results on {setnick} Datasets')
-    datasets = [i.replace('/', '_') for i in datasets]
-    preds, opts = list(), list()
-    mean_err, max_err, std_err = [], [], []
-    for dataset, dataset_inst in datastets_inst.items():
-        setnick_ = dataset.replace('/', '_')
-        if setnick_ not in datasets:
-            continue
-        for b_idx, b_idx_inst in dataset_inst.items():
-            [preds.append(i) for i in b_idx_inst['preds'].numpy()]
-            [opts.append(i) for i in b_idx_inst['opts'].numpy()]
-    preds = np.squeeze(preds)
-    opts = np.squeeze(opts)
-    err = compute_nme(preds, opts)
-    mean_err.append(np.mean(err))
-    max_err.append(np.max(err))
-    std_err.append(np.std(err))
-    auc08, fail08, bins, ced68 = calc_CED(mean_err)
-    nle = 100 * np.mean(mean_err)
-    return {'setnick': setnick, 'auc08': auc08, 'NLE': nle, 'fail08': fail08, 'bins': bins, 'ced68': ced68}
-
-    # Test model
-
-
-def calc_CED(err, x_limit=0.08):
-    bins = np.linspace(0, 1, num=10000)
-    ced68 = np.zeros(len(bins))
-    th_idx = np.argmax(bins >= x_limit)
-
-    for i in range(len(bins)):
-        ced68[i] = np.sum(np.array(err) < bins[i]) / len(err)
-
-    auc = 100 * np.trapz(ced68[0:th_idx], bins[0:th_idx]) / x_limit
-    failure = 100 * np.sum(np.array(err) > x_limit) / len(err)
-    bins_o = bins[0:th_idx]
-    ced68_o = ced68[0:th_idx]
-    return auc, failure, bins_o, ced68_o
 
 
 def distance(v1, v2):

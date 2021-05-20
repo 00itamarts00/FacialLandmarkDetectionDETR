@@ -7,7 +7,6 @@
 import logging
 import math
 import os
-import sys
 
 import numpy as np
 import torch
@@ -42,31 +41,31 @@ def get_preds(scores):
     return preds
 
 
-# deprecated
-def compute_nme(preds, opts, box_size=None):
-    target = opts.detach().cpu().numpy() if not isinstance(opts, np.ndarray) else opts
-    preds = preds.detach().cpu().numpy() if not isinstance(preds, np.ndarray) else preds
-
-    N = preds.shape[0]
-    L = preds.shape[1]
-    rmse = np.zeros(N)
-
-    for i in range(N):
-        pts_pred, pts_gt = preds[i,], target[i,]
-        if L == 19:  # aflw
-            interocular = box_size[i]
-        elif L == 29:  # cofw
-            interocular = np.linalg.norm(pts_gt[8,] - pts_gt[9,])
-        elif L == 68:  # 300w
-            # interocular
-            interocular = np.linalg.norm(pts_gt[36,] - pts_gt[45,])
-        elif L == 98:
-            interocular = np.linalg.norm(pts_gt[60,] - pts_gt[72,])
-        else:
-            raise ValueError('Number of landmarks is wrong')
-        rmse[i] = np.sum(np.linalg.norm(pts_pred - pts_gt, axis=1)) / (interocular * L)
-
-    return rmse
+# # deprecated
+# def compute_nme(preds, opts, box_size=None):
+#     target = opts.detach().cpu().numpy() if not isinstance(opts, np.ndarray) else opts
+#     preds = preds.detach().cpu().numpy() if not isinstance(preds, np.ndarray) else preds
+#
+#     N = preds.shape[0]
+#     L = preds.shape[1]
+#     rmse = np.zeros(N)
+#
+#     for i in range(N):
+#         pts_pred, pts_gt = preds[i,], target[i,]
+#         if L == 19:  # aflw
+#             interocular = box_size[i]
+#         elif L == 29:  # cofw
+#             interocular = np.linalg.norm(pts_gt[8,] - pts_gt[9,])
+#         elif L == 68:  # 300w
+#             # interocular
+#             interocular = np.linalg.norm(pts_gt[36,] - pts_gt[45,])
+#         elif L == 98:
+#             interocular = np.linalg.norm(pts_gt[60,] - pts_gt[72,])
+#         else:
+#             raise ValueError('Number of landmarks is wrong')
+#         rmse[i] = np.sum(np.linalg.norm(pts_pred - pts_gt, axis=1)) / (interocular * L)
+#
+#     return rmse
 
 
 def get_interocular_distance(pts, num_landmarks=68, box_size=None, tensor=True):
@@ -158,34 +157,22 @@ def analyze_results(datastets_inst, datasets, setnick, output=None, decoder_head
             [preds.append(b.numpy()) for b in b_idx_inst['preds']]
             [opts.append(b.numpy()) for b in b_idx_inst['opts']]
         preds = np.array([np.array(i) for i in preds])
-        ds_err = compute_nme(np.array(preds), np.array(opts))
-        [tot_err.append(i) for i in ds_err]
-        mean_err.append(np.mean(ds_err))
-        max_err.append(np.max(ds_err))
-        std_err.append(np.std(ds_err))
+        nme_ds, auc08_ds, auc10_ds, _ = evaluate_normalized_mean_error(np.array(preds), np.array(opts))
+        fail08 = (nme_ds > 0.08).mean()
+        # ds_err = compute_nme(np.array(preds), np.array(opts))
+        # TODO: refactor this part
+        [tot_err.append(i) for i in nme_ds]
+        mean_err.append(np.mean(nme_ds))
+        max_err.append(np.max(nme_ds))
+        std_err.append(np.std(nme_ds))
         if output is not None:
-            save_tough_images(f'{setnick.replace(" ", "_")}-{dataset}', dataset_inst, ds_err, output,
+            save_tough_images(f'{setnick.replace(" ", "_")}-{dataset}', dataset_inst, nme_ds, output,
                               decoder_head=decoder_head)
     tot_err = np.array(tot_err)
     auc08, fail08, bins, ced68 = calc_CED(tot_err)
     nle = 100 * np.mean(tot_err)
 
-    return {'setnick': setnick, 'auc08': auc08, 'NLE': nle, 'fail08': fail08, 'bins': bins, 'ced68': ced68}
-
-
-def calc_CED(err, x_limit=0.08):
-    bins = np.linspace(0, 1, num=10000)
-    ced68 = np.zeros(len(bins))
-    th_idx = np.where(bins >= x_limit)[0][0]
-
-    for i in range(len(bins)):
-        ced68[i] = np.sum(np.array(err) < bins[i]) / len(err)
-
-    auc = 100 * np.trapz(ced68[0:th_idx], bins[0:th_idx]) / x_limit
-    failure = 100 * np.sum(np.array(err) > x_limit) / len(err)
-    bins_o = bins[0:th_idx]
-    ced68_o = ced68[0:th_idx]
-    return auc, failure, bins_o, ced68_o
+    return {'setnick': setnick, 'auc08': auc08, 'NLE': nle, 'fail08': fail08}
 
 
 def evaluate_normalized_mean_error(predictions, groundtruth):
@@ -240,3 +227,19 @@ def get_auc(nme_per_image, thresh=0.08):
         accuracys[i] = np.sum(nme_per_image.squeeze() < threshold[i]) * 1.0 / nme_per_image.size
     area_under_curve = auc(threshold, accuracys) / thresh
     return area_under_curve
+    # Test model
+
+
+def calc_CED(err, x_limit=0.08):
+    bins = np.linspace(0, 1, num=10000)
+    ced68 = np.zeros(len(bins))
+    th_idx = np.argmax(bins >= x_limit)
+
+    for i in range(len(bins)):
+        ced68[i] = np.sum(np.array(err) < bins[i]) / len(err)
+
+    auc = 100 * np.trapz(ced68[0:th_idx], bins[0:th_idx]) / x_limit
+    failure = 100 * np.sum(np.array(err) > x_limit) / len(err)
+    bins_o = bins[0:th_idx]
+    ced68_o = ced68[0:th_idx]
+    return auc, failure, bins_o, ced68_o
