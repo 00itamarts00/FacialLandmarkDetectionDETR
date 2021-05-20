@@ -15,7 +15,7 @@ import time
 import wandb
 
 from main.components.hm_regression import *
-from main.refactor.evaluation_functions import decode_preds, compute_nme
+from main.refactor.evaluation_functions import evaluate_normalized_mean_error
 from utils.plot_utils import plot_gt_pred_on_img
 
 logger = logging.getLogger(__name__)
@@ -48,8 +48,6 @@ def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **
     max_norm = 0
     log_interval = kwargs.get('log_interval', 20)
     debug = kwargs.get('debug', False)
-    model_name = kwargs.get('model_name', None)
-    hm_amp_factor = kwargs.get('hm_amp_factor', 1)
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -57,47 +55,33 @@ def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **
     model.train()
     criteria.train()
 
-    nme_count = nme_batch_sum = 0
-
+    nme_vec = list()
     end = time.time()
 
     for i, item in enumerate(train_loader):
         # measure data time
         data_time.update(time.time() - end)
 
-        input_, target, opts = item['img'], item['target'].cuda(), item['opts'].cuda()
+        input_, target, opts = item['img'].cuda(), item['target'].cuda(), item['opts'].cuda()
         scale, hm_factor, heatmaps = item['sfactor'].cuda(), item['hmfactor'], item['heatmaps'].cuda()
         weighted_loss_mask_awing = item['weighted_loss_mask_awing'].cuda()
         # compute the output
-        input_ = input_.cuda()
         bs = target.shape[0]
 
         target_dict = {'labels': [torch.range(start=0, end=target.shape[1] - 1) for i in range(bs)],
                        'coords': target, 'heatmap_bb': heatmaps,
                        'weighted_loss_mask_awing': weighted_loss_mask_awing}
 
-        output = model(input_)
-
-        # Loss
-        if model_name == 'HRNET':
-            lossv = criteria(output, heatmaps * hm_amp_factor)
-            # lossv = criteria(output, heatmaps * 1000, M=weighted_loss_mask_awing)
-            loss_dict = {'MSE_loss': lossv.item()}
-            preds = decode_preds_heatmaps(output).cuda()
-        if model_name == 'DETR':
-            loss_dict, lossv = criteria(output, target_dict)
-            preds = output['pred_coords'][-1] * 255
+        output, preds = inference(model, input_batch=input_, scale_factor=scale, **kwargs)
+        loss_dict, lossv = get_loss(criteria, output, target_dict=target_dict, **kwargs)
 
         if not math.isfinite(lossv.item()):
             print("Loss is {}, stopping training".format(lossv.item()))
             sys.exit(1)
 
         # NME
-        scale_matrix = scale[:, np.newaxis, np.newaxis] * torch.ones_like(preds)
-        opts_scaled = opts * scale_matrix
-        nme_batch = compute_nme(preds, opts_scaled)
-        nme_batch_sum += nme_batch.sum()
-        nme_count += preds.shape[0]
+        nme_batch, auc08_batch, auc10_batch, for_pck_curve_batch = evaluate_normalized_mean_error(preds, opts)
+        nme_vec.append(nme_batch)
 
         # optimize
         optimizer.zero_grad()
@@ -110,14 +94,11 @@ def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **
 
         batch_time.update(time.time() - end)
         if i % log_interval == 0:
-            msg = 'Epoch: [{0}][{1}/{2}]\t' \
-                  'Time {batch_time.val:.3f}s ({batch_time.avg:.3f}s)\t' \
-                  'Speed {speed:.1f} samples/s\t' \
-                  'Data {data_time.val:.3f}s ({data_time.avg:.3f}s)\t' \
-                  'Loss {loss.val:.5f} ({loss.avg:.5f})\t'.format(
-                epoch, i, len(train_loader), batch_time=batch_time,
-                speed=input_.size(0) / batch_time.val,
-                data_time=data_time, loss=losses)
+            speed = str(int(input_.size(0) / batch_time.val)).zfill(3)
+            msg = f'Epoch: [{str(epoch).zfill(3)}][{str(i).zfill(3)}/{len(train_loader)}]\t' \
+                  f' Time {batch_time.val:.3f}s ({batch_time.avg:.3f}s)\t Speed {speed}' \
+                  f' samples/s\t Data {data_time.val:.3f}s ({data_time.avg:.3f}s)\t' \
+                  f' Loss {losses.val:.5f} ({losses.avg:.5f})\t'
             logger.info(msg)
 
         if debug:
@@ -125,7 +106,9 @@ def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **
 
         end = time.time()
 
-    nme = torch.true_divide(nme_batch_sum, nme_count)
+    ls = []
+    [[ls.append(i) for i in j] for j in nme_vec]
+    nme = np.array(ls).mean()
     wandb.log({'train/nme': nme, 'epoch': epoch})
     wandb.log({'train/loss': losses.avg, 'epoch': epoch})
     wandb.log({'train/batch_time': batch_time.avg, 'epoch': epoch})
@@ -143,73 +126,42 @@ def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **
         log[epoch].update({'batch_time.avg': batch_time.avg})
         writer_dict['train_global_steps'] = global_steps + 1
 
-    msg = 'Train Epoch {} time:{:.4f} loss:{:.4f} nme:{:.4f}' \
-        .format(epoch, batch_time.avg, losses.avg, nme)
+    msg = f'Train Epoch {epoch} | time:{batch_time.avg:.4f} | loss:{losses.avg:.4f} | nme:{nme:.4f}'
     logger.info(msg)
 
 
 def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
     batch_time = AverageMeter()
     data_time = AverageMeter()
-
     losses = AverageMeter()
 
-    num_classes = kwargs.get('num_landmarks', 20)
     debug = kwargs.get('debug', False)
-    model_name = kwargs.get('model_name', None)
-    hm_amp_factor = kwargs.get('hm_amp_factor', 1)
-
-    predictions = torch.zeros((len(val_loader.dataset), num_classes, 2))
 
     model.eval()
     criteria.eval()
 
-    nme_count = nme_batch_sum = 0
-    count_failure_008 = 0
-    count_failure_010 = 0
+    nme_vec = list()
     end = time.time()
 
     with torch.no_grad():
         for i, item in enumerate(val_loader):
             data_time.update(time.time() - end)
-            input_, target, opts = item['img'], item['target'].cuda(), item['opts'].cuda()
+            input_, target, opts = item['img'].cuda(), item['target'].cuda(), item['opts'].cuda()
             scale, hm_factor, heatmaps = item['sfactor'].cuda(), item['hmfactor'], item['heatmaps'].cuda()
             weighted_loss_mask_awing = item['weighted_loss_mask_awing'].cuda()
 
-            # compute the output
-            input_ = input_.cuda()
             bs = target.shape[0]
 
             target_dict = {'labels': [torch.range(start=0, end=target.shape[1] - 1) for i in range(bs)],
                            'coords': target, 'heatmap_bb': heatmaps,
                            'weighted_loss_mask_awing': weighted_loss_mask_awing}
 
-            output = model(input_)
-
-            # Loss
-            if model_name == 'HRNET':
-                lossv = criteria(output, heatmaps * hm_amp_factor)
-                # lossv = criteria(output, heatmaps * 1000, M=weighted_loss_mask_awing)
-                loss_dict = {'MSE_loss': lossv.item()}
-                preds = decode_preds_heatmaps(output).cuda()
-            if model_name == 'DETR':
-                loss_dict, lossv = criteria(output, target_dict)
-                preds = output['pred_coords'][-1] * 255
+            output, preds = inference(model, input_batch=input_, scale_factor=scale, **kwargs)
+            loss_dict, lossv = get_loss(criteria, output, target_dict=target_dict, **kwargs)
 
             # NME
-            scale_matrix = scale[:, np.newaxis, np.newaxis] * torch.ones_like(preds)
-            opts_scaled = opts * scale_matrix
-            nme_batch = compute_nme(preds, opts_scaled)
-            nme_batch_sum += nme_batch.sum()
-            nme_count += preds.shape[0]
-
-            # scatter_prediction_gt(preds, opts)
-
-            # Failure Rate under different threshold
-            failure_008 = (nme_batch > 0.08).sum()
-            failure_010 = (nme_batch > 0.10).sum()
-            count_failure_008 += failure_008
-            count_failure_010 += failure_010
+            nme_batch, auc08_batch, auc10_batch, for_pck_curve_batch = evaluate_normalized_mean_error(preds, opts)
+            nme_vec.append(nme_batch)
 
             losses.update(lossv.item(), input_.size(0))
 
@@ -220,13 +172,15 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
             if debug:
                 break
 
-    nme = torch.true_divide(nme_batch_sum, nme_count)
-    failure_008_rate = torch.true_divide(count_failure_008, nme_count)
-    failure_010_rate = torch.true_divide(count_failure_010, nme_count)
+    ls = []
+    [[ls.append(i) for i in j] for j in nme_vec]
+    nme_vec_np = np.array(ls)
+    nme = nme_vec_np.mean()
+    failure_008_rate = (np.hstack(nme_vec_np.squeeze()) > 0.08).astype(int).mean()
+    failure_010_rate = (np.hstack(nme_vec_np.squeeze()) > 0.10).astype(int).mean()
 
-    msg = 'Test Epoch {} time: {:.4f} loss:{:.4f} nme: {:.4f} [008]: {:.4f} ' \
-          '[010]: {:.4f}'.format(epoch, batch_time.avg, losses.avg, nme,
-                                 failure_008_rate, failure_010_rate)
+    msg = f'Test Epoch {epoch} | time: {batch_time.avg:.4f} | loss:{losses.avg:.4f} | nme: {nme:.4f}' \
+          f' | FR08: {failure_008_rate:.3f} | FR10: {failure_010_rate:.3f}'
     logger.info(msg)
 
     dbg_img = plot_gt_pred_on_img(item=item, predictions=preds, index=-1)
@@ -257,89 +211,31 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
         writer.add_image('images', grid, global_steps)
         log[epoch].update({'dbg_img': dbg_img})
         writer_dict['valid_global_steps'] = global_steps + 1
-    return nme, predictions
+    return nme
 
 
-def inference(model, input, **kwargs):
-    raise NotImplementedError()
+def inference(model, input_batch, scale_factor, **kwargs):
+    # inference
+    model_name = kwargs.get('model_name', None)
+    output_ = model(input_batch)
+
+    if model_name == 'HRNET':
+        preds = decode_preds_heatmaps(output_).cuda()
+    if model_name == 'DETR':
+        preds = output_['pred_coords'][-1] * 255
+        scale_matrix = scale_factor[:, np.newaxis, np.newaxis] * torch.ones_like(preds)
+        preds /= scale_matrix
+    return output_, preds
 
 
-def single_image_train(train_loader, model, criterion, optimizer, epochs, writer_dict, **kwargs):
-    log_interval = kwargs.get('log_interval', 20)
-    batch_time = AverageMeter()
-    data_time = AverageMeter()
-    losses = AverageMeter()
-
-    model.train()
-    criterion['coord_loss_criterion'].train()
-    max_norm = 0
-    nme_count = nme_batch_sum = 0
-    end = time.time()
-
-    item = next(iter(train_loader))
-    data_time.update(time.time() - end)
-
-    input_, target, opts = item['img'], item['target'], item['opts']
-    scale, hm_factor = item['sfactor'], item['hmfactor']
-
-    # compute the output
-    input_ = input_.cuda()
-    bs = target.shape[0]
-    # target = torch.cat((target, 16 * torch.ones_like(target)), dim=2)
-    target_dict = [{'labels': torch.range(start=0, end=target.shape[1] - 1).cuda(),
-                    'coords': target[i].cuda()} for i in range(bs)]
-
-    for epoch in range(0, epochs + 1):
-
-        output = model(input_)
-        # Loss
-        loss_dict = criterion['coord_loss_criterion'](output, target_dict)
-        weight_dict = criterion['coord_loss_criterion'].weight_dict
-        lossv = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
-
-        if not math.isfinite(lossv.item()):
-            print("Loss is {}, stopping training".format(lossv.item()))
-            sys.exit(1)
-
-        # NME
-        preds = output['pred_coords'].cpu().detach().numpy()[-1] * 256
-        nme_batch = compute_nme(preds, opts.cpu().numpy())
-        nme_batch_sum = nme_batch_sum + np.sum(nme_batch)
-        nme_count = nme_count + preds.shape[0]
-
-        # optimize
-        optimizer.zero_grad()
-        lossv.backward()
-        if max_norm > 0:
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
-        optimizer.step()
-
-        losses.update(lossv.item(), input_.size(0))
-
-        batch_time.update(time.time() - end)
-        end = time.time()
-
-        nme = nme_batch_sum / nme_count
-
-        dbg_img = plot_gt_pred_on_img(item=item, predictions=preds, index=-1)
-        grid = torch.tensor(np.swapaxes(np.swapaxes(dbg_img, 0, -1), 1, 2))
-
-        if writer_dict:
-            writer = writer_dict['writer']
-            log = writer_dict['log']
-            log[epoch] = {}
-            global_steps = writer_dict['train_global_steps']
-            writer.add_scalar('train_loss', losses.val, global_steps)
-            log[epoch].update({'train_loss': losses.val})
-            writer.add_scalar('train_nme', nme, global_steps)
-            log[epoch].update({'train_nme': nme})
-            writer.add_scalar('batch_time.avg', batch_time.avg, global_steps)
-            log[epoch].update({'batch_time.avg': batch_time.avg})
-            [log[epoch].update({k: v}) for (k, v) in loss_dict.items()]
-            [writer.add_scalar(k, v, global_steps) for (k, v) in loss_dict.items()]
-            writer.add_image('images', grid, global_steps)
-            log[epoch].update({'dbg_img': dbg_img})
-            writer_dict['train_global_steps'] = global_steps + 1
-        msg = 'Train Epoch {} time:{:.4f} loss:{:.4f} nme:{:.4f}' \
-            .format(epoch, batch_time.avg, losses.avg, nme)
-        logger.info(msg)
+def get_loss(criteria, output, target_dict, **kwargs):
+    model_name = kwargs.get('model_name', None)
+    # Loss
+    if model_name == 'HRNET':
+        hm_amp_factor = kwargs.get('hm_amp_factor', 1)
+        heatmaps = target_dict['heatmaps']
+        lossv = criteria(output, heatmaps * hm_amp_factor)
+        loss_dict = {'MSE_loss': lossv.item()}
+    if model_name == 'DETR':
+        loss_dict, lossv = criteria(output, target_dict)
+    return loss_dict, lossv

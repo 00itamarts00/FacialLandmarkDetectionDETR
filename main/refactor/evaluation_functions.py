@@ -12,7 +12,7 @@ import sys
 import numpy as np
 import torch
 from PIL import Image
-from main.detr import detr_args
+from sklearn.metrics import auc
 
 from main.components.ptsutils import decode_preds_heatmaps
 
@@ -220,3 +220,57 @@ def evaluate_model(device, test_loader, model, decoder_head=-1, **kwargs):
             sys.stdout.flush()
     sys.stdout.write(f"\n")
     return epts_batch
+
+
+def evaluate_normalized_mean_error(predictions, groundtruth):
+    groundtruth = groundtruth.detach().cpu().numpy() if not isinstance(groundtruth, np.ndarray) else groundtruth
+    predictions = predictions.detach().cpu().numpy() if not isinstance(predictions, np.ndarray) else predictions
+
+    ## compute total average normlized mean error
+    assert len(predictions) == len(groundtruth),\
+        'The lengths of predictions and ground-truth are not consistent : {} vs {}'.format(len(predictions),
+                                                                                           len(groundtruth))
+    num_images = len(predictions)
+
+    num_points = predictions.shape[1]
+    error_per_image = np.zeros((num_images, 1))
+    if num_points == 68:
+        interocular_distance_gt = np.linalg.norm(groundtruth[:, 36] - groundtruth[:, 45], axis=1)
+    elif num_points == 51 or num_points == 49:
+        interocular_distance_gt = np.linalg.norm(groundtruth[:, 19] - groundtruth[:, 28], axis=1)
+    else:
+        raise Exception('----> Unknown number of points : {}'.format(num_points))
+    for i, (pred, gt) in enumerate(zip(predictions, groundtruth)):
+        dis_sum = np.linalg.norm(pred - gt, axis=1).sum()
+        error_per_image[i] = dis_sum / (num_points * interocular_distance_gt[i])
+
+    # calculate the auc for 0.07/0.08/0.10
+    area_under_curve07 = get_auc(error_per_image, 0.07)
+    area_under_curve08 = get_auc(error_per_image, 0.08)
+    area_under_curve10 = get_auc(error_per_image, 0.10)
+
+    accuracy_under_007 = np.sum(error_per_image < 0.07) * 100. / error_per_image.size
+    accuracy_under_008 = np.sum(error_per_image < 0.08) * 100. / error_per_image.size
+
+    # logging.info(
+    #     'Compute NME and AUC for {:} images with {:} points :: [(nms): mean={:.2f}, std={:.2f}], auc@0.07={:.2f},'
+    #     ' auc@0.08-{:.2f}, acc@0.07={:.2f}, acc@0.08={:.2f}'.format(
+    #         num_images, num_points, normalise_mean_error * 100, error_per_image.std() * 100, area_under_curve07 * 100,
+    #                                 area_under_curve08 * 100, accuracy_under_007, accuracy_under_008))
+
+    for_pck_curve = []
+    for x in range(0, 3501, 1):
+        error_bar = x * 0.0001
+        accuracy = np.sum(error_per_image < error_bar) * 1.0 / error_per_image.size
+        for_pck_curve.append((error_bar, accuracy))
+
+    return error_per_image, area_under_curve08, area_under_curve10, for_pck_curve
+
+
+def get_auc(nme_per_image, thresh=0.08):
+    threshold = np.linspace(0, thresh, num=2000)
+    accuracys = np.zeros_like(threshold)
+    for i in range(threshold.size):
+        accuracys[i] = np.sum(nme_per_image.squeeze() < threshold[i]) * 1.0 / nme_per_image.size
+    area_under_curve = auc(threshold, accuracys) / thresh
+    return area_under_curve

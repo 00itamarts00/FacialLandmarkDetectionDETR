@@ -16,7 +16,7 @@ from main.components.evaluate_model import *
 from main.detr import detr_args
 from main.detr.models.detr import build as build_model
 from main.detr.models.detr import load_criteria as load_criteria_detr
-from main.refactor.functions import train_epoch, validate_epoch, single_image_train
+from main.refactor.functions import train_epoch, validate_epoch
 from main.refactor.nnstats import CnnStats
 from main.refactor.utils import save_checkpoint
 from models.HRNET import hrnet_config, update_config
@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 os.environ["WANDB_API_KEY"] = g.WANDB_API_KEY
 os.environ["WANDB_MODE"] = "dryrun"
+
 
 # TODO: Load tensorboard logs as df/dict
 
@@ -232,22 +233,10 @@ class LDMTrain(object):
         # self.model = torch.nn.DataParallel(self.model, device_ids=[0]).cuda()
         self.model.to(device=self.device)
 
-        if self.single_image_train:
-            single_image_train(train_loader=self.train_loader,
-                               model=self.model,
-                               criterion=self.criteria,
-                               optimizer=self.optimizer,
-                               epochs=2000,
-                               writer_dict=self.writer,
-                               **{'log_interval': 20})
-            return
-
         run_valid = self.tr['run_valid']
 
         epochs = self.tr['epochs'] + self.last_epoch + 1
         best_nme = 100
-        nme = 0
-        predictions = None
         for epoch in range(self.last_epoch + 1, epochs):
             if math.isnan(self.trn_loss) or math.isinf(self.trn_loss):
                 break
@@ -268,12 +257,12 @@ class LDMTrain(object):
                 # evaluate
                 kwargs = {'num_landmarks': self.tr['num_landmarks'],
                           'debug': self.ex['single_batch_debug'], 'model_name': self.tr['model']}
-                nme, predictions = validate_epoch(val_loader=self.valid_loader,
-                                                  model=self.model,
-                                                  criteria=self.criteria,
-                                                  epoch=epoch,
-                                                  writer_dict=self.writer,
-                                                  **kwargs)
+                nme = validate_epoch(val_loader=self.valid_loader,
+                                     model=self.model,
+                                     criteria=self.criteria,
+                                     epoch=epoch,
+                                     writer_dict=self.writer,
+                                     **kwargs)
 
             self.scheduler.step()
             self.writer['writer'].flush()
@@ -292,7 +281,6 @@ class LDMTrain(object):
                                  "epoch": epoch + 1,
                                  "best_nme": best_nme,
                                  "optimizer": self.optimizer.state_dict()},
-                                predictions=predictions,
                                 is_best=is_best,
                                 output_dir=self.paths.checkpoint,
                                 filename='checkpoint_{}.pth'.format(epoch))
@@ -300,6 +288,3 @@ class LDMTrain(object):
                 logger.info(f'saving final model state to {final_model_state_file}')
                 torch.save(self.model.state_dict(), final_model_state_file)
             self.writer['writer'].close()
-
-    def single_image_train(self):
-        pass

@@ -11,11 +11,9 @@ import torch
 import torch.optim as optim
 
 
-def save_checkpoint(states, predictions, is_best,
+def save_checkpoint(states, is_best,
                     output_dir, filename='checkpoint.pth'):
-    preds = predictions.cpu().data.numpy()
     torch.save(states, os.path.join(output_dir, filename))
-    torch.save(preds, os.path.join(output_dir, 'current_pred.pth'))
 
     latest_path = os.path.join(output_dir, 'latest.pth')
     if os.path.islink(latest_path):
