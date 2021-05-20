@@ -197,8 +197,8 @@ def evaluate_model(device, test_loader, model, decoder_head=-1, **kwargs):
     epts_batch = dict()
     with torch.no_grad():
         for batch_idx, item in enumerate(test_loader):
-            input_, target, opts = item['img'], item['target'].cuda(), item['opts'].cuda()
-            scale, hm_factor, heatmaps = item['sfactor'], item['hmfactor'], item['heatmaps'].cuda()
+            input_, target, opts = item['img'], item['target'], item['opts']
+            scale, hm_factor, heatmaps = item['sfactor'], item['hmfactor'], item['heatmaps']
 
             # target_dict = {'coords': target, 'heatmap_bb': heatmaps,
             #                'weighted_loss_mask_awing': weighted_loss_mask_awing}
@@ -213,6 +213,7 @@ def evaluate_model(device, test_loader, model, decoder_head=-1, **kwargs):
 
             item['preds'] = preds
             item['preds'] = [i / s for (i, s) in zip(preds, scale)]
+            item['preds'] = [i.cpu().detach() for i in item['preds']]
             epts_batch[batch_idx] = item
             percent = f' ({100. * (batch_idx + 1) / len(test_loader):.02f}%)]'
             sys.stdout.write(f"\rTesting batch {batch_idx}\t{percent}")
