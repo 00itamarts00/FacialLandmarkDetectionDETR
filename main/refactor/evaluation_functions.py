@@ -14,13 +14,12 @@ import torch
 from PIL import Image
 from sklearn.metrics import auc
 
-from main.components.ptsutils import decode_preds_heatmaps
-
 logger = logging.getLogger(__name__)
 # import wandb
 
 from main.refactor.transforms import transform_preds
 from utils.plot_utils import plot_grid_of_ldm
+from main.refactor.functions import inference
 
 
 def get_preds(scores):
@@ -44,6 +43,7 @@ def get_preds(scores):
     return preds
 
 
+# deprecated
 def compute_nme(preds, opts, box_size=None):
     target = opts.detach().cpu().numpy() if not isinstance(opts, np.ndarray) else opts
     preds = preds.detach().cpu().numpy() if not isinstance(preds, np.ndarray) else preds
@@ -189,7 +189,7 @@ def calc_CED(err, x_limit=0.08):
     return auc, failure, bins_o, ced68_o
 
 
-def evaluate_model(device, test_loader, model, decoder_head=-1, **kwargs):
+def evaluate_model(test_loader, model, decoder_head=-1, **kwargs):
     log_interval = kwargs.get('log_interval', 20)
     hm_amp_factor = kwargs.get('hm_amp_factor', 10)
     model_name = kwargs.get('model_name', None)
@@ -197,22 +197,19 @@ def evaluate_model(device, test_loader, model, decoder_head=-1, **kwargs):
     epts_batch = dict()
     with torch.no_grad():
         for batch_idx, item in enumerate(test_loader):
-            input_, target, opts = item['img'], item['target'], item['opts']
-            scale, hm_factor, heatmaps = item['sfactor'], item['hmfactor'], item['heatmaps']
+            input_, target, opts = item['img'].cuda(), item['target'].cuda(), item['opts'].cuda()
+            scale, hm_factor, heatmaps = item['sfactor'].cuda(), item['hmfactor'], item['heatmaps'].cuda()
+            weighted_loss_mask_awing = item['weighted_loss_mask_awing'].cuda()
 
-            # target_dict = {'coords': target, 'heatmap_bb': heatmaps,
-            #                'weighted_loss_mask_awing': weighted_loss_mask_awing}
+            bs = target.shape[0]
+            target_dict = {'labels': [torch.range(start=0, end=target.shape[1] - 1) for i in range(bs)],
+                           'coords': target, 'heatmap_bb': heatmaps,
+                           'weighted_loss_mask_awing': weighted_loss_mask_awing}
 
-            input_, target = input_.to(device), target.to(device)
-
-            output = model(input_)
-            if model_name == 'HRNET':
-                preds = decode_preds_heatmaps(output)
-            if model_name == 'DETR':
-                preds = output['pred_coords'][decoder_head] * 255
+            output, preds = inference(model, input_batch=input_, scale_factor=scale, **kwargs)
 
             item['preds'] = preds
-            item['preds'] = [i / s for (i, s) in zip(preds, scale)]
+            # item['preds'] = [i / s for (i, s) in zip(preds, scale)]
             item['preds'] = [i.cpu().detach() for i in item['preds']]
             epts_batch[batch_idx] = item
             percent = f' ({100. * (batch_idx + 1) / len(test_loader):.02f}%)]'
@@ -227,7 +224,7 @@ def evaluate_normalized_mean_error(predictions, groundtruth):
     predictions = predictions.detach().cpu().numpy() if not isinstance(predictions, np.ndarray) else predictions
 
     ## compute total average normlized mean error
-    assert len(predictions) == len(groundtruth),\
+    assert len(predictions) == len(groundtruth), \
         'The lengths of predictions and ground-truth are not consistent : {} vs {}'.format(len(predictions),
                                                                                            len(groundtruth))
     num_images = len(predictions)

@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import math
 import os
+import sys
 
 import torch.backends.cudnn
 import torch.optim as optim
@@ -12,7 +13,6 @@ from torch.utils import data
 
 import main.globals as g
 from main.components.CLMDataset import CLMDataset, get_def_transform, get_data_list
-from main.components.evaluate_model import *
 from main.detr import detr_args
 from main.detr.models.detr import build as build_model
 from main.detr.models.detr import load_criteria as load_criteria_detr
@@ -23,6 +23,7 @@ from models.HRNET import hrnet_config, update_config
 from models.HRNET.HRNET import get_face_alignment_net
 from models.HRNET.hrnet_utils import get_optimizer
 from utils.file_handler import FileHandler
+import logging
 
 torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
