@@ -9,6 +9,8 @@ import json
 import os
 import random
 from PIL import Image
+
+from main.components.ptsutils import fliplr_img_pts
 from utils.file_handler import FileHandler
 import imgaug as ia
 import imgaug.augmenters as iaa
@@ -39,8 +41,8 @@ def get_def_transform():
 
         # apply from 0 to 3 of the augmentations from the list
         iaa.SomeOf((0, 3), [
-            iaa.Sometimes(0.05, iaa.Sharpen(alpha=(0, 1.0), lightness=(0.75, 1.2))),  # sharpen images
-            iaa.Sometimes(0.05, iaa.Emboss(alpha=(0, 1.0), strength=(0, 1.2))),  # emboss images
+            iaa.Sometimes(0.1, iaa.Sharpen(alpha=(0, 1.0), lightness=(0.75, 1.2))),  # sharpen images
+            iaa.Sometimes(0.1, iaa.Emboss(alpha=(0, 1.0), strength=(0, 1.2))),  # emboss images
             iaa.Sometimes(0.1, iaa.GaussianBlur((0, 2.0))),
         ])
     ],
@@ -81,48 +83,37 @@ def get_data_list(worksets_path, datasets, nickname, numpts=68):
     return dflist
 
 
-def get_face68_flip():
-    def vx(st, en=None, step=1):
-        if en is None:
-            return np.array(range(st, st + 1))
-
-        exen = 1 if step > 0 else -1
-        return np.array(range(st, en + exen, step))
-
-    dl = list()
-    dl.append([vx(1, 17), vx(17, 1, -1)])
-    dl.append([vx(18, 22), vx(27, 23, -1)])
-    dl.append([vx(23, 27), vx(22, 18, -1)]),
-    dl.append([vx(28, 31), vx(28, 31)]),
-    dl.append([vx(32, 36), vx(36, 32, -1)]),
-    dl.append([vx(37, 40), vx(46, 43, -1)]),
-    dl.append([vx(41), vx(48)]),
-    dl.append([vx(42), vx(47)]),
-    dl.append([vx(43, 46), vx(40, 37, -1)]),
-    dl.append([vx(47), vx(42)]),
-    dl.append([vx(48), vx(41)]),
-    dl.append([vx(49, 55), vx(55, 49, -1)]),
-    dl.append([vx(56, 60), vx(60, 56, -1)]),
-    dl.append([vx(61, 65), vx(65, 61, -1)]),
-    dl.append([vx(66, 68), vx(68, 66, -1)])
-
-    sidx, didx = [], []
-    for i in range(len(dl)):
-        didx = didx + np.array(dl[i][0]).tolist()
-        sidx = sidx + np.array(dl[i][1]).tolist()
-
-    return np.asarray(sidx) - 1, np.asarray(didx) - 1
-
-
-def fliplr(im, pts):
-    ptsa = copy.deepcopy(pts)
-    ima = np.fliplr(im)
-    sidx, didx = get_face68_flip()
-
-    ptsa[didx, 0] = pts[sidx, 0]
-    ptsa[didx, 1] = pts[sidx, 1]
-    ptsa[didx, 0] = ima.shape[1] - ptsa[didx, 0]
-    return ima, ptsa
+# def get_face68_flip():
+#     def vx(st, en=None, step=1):
+#         if en is None:
+#             return np.array(range(st, st + 1))
+#
+#         exen = 1 if step > 0 else -1
+#         return np.array(range(st, en + exen, step))
+#
+#     dl = list()
+#     dl.append([vx(1, 17), vx(17, 1, -1)])
+#     dl.append([vx(18, 22), vx(27, 23, -1)])
+#     dl.append([vx(23, 27), vx(22, 18, -1)]),
+#     dl.append([vx(28, 31), vx(28, 31)]),
+#     dl.append([vx(32, 36), vx(36, 32, -1)]),
+#     dl.append([vx(37, 40), vx(46, 43, -1)]),
+#     dl.append([vx(41), vx(48)]),
+#     dl.append([vx(42), vx(47)]),
+#     dl.append([vx(43, 46), vx(40, 37, -1)]),
+#     dl.append([vx(47), vx(42)]),
+#     dl.append([vx(48), vx(41)]),
+#     dl.append([vx(49, 55), vx(55, 49, -1)]),
+#     dl.append([vx(56, 60), vx(60, 56, -1)]),
+#     dl.append([vx(61, 65), vx(65, 61, -1)]),
+#     dl.append([vx(66, 68), vx(68, 66, -1)])
+#
+#     sidx, didx = [], []
+#     for i in range(len(dl)):
+#         didx = didx + np.array(dl[i][0]).tolist()
+#         sidx = sidx + np.array(dl[i][1]).tolist()
+#
+#     return np.asarray(sidx) - 1, np.asarray(didx) - 1
 
 
 class CLMDataset(data.Dataset):
@@ -135,12 +126,10 @@ class CLMDataset(data.Dataset):
         self.is_train = is_train
         self.input_size = model_args['input_size']
         self.hmsize = model_args['heatmap_size']
-        self.gaurfactor = 5
-        self.gaustd = 2.5
+        self.gaustd = 1.5
         # Extracted from trainset_full.csv
         self.mean = np.array([0.5021, 0.3964, 0.3471], dtype=np.float32)
         self.std = np.array([0.2858, 0.2547, 0.2488], dtype=np.float32)
-        self.imga = create_base_gaussian(np.multiply(self.hmsize, self.gaurfactor), self.gaustd * self.gaurfactor)
 
     def __len__(self):
         return len(self.dflist)
@@ -171,20 +160,19 @@ class CLMDataset(data.Dataset):
         pts = pts_ * sfactor
         if self.transform is not None and self.is_train:
             if random.random() > 0.5:
-                img, pts = fliplr(img, pts)
+                img, pts = fliplr_img_pts(img, pts) # dataset=dataset.split('/')[0].upper())
             img, pts = transform_data(self.transform, img, pts)
 
-        heatmaps, hm_pts = create_heatmaps2(pts, np.shape(img), self.hmsize, self.imga, self.gaurfactor)
+        heatmaps, hm_pts = create_heatmaps2(pts, np.shape(img), self.hmsize, self.gaustd)
         heatmaps = np.float32(heatmaps)  # /np.max(hm)
         hm_sum = np.sum(heatmaps, axis=0)
 
         heatmaps = torch.Tensor(heatmaps)
-        target = torch.Tensor(pts/255)
+        target = torch.Tensor(pts/256)
         # see: https://arxiv.org/pdf/1904.07399v3.pdf
         weighted_loss_mask_awing = dilation(hm_sum, square(3)) >= 0.2
 
-        img = (np.float32(img)/255 - self.mean) / self.std
-        # img = np.float32(img) / 255
+        img = (np.float32(img)/256 - self.mean) / self.std
         img = torch.Tensor(img)
         img = img.permute(2, 0, 1)
 
@@ -225,64 +213,7 @@ class CLMDataset(data.Dataset):
         std = np.array([0.2858, 0.2547, 0.2488], dtype=np.float32)
 
         img_ = np.array(img).transpose([1, 2, 0])
-        img_ = 255 * (img_ * std + mean)
-        img_[img_ > 255] = 255
-        img_[img_ < 0] = 0
+        img_ = 256 * (img_ * std + mean)
+        img_ = np.clip(img_, a_min=0, a_max=255)
 
         return np.ubyte(img_)
-
-
-if __name__ == '__main__':
-
-    worksets_path = '../../worksets/WS02'
-    datasets = ('WFLW/trainset', 'helen/trainset', 'lfpw/trainset', 'menpo/trainset', 'AFW')
-    nickname = 'trainset_full'
-
-    dflist = get_data_list(worksets_path, datasets, nickname)
-    dftrain = dflist.sample(frac=0.8, random_state=42)  # random state is a seed value
-    dfvalid = dflist.drop(dftrain.index)
-
-    dftrain.to_csv(os.path.join(worksets_path, f'{nickname}_train.csv'))
-    dfvalid.to_csv(os.path.join(worksets_path, f'{nickname}_valid.csv'))
-
-    trainset = CLMDataset('../../worksets/WS02', dftrain, transform=get_def_transform())
-    validset = CLMDataset('../../worksets/WS02', dfvalid)
-
-    num_i = len(trainset)
-    print(f'Number of valid images : {num_i}')
-
-    num_i = len(validset)
-    print(f'Number of train images : {num_i}')
-
-    for i in range(5):
-        item = trainset.__getitem__(i)
-        imshowpts(np.array(item['img']).transpose([1, 2, 0]), item['pts'])
-        imshowpts(np.array(item['hm']).transpose([1, 2, 0]).sum(2), item['hm_pts'])
-
-    for i in range(5):
-        item = validset.__getitem__(i)
-        imshowpts(np.array(item['img']).transpose([1, 2, 0]), item['pts'])
-
-    datasets = ('helen/testset', 'lfpw/testset', 'WFLW/testset', '300W', 'ibug', 'COFW68/COFW_test_color')
-    nickname = 'testset_full'
-    dftest = get_data_list(worksets_path, datasets, nickname)
-
-    testset = CLMDataset('../../worksets/WS02', dftest)
-
-    num_i = len(testset)
-    print(f'Number of test images : {num_i}')
-
-    for i in range(5):
-        item = testset.__getitem__(i)
-        imshowpts(np.array(item['img']).transpose([1, 2, 0]), item['pts'])
-
-    '''
-    if False :
-        trainset  = CLMDataset('..\..\worksets\WS02',
-                                ('WFLW/trainset','helen/trainset','lfpw/trainset','menpo/trainset','AFW'),
-                                nickname = 'trainset_full')
-
-        meanx,stdx= trainset.update_mean_and_std()
-        print(f'meanx : {meanx}')
-        print(f'stdx : {stdx}')
-    '''

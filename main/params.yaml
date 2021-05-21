@@ -37,11 +37,11 @@ train:
     use: True
     device: 'cuda:0'
     device_type: 'cuda'
-    num_workers: 4
+    num_workers: 8
     pin_memory: True
   backend:
     use_torch: True
-  model: 'DETR'  # 'DETR', 'HRNET'
+  model: 'HRNET'  # 'DETR', 'HRNET'
   optimizer: 'ADAMW'
   scheduler: 'StepLR'
   criteria: 'MSELoss'

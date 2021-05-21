@@ -3,96 +3,103 @@ import math
 import numpy as np
 import skimage
 import torch
+import copy
 from PIL import Image
 from scipy.stats import multivariate_normal
 from skimage import color
-
+from scipy.ndimage import center_of_mass
 from common.resizer import fft_resize, fft_resize_to
 
-
-def create_base_gaussian(dst_size, std_factor, magnify=20):
-    xlim = (0, dst_size[1] - 1)
-    ylim = (0, dst_size[0] - 1)
-    xres = dst_size[1]
-    yres = dst_size[0]
-
-    x = np.linspace(xlim[0], xlim[1], xres)
-    y = np.linspace(ylim[0], ylim[1], yres)
-    xx, yy = np.meshgrid(x, y)
-    xxyy = np.c_[xx.ravel(), yy.ravel()]
-
-    # evaluate kernels at grid points
-    std = np.eye(2) * std_factor
-
-    mu_y = round(yres / 2)
-    mu_x = round(xres / 2)
-    k1 = multivariate_normal(mean=[mu_y, mu_x], cov=std)
-    zz = k1.pdf(xxyy)
-    img = zz.reshape((xres, yres)) * 100 * magnify
-    img[img < 1e-12] = 0
-    img = img.reshape((xres, yres))
-
-    winsize = round(std_factor * 3)
-    imga = np.copy(img[int(mu_y - winsize + 1):int(mu_y + winsize), int(mu_x - winsize + 1):int(mu_x + winsize)])
-    return imga
+MATCHED_PARTS = {
+    "300W": ([1, 17], [2, 16], [3, 15], [4, 14], [5, 13], [6, 12], [7, 11], [8, 10],
+             [18, 27], [19, 26], [20, 25], [21, 24], [22, 23],
+             [32, 36], [33, 35],
+             [37, 46], [38, 45], [39, 44], [40, 43], [41, 48], [42, 47],
+             [49, 55], [50, 54], [51, 53], [62, 64], [61, 65], [68, 66], [59, 57], [60, 56]),
+    "MENPO": ([1, 6], [2, 5], [3, 4],
+              [7, 12], [8, 11], [9, 10],
+              [13, 15], [16, 18]),
+    "COFW": ([1, 2], [5, 7], [3, 4], [6, 8], [9, 10], [11, 12], [13, 15], [17, 18], [14, 16], [19, 20], [23, 24]),
+    "WFLW": ([0, 32], [1, 31], [2, 30], [3, 29], [4, 28], [5, 27], [6, 26], [7, 25], [8, 24], [9, 23], [10, 22],
+             [11, 21], [12, 20], [13, 19], [14, 18], [15, 17],  # check
+             [33, 46], [34, 45], [35, 44], [36, 43], [37, 42], [38, 50], [39, 49], [40, 48], [41, 47],  # elbrow
+             [60, 72], [61, 71], [62, 70], [63, 69], [64, 68], [65, 75], [66, 74], [67, 73],
+             [55, 59], [56, 58],
+             [76, 82], [77, 81], [78, 80], [87, 83], [86, 84],
+             [88, 92], [89, 91], [95, 93], [96, 97])}
 
 
-def paste_slices(tup):
-    pos, w, max_w = tup
-    wall_min = max(pos, 0)
-    wall_max = min(pos + w, max_w)
-    block_min = -min(pos, 0)
-    block_max = max_w - max(pos + w, max_w)
-    block_max = block_max if block_max != 0 else None
-    return slice(wall_min, wall_max), slice(block_min, block_max)
+def get_face68_flip():
+    def vx(st, en=None, step=1):
+        if en == None:
+            return np.array(range(st, st + 1))
+
+        exen = 1 if step > 0 else -1
+        return np.array(range(st, en + exen, step))
+
+    dl = list()
+    dl.append([vx(1, 17), vx(17, 1, -1)])
+    dl.append([vx(18, 22), vx(27, 23, -1)])
+    dl.append([vx(23, 27), vx(22, 18, -1)]),
+    dl.append([vx(28, 31), vx(28, 31)]),
+    dl.append([vx(32, 36), vx(36, 32, -1)]),
+    dl.append([vx(37, 40), vx(46, 43, -1)]),
+    dl.append([vx(41), vx(48)]),
+    dl.append([vx(42), vx(47)]),
+    dl.append([vx(43, 46), vx(40, 37, -1)]),
+    dl.append([vx(47), vx(42)]),
+    dl.append([vx(48), vx(41)]),
+    dl.append([vx(49, 55), vx(55, 49, -1)]),
+    dl.append([vx(56, 60), vx(60, 56, -1)]),
+    dl.append([vx(61, 65), vx(65, 61, -1)]),
+    dl.append([vx(66, 68), vx(68, 66, -1)])
+
+    sidx, didx = list(), list()
+    for i in range(len(dl)):
+        didx = didx + np.array(dl[i][0]).tolist()
+        sidx = sidx + np.array(dl[i][1]).tolist()
+
+    return np.asarray(sidx) - 1, np.asarray(didx) - 1
 
 
-def paste(wall_, block_, loc):
-    wall = np.copy(wall_)
-    block = np.copy(block_)
-    loc_zip = zip(loc, block.shape, wall.shape)
-    wall_slices, block_slices = zip(*map(paste_slices, loc_zip))
-    wall[wall_slices] = block[block_slices]
-    return wall
+def fliplr_img_pts(im, pts):
+    ptsa = copy.deepcopy(pts)
+    ima = np.fliplr(im)
+    sidx, didx = get_face68_flip()
+
+    ptsa[didx, 0] = pts[sidx, 0]
+    ptsa[didx, 1] = pts[sidx, 1]
+    ptsa[didx, 0] = ima.shape[1] - ptsa[didx, 0]
+
+    return ima, ptsa
 
 
-def create_heatmaps2(pts, im_size, dst_size, imga, res_factor):
-    max_gv = np.max(imga)
-    num_p = np.shape(pts)[0]
-    pts_factor = im_size[0] / dst_size[0]
-    hm_pts = np.copy(pts)
-    hm_pts = hm_pts / pts_factor
-    radga = round(imga.shape[0] / 2)
-    heatmaps = np.zeros((num_p, dst_size[0], dst_size[1]))
-
-    for idx_p in range(num_p):
-        mu = (hm_pts[idx_p, :] * res_factor).round().astype(int)
-        tmphm = np.zeros((dst_size[0] * res_factor, dst_size[1] * res_factor))
-        try:
-            tmphm = paste(tmphm, imga, (mu[1] - radga, mu[0] - radga))
-        except:
-            pass
-        tmphm = tmphm[::res_factor, ::res_factor]
-        heatmaps[idx_p] = np.copy(tmphm)
-
-    heatmaps_ = np.divide(heatmaps, max_gv)
-    return heatmaps_, hm_pts
+def fliplr_img_pts_ver2(img, pts, dataset):
+    img_ = np.fliplr(img)
+    parent_dataset = '300W' if dataset in ['HELEN', 'LFPW', 'IBUG'] else dataset
+    pts_ = fliplr_joints(pts, img_.shape[0], dataset=parent_dataset)
+    return img_, pts_
 
 
-def extract_pts_from_hm(hm, res_factor=5):
-    num_p = hm.shape[0]
-    pts = np.empty((num_p, 2))
-    pts[:] = np.NaN
-    for i in range(0, num_p):
-        if res_factor > 1:
-            hmr = fft_resize(hm[i, :, :], res_factor)
-        else:
-            hmr = hm[i, :, :]
-        p = np.unravel_index(np.argmax(hmr), hmr.shape)
-        pts[i, :] = (p[1], p[0])
-    pts = np.true_divide(pts, res_factor)
+def fliplr_joints(x, width, dataset='menpo'):
+    """
+    flip coords
+    """
+    matched_parts = MATCHED_PARTS[dataset]
+    # Flip horizontal
+    x[:, 0] = width - x[:, 0]
 
-    return pts
+    if dataset == 'WFLW':
+        for pair in matched_parts:
+            tmp = x[pair[0], :].copy()
+            x[pair[0], :] = x[pair[1], :]
+            x[pair[1], :] = tmp
+    else:
+        for pair in matched_parts:
+            tmp = x[pair[0] - 1, :].copy()
+            x[pair[0] - 1, :] = x[pair[1] - 1, :]
+            x[pair[1] - 1, :] = tmp
+    return x
 
 
 def get_preds(scores):
@@ -116,17 +123,17 @@ def get_preds(scores):
     return preds
 
 
-def decode_preds_heatmaps(output, res=[64, 64]):
+def decode_preds_heatmaps(output, hm_size=None):
+    if hm_size is None:
+        hm_size = [64, 64]
     coords = get_preds(output)  # float type
 
     coords = coords.cpu()
     # post-processing
-    for n in range(coords.size(0)):
-        for p in range(coords.size(1)):
-            hm = output[n][p]
-            px = int(math.floor(coords[n][p][0]))
-            py = int(math.floor(coords[n][p][1]))
-            if (px > 1) and (px < res[0]) and (py > 1) and (py < res[1]):
+    for n, (img, coord) in enumerate(zip(output, coords)):
+        for p, hm in enumerate(img):
+            px, py = coord[p][0].floor().int().item(), coord[p][1].floor().int().item()
+            if (px > 1) and (px < hm_size[0]) and (py > 1) and (py < hm_size[1]):
                 diff = torch.Tensor([hm[py - 1][px] - hm[py - 1][px - 2], hm[py][px - 1] - hm[py - 2][px - 1]])
                 coords[n][p] += diff.sign() * .25
     coords += 0.5
@@ -135,7 +142,7 @@ def decode_preds_heatmaps(output, res=[64, 64]):
     if preds.dim() < 3:
         preds = preds.view(1, preds.size())
 
-    return preds * (255 / res[0])
+    return preds * (256 / hm_size[0])
 
 
 def crop_image_by_pts(im, pts, ppad=20):
@@ -201,8 +208,6 @@ def crop_image_by_pts(im, pts, ppad=20):
 
     pts_[:, 0] = pts_[:, 0] + xx
     pts_[:, 1] = pts_[:, 1] + yy
-
-    #    imshowpts(im_, pts_)
     return im_, pts_
 
 
@@ -215,19 +220,6 @@ def gray2rgb_(image):
         return skimage.color.gray2rgb(image)
 
 
-def distance(a, b):
-    return np.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
-
-
-def rotate(p, origin=(0, 0), degrees=0):
-    angle = np.deg2rad(degrees)
-    R = np.array([[np.cos(angle), -np.sin(angle)],
-                  [np.sin(angle), np.cos(angle)]])
-    o = np.atleast_2d(origin)
-    p = np.atleast_2d(p)
-    return np.squeeze((R @ (p.T - o.T) + o.T).T)
-
-
 def get_bbox(pts):
     minx = min(pts[:, 0])
     maxx = max(pts[:, 0])
@@ -235,67 +227,3 @@ def get_bbox(pts):
     miny = min(pts[:, 1])
     maxy = max(pts[:, 1])
     return minx, maxx, miny, maxy
-
-
-def get_cline(spts):
-    lar = np.mean(spts[0:3], axis=0)
-    rar = np.mean(spts[5:8], axis=0)
-
-    upt = np.mean([lar, rar], axis=0)
-    lpt = np.mean(spts[3:5], axis=0)
-
-    cpt = np.mean([upt, lpt], axis=0)
-    return upt, lpt, cpt
-
-
-def image_scale(img, pts, dst_size):
-    simg = fft_resize_to(img, dst_size)
-    spts = np.copy(pts)
-    scale0 = simg.shape[0] / img.shape[0]
-    scale1 = simg.shape[1] / img.shape[1]
-    spts[:, 0] = np.multiply(pts[:, 0], scale0)
-    spts[:, 1] = np.multiply(pts[:, 1], scale1)
-    return simg, spts
-
-
-def image_rotate(simg, spts):
-    upt, lpt, cpt = get_cline(spts)
-    dx = upt[0] - lpt[0]
-    dy = lpt[1] - upt[1]
-    angle = np.arctan(dx / dy)
-    rpts = rotate(spts, origin=cpt, degrees=-np.rad2deg(angle))
-    sim_ = Image.fromarray(simg)
-    rimg = np.array(sim_.rotate(np.rad2deg(angle)))
-
-    return rimg, rpts
-
-
-def image_pad(img, pts, per=50):
-    sz0 = img.shape[0]
-    sz1 = img.shape[1]
-
-    padsz0 = int(round(per * sz0 / 100))
-    padsz1 = int(round(per * sz1 / 100))
-
-    padsz0s = int(round(padsz0 / 2))
-    padsz0e = padsz0 - padsz0s
-    padsz1s = int(round(padsz1 / 2))
-    padsz1e = padsz1 - padsz1s
-
-    pimg = np.pad(img, ((padsz0s, padsz0e), (padsz1s, padsz1e)), mode='constant', constant_values=(0, 0))
-    ppts = np.copy(pts)
-    ppts[:, 0] = pts[:, 0] + padsz1s  # Y,X are dims 0,1 at shape, but 1,0 at pts
-    ppts[:, 1] = pts[:, 1] + padsz0s
-
-    return pimg, ppts
-
-
-def image_align(img, pts, dst_size=(1024, 1024)):
-    pimg, ppts = image_pad(img, pts, per=50)
-
-    rimg, rpts = image_rotate(pimg, ppts)
-    timg, tpts = crop_image_by_pts(rimg, rpts, ppad=10)
-
-    simg, spts = image_scale(timg, tpts, dst_size)
-
-    return simg, spts

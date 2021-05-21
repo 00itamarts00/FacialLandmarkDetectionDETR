@@ -55,63 +55,38 @@ def paste(wall_, block_, loc):
     return wall
 
 
-def create_heatmaps2(pts, im_size, dst_size, imga, res_factor):
+def create_heatmaps2(pts, im_size, dst_size, sigma_gauss):
     # if type == "multiple" :         num_p =1
-    max_gv = np.max(imga)
-    num_p = np.shape(pts)[0]
+    num_p = len(pts)
     pts_factor = im_size[0] / dst_size[0]
-    hm_pts = np.copy(pts)
-    hm_pts = hm_pts / pts_factor
-    radga = round(imga.shape[0] / 2)
+    hm_pts = np.copy(pts) / pts_factor
     heatmaps = np.zeros((num_p, dst_size[0], dst_size[1]))
-    # t2 = time.time()
-
-    for idx_p in range(num_p):
-        mu = (hm_pts[idx_p, :] * res_factor).round().astype(int)
-        tmphm = np.zeros((dst_size[0] * res_factor, dst_size[1] * res_factor))
-        try:
-            tmphm = paste(tmphm, imga, (mu[1] - radga, mu[0] - radga))
-        except:
-            pass
-        tmphm = tmphm[::res_factor, ::res_factor]
-        heatmaps[idx_p] = np.copy(tmphm)
-
-    heatmaps_ = np.divide(heatmaps, max_gv)
-    #  full_time = 1000 * (time.time() - t2)
-    # print('Time : {:f}'.format(full_time))
-
-    return heatmaps_, hm_pts
+    mu_vec = np.floor(hm_pts).astype(int)
+    sigma_vec = np.ones_like(mu_vec) * sigma_gauss
+    for i, (mu, sigma) in enumerate(zip(mu_vec, sigma_vec)):
+        heatmaps[i] = make_gaussian2d(mu, sigma, dst_size, theta=0)
+    return heatmaps, hm_pts
 
 
-def create_edgemaps2(pts, im_size, dst_size, imga, res_factor):
-    # if type == "multiple" :         num_p =1
+def make_gaussian2d(mu, sigma, out_size, theta=0):
+    # x_center and y_center will be the center of the gaussian, theta will be the rotation angle
+    # sigma_x and sigma_y will be the stdevs in the x and y axis before rotation
+    # x_size and y_size give the size of the frame
+    sx, sy = sigma
+    x0, y0 = mu
+    theta = 2 * np.pi * theta / 360
+    x_size, y_size = out_size
+    x = np.arange(0, x_size, 1, float)
+    y = np.arange(0, y_size, 1, float)
+    y = y[:, np.newaxis]
 
-    num_p = np.shape(pts)[0]
-    pts_factor = im_size[0] / dst_size[0]
-    hm_pts = np.copy(pts)
-    hm_pts = hm_pts / pts_factor
-    radga = round(imga.shape[0] / 2)
-    edgemaps = np.zeros((num_p - 1, dst_size[0], dst_size[1]))
-    # t2 = time.time()
-    for idx_p in range(num_p - 1):
-        mu1 = hm_pts[idx_p, :].round().astype(int) * res_factor
-        mu2 = hm_pts[idx_p + 1, :].round().astype(int) * res_factor
-        tmphm = np.zeros((dst_size[0] * res_factor, dst_size[1] * res_factor))
-        xv = np.linspace(mu1[0], mu2[0], num=10)
-        yv = np.linspace(mu1[1], mu2[1], num=10)
+    # rotation
+    a = np.cos(theta) * x - np.sin(theta) * y
+    b = np.sin(theta) * x + np.cos(theta) * y
+    a0 = np.cos(theta) * x0 - np.sin(theta) * y0
+    b0 = np.sin(theta) * x0 + np.cos(theta) * y0
 
-        for i in range(len(xv)):
-            thm = np.zeros((dst_size[0] * res_factor, dst_size[1] * res_factor))
-            try:
-                thm = paste(thm, imga, (int(yv[i] - radga), int(xv[i] - radga)))
-            except:
-                pass
-            tmphm = np.add(tmphm, thm)
-
-        tmphm = tmphm[::res_factor, ::res_factor]
-        edgemaps[idx_p] = np.copy(tmphm)
-
-    return edgemaps
+    return np.exp(-(((a - a0) ** 2) / (2 * (sx ** 2)) + ((b - b0) ** 2) / (2 * (sy ** 2))))
 
 
 def extract_pts_from_hm(hm, res_factor=5):
@@ -212,13 +187,6 @@ def crop_image_by_pts(im, pts, ppad=20):
     #    imshowpts(im_, pts_)
     return im_, pts_
 
-    '''
-    plt.scatter(min_x, min_y, s=40, marker='*', c='b')
-    plt.scatter(max_x, max_y, s=40, marker='*', c='b')
-    plt.scatter(max_x+50, max_y, s=40, marker='*', c='b')
-    plt.show()
-    '''
-
 
 def gray2rgb_(image):
     try:
@@ -269,14 +237,6 @@ def image_scale(img, pts, dst_size):
     scale1 = simg.shape[1] / img.shape[1]
     spts[:, 0] = np.multiply(pts[:, 0], scale0)
     spts[:, 1] = np.multiply(pts[:, 1], scale1)
-    '''
-    minx,maxx,miny,maxy = get_bbox(pts)
-    sdis = distance([minx,miny],[maxx,maxy])
-    ddis = distance([0, 0], [dst_size[0], dst_size[1]])
-    sfactor = ddis/sdis
-    simg = fft_resize(img, sfactor)
-    spts = np.multiply(pts,sfactor)
-    '''
     return simg, spts
 
 
@@ -310,12 +270,3 @@ def image_pad(img, pts, per=50):
     ppts[:, 1] = pts[:, 1] + padsz0s
 
     return pimg, ppts
-
-
-def image_align(img, pts, dst_size=(1024, 1024)):
-    pimg, ppts = image_pad(img, pts, per=50)
-
-    rimg, rpts = image_rotate(pimg, ppts)
-    timg, tpts = crop_image_by_pts(rimg, rpts, ppad=10)
-
-    simg, spts = image_scale(timg, tpts, dst_size)
