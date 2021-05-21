@@ -201,7 +201,7 @@ def inference(model, input_batch, scale_factor, **kwargs):
         preds = decode_preds_heatmaps(output_).cuda()
     if model_name == 'DETR':
         decoder_head = kwargs.get('decoder_head', -1)
-        preds = output_['pred_coords'][decoder_head] * 255
+        preds = output_['pred_coords'][decoder_head] * 256
         scale_matrix = scale_factor[:, np.newaxis, np.newaxis] * torch.ones_like(preds)
         preds /= scale_matrix
     return output_, preds

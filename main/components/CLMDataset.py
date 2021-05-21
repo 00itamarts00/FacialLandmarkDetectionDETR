@@ -31,9 +31,8 @@ def get_def_transform():
     ia.seed(random.randint(0, 1000))
 
     aug_pipeline = iaa.Sequential([
-        # iaa.Sometimes(0.2, iaa.Fliplr(1.0)),
         iaa.Sometimes(0.1, iaa.CropAndPad(percent=(-0.10, 0.10))),
-        iaa.Sometimes(0.1, iaa.Affine(rotate=(-15, 15))),
+        iaa.Sometimes(0.1, iaa.Affine(rotate=(-30, 30))),
 
         iaa.SomeOf((0, 3), [
             iaa.Sometimes(0.1, iaa.contrast.LinearContrast(alpha=(0.6, 1.4))),
@@ -83,39 +82,6 @@ def get_data_list(worksets_path, datasets, nickname, numpts=68):
     return dflist
 
 
-# def get_face68_flip():
-#     def vx(st, en=None, step=1):
-#         if en is None:
-#             return np.array(range(st, st + 1))
-#
-#         exen = 1 if step > 0 else -1
-#         return np.array(range(st, en + exen, step))
-#
-#     dl = list()
-#     dl.append([vx(1, 17), vx(17, 1, -1)])
-#     dl.append([vx(18, 22), vx(27, 23, -1)])
-#     dl.append([vx(23, 27), vx(22, 18, -1)]),
-#     dl.append([vx(28, 31), vx(28, 31)]),
-#     dl.append([vx(32, 36), vx(36, 32, -1)]),
-#     dl.append([vx(37, 40), vx(46, 43, -1)]),
-#     dl.append([vx(41), vx(48)]),
-#     dl.append([vx(42), vx(47)]),
-#     dl.append([vx(43, 46), vx(40, 37, -1)]),
-#     dl.append([vx(47), vx(42)]),
-#     dl.append([vx(48), vx(41)]),
-#     dl.append([vx(49, 55), vx(55, 49, -1)]),
-#     dl.append([vx(56, 60), vx(60, 56, -1)]),
-#     dl.append([vx(61, 65), vx(65, 61, -1)]),
-#     dl.append([vx(66, 68), vx(68, 66, -1)])
-#
-#     sidx, didx = [], []
-#     for i in range(len(dl)):
-#         didx = didx + np.array(dl[i][0]).tolist()
-#         sidx = sidx + np.array(dl[i][1]).tolist()
-#
-#     return np.asarray(sidx) - 1, np.asarray(didx) - 1
-
-
 class CLMDataset(data.Dataset):
     def __init__(self, params, paths, dflist, is_train=True, transform=None):
         self.worksets_path = paths.workset
@@ -160,7 +126,7 @@ class CLMDataset(data.Dataset):
         pts = pts_ * sfactor
         if self.transform is not None and self.is_train:
             if random.random() > 0.5:
-                img, pts = fliplr_img_pts(img, pts) # dataset=dataset.split('/')[0].upper())
+                img, pts = fliplr_img_pts(img, pts)  # dataset=dataset.split('/')[0].upper())
             img, pts = transform_data(self.transform, img, pts)
 
         heatmaps, hm_pts = create_heatmaps2(pts, np.shape(img), self.hmsize, self.gaustd)
@@ -168,11 +134,11 @@ class CLMDataset(data.Dataset):
         hm_sum = np.sum(heatmaps, axis=0)
 
         heatmaps = torch.Tensor(heatmaps)
-        target = torch.Tensor(pts/256)
+        target = torch.Tensor(pts / 256)
         # see: https://arxiv.org/pdf/1904.07399v3.pdf
         weighted_loss_mask_awing = dilation(hm_sum, square(3)) >= 0.2
 
-        img = (np.float32(img)/256 - self.mean) / self.std
+        img = (np.float32(img) / 256 - self.mean) / self.std
         img = torch.Tensor(img)
         img = img.permute(2, 0, 1)
 
