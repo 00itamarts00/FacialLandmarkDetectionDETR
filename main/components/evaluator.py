@@ -83,7 +83,6 @@ class Evaluator(LDMTrain):
 
     def evaluate(self):
         res, dataset_eval = dict(), dict()
-        batch_size = self.tr['batch_size']
         self.model.eval()
         self.model.to(self.device)
         for dataset in self.ev['datasets']:
@@ -94,15 +93,13 @@ class Evaluator(LDMTrain):
             kwargs = {'log_interval': self.log_interval}
             kwargs.update({'hm_amp_factor': self.tr['hm_amp_factor']})
             kwargs.update({'model_name': self.tr['model']})
+            kwargs.update({'decoder_head': self.ev['prediction_from_decoder_head']})
             logger.info(f'Evaluating model using decoder head: {self.ev["prediction_from_decoder_head"]}')
-            dataset_eval[setnick] = evaluate_model(device=self.device,
-                                                   test_loader=test_loader,
+            dataset_eval[setnick] = evaluate_model(test_loader=test_loader,
                                                    model=self.model,
-                                                   decoder_head=self.ev['prediction_from_decoder_head'],
                                                    **kwargs)
             res.update(dataset_eval)
             FileHandler.save_dict_to_pkl(dict_arg=dataset_eval, dict_path=results_file)
-
         r300WPub = analyze_results(res, ['helen/testset', 'lfpw/testset', 'ibug'], '300W Public Set',
                                    output=self.paths.analysis, decoder_head=self.ev['prediction_from_decoder_head'])
         r300WPri = analyze_results(res, ['300W'], '300W Private Set',
@@ -111,7 +108,6 @@ class Evaluator(LDMTrain):
                                   output=self.paths.analysis, decoder_head=self.ev['prediction_from_decoder_head'])
         rWFLW = analyze_results(res, ['WFLW/testset'], 'WFLW',
                                 output=self.paths.analysis, decoder_head=self.ev['prediction_from_decoder_head'])
-        #
 
         p = PrettyTable()
         p.field_names = ["SET NAME", "AUC08", "FAIL08", "NLE"]
@@ -120,6 +116,14 @@ class Evaluator(LDMTrain):
         p.add_row([rCOFW68['setnick'], rCOFW68['auc08'], rCOFW68['fail08'], rCOFW68['NLE']])
         p.add_row([rWFLW['setnick'], rWFLW['auc08'], rWFLW['fail08'], rWFLW['NLE']])
         logger.info(p)
+
+        for ds in [r300WPub, r300WPri, rCOFW68, rWFLW]:
+            if ds is not None:
+                p = PrettyTable()
+                p.field_names = ["DATASET", "AUC08", "AUC10"]
+                for dsk, dsv in ds['ds_logger'].items():
+                    p.add_row([dsk, dsv['auc08'], dsv['auc10']])
+                logger.info(p)
 
         wandb.init(project="detr_landmark_detection",
                    id=g.WANDB_INIT,

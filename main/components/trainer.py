@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import logging
 import math
 import os
 import sys
@@ -23,7 +24,6 @@ from models.HRNET import hrnet_config, update_config
 from models.HRNET.HRNET import get_face_alignment_net
 from models.HRNET.hrnet_utils import get_optimizer
 from utils.file_handler import FileHandler
-import logging
 
 torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
@@ -234,30 +234,31 @@ class LDMTrain(object):
         # self.model = torch.nn.DataParallel(self.model, device_ids=[0]).cuda()
         self.model.to(device=self.device)
 
-        run_valid = self.tr['run_valid']
-
         epochs = self.tr['epochs'] + self.last_epoch + 1
         best_nme = 100
+        kwargs = dict()
+        kwargs.update({'decoder_head': -1})
+        kwargs.update({'log_interval': 20})
+        kwargs.update({'debug': self.ex['single_batch_debug']})
+        kwargs.update({'model_name': self.tr['model']})
+        kwargs.update({'decoder_head': -1})
+        if self.tr['model'] == 'HRNET':
+            kwargs.update({'hm_amp_factor': self.tr['hm_amp_factor']})
+
         for epoch in range(self.last_epoch + 1, epochs):
             if math.isnan(self.trn_loss) or math.isinf(self.trn_loss):
                 break
             if self.train_loader is not None:
                 # train
-                kwargs = {'log_interval': 20, 'debug': self.ex['single_batch_debug'], 'model_name': self.tr['model']}
-                if self.tr['model'] == 'HRNET':
-                    kwargs.update({'hm_amp_factor': self.tr['hm_amp_factor']})
                 train_epoch(train_loader=self.train_loader,
                             model=self.model,
                             criteria=self.criteria,
                             optimizer=self.optimizer,
                             epoch=epoch,
                             writer_dict=self.writer,
-                            multi_dec_loss=detr_args.multi_dec_loss,
                             **kwargs)
 
                 # evaluate
-                kwargs = {'num_landmarks': self.tr['num_landmarks'],
-                          'debug': self.ex['single_batch_debug'], 'model_name': self.tr['model']}
                 nme = validate_epoch(val_loader=self.valid_loader,
                                      model=self.model,
                                      criteria=self.criteria,
@@ -272,8 +273,8 @@ class LDMTrain(object):
 
             is_best = nme < best_nme
             print(f'is best nme: {is_best}')
-            best_nme = min(nme, best_nme)
             if is_best or epoch % 20 == 0:
+                best_nme = min(nme, best_nme)
                 logger.info(f'=> saving checkpoint to {self.paths.checkpoint}')
                 final_model_state_file = os.path.join(self.paths.checkpoint, 'final_state.pth')
 

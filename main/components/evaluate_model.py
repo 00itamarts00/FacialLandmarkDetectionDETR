@@ -47,7 +47,7 @@ def add_metadata_to_result(epts, item):
     return epts
 
 
-def evaluate_model(test_loader, model, decoder_head=-1, **kwargs):
+def evaluate_model(test_loader, model, **kwargs):
     epts_batch = dict()
     with torch.no_grad():
         for batch_idx, item in enumerate(test_loader):

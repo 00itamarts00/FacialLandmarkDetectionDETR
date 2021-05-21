@@ -124,7 +124,8 @@ def decode_preds(output, center, scale, res):
 
 def save_tough_images(dataset, dataset_inst, ds_err, output, decoder_head=-1):
     num_images_to_analyze = 12
-    idx_argmax = ds_err.argsort()[-num_images_to_analyze:][::-1]
+    ds_err_cpy = ds_err.T[0].copy()
+    idx_argmax = ds_err_cpy.argsort()[-num_images_to_analyze:][::-1]
     imgs, sfactor, preds, opts = [], [], [], []
 
     for b_idx, b_idx_inst in dataset_inst.items():
@@ -146,8 +147,8 @@ def save_tough_images(dataset, dataset_inst, ds_err, output, decoder_head=-1):
 def analyze_results(datastets_inst, datasets, setnick, output=None, decoder_head=-1):
     logger.info(f'Analyzing results on {setnick} Datasets')
     datasets = [i.replace('/', '_') for i in datasets]
-    mean_err, max_err, std_err = [], [], []
     tot_err = list()
+    log = dict()
     for dataset, dataset_inst in datastets_inst.items():
         preds, opts = list(), list()
         setnick_ = dataset.replace('/', '_')
@@ -158,21 +159,21 @@ def analyze_results(datastets_inst, datasets, setnick, output=None, decoder_head
             [opts.append(b.numpy()) for b in b_idx_inst['opts']]
         preds = np.array([np.array(i) for i in preds])
         nme_ds, auc08_ds, auc10_ds, _ = evaluate_normalized_mean_error(np.array(preds), np.array(opts))
-        fail08 = (nme_ds > 0.08).mean()
-        # ds_err = compute_nme(np.array(preds), np.array(opts))
-        # TODO: refactor this part
+        log_ds = {dataset: {'auc08': auc08_ds, 'auc10': auc10_ds}}
+        log.update(log_ds)
         [tot_err.append(i) for i in nme_ds]
-        mean_err.append(np.mean(nme_ds))
-        max_err.append(np.max(nme_ds))
-        std_err.append(np.std(nme_ds))
         if output is not None:
             save_tough_images(f'{setnick.replace(" ", "_")}-{dataset}', dataset_inst, nme_ds, output,
                               decoder_head=decoder_head)
     tot_err = np.array(tot_err)
-    auc08, fail08, bins, ced68 = calc_CED(tot_err)
-    nle = 100 * np.mean(tot_err)
+    fail08 = (tot_err > 0.08).mean() * 100
+    fail10 = (tot_err > 0.10).mean() * 100
+    auc08 = get_auc(tot_err, thresh=0.08) * 100
+    auc10 = get_auc(tot_err, thresh=0.10) * 100
+    nle = tot_err.mean() * 100
 
-    return {'setnick': setnick, 'auc08': auc08, 'NLE': nle, 'fail08': fail08}
+    return {'setnick': setnick, 'auc08': auc08, 'auc10': auc10,  'NLE': nle, 'fail08': fail08, 'fail10': fail10,
+            'ds_logger': log}
 
 
 def evaluate_normalized_mean_error(predictions, groundtruth):
@@ -198,9 +199,9 @@ def evaluate_normalized_mean_error(predictions, groundtruth):
         error_per_image[i] = dis_sum / (num_points * interocular_distance_gt[i])
 
     # calculate the auc for 0.07/0.08/0.10
-    area_under_curve07 = get_auc(error_per_image, 0.07)
-    area_under_curve08 = get_auc(error_per_image, 0.08)
-    area_under_curve10 = get_auc(error_per_image, 0.10)
+    area_under_curve07 = get_auc(error_per_image, 0.07) * 100
+    area_under_curve08 = get_auc(error_per_image, 0.08) * 100
+    area_under_curve10 = get_auc(error_per_image, 0.10) * 100
 
     accuracy_under_007 = np.sum(error_per_image < 0.07) * 100. / error_per_image.size
     accuracy_under_008 = np.sum(error_per_image < 0.08) * 100. / error_per_image.size
