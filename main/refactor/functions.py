@@ -212,7 +212,7 @@ def get_loss(criteria, output, target_dict, **kwargs):
     # Loss
     if model_name == 'HRNET':
         hm_amp_factor = kwargs.get('hm_amp_factor', 1)
-        heatmaps = target_dict['heatmaps']
+        heatmaps = target_dict['heatmap_bb']
         lossv = criteria(output, heatmaps * hm_amp_factor)
         loss_dict = {'MSE_loss': lossv.item()}
     if model_name == 'DETR':
