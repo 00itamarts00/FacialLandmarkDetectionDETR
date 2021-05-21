@@ -29,7 +29,7 @@ torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
 os.environ["WANDB_API_KEY"] = g.WANDB_API_KEY
-os.environ["WANDB_MODE"] = "dryrun"
+# os.environ["WANDB_MODE"] = "dryrun"
 
 
 # TODO: Load tensorboard logs as df/dict
@@ -196,6 +196,7 @@ class LDMTrain(object):
             if self.ex['pretrained']['use_pretrained']:
                 model_best_pth = os.path.join(self.paths.checkpoint, 'model_best.pth')
                 model_best_state = torch.load(model_best_pth)
+                logging.info(f'Loading model: {model_best_pth}')
                 try:
                     model.load_state_dict(model_best_state['state_dict'].state_dict())
                 except:
@@ -204,8 +205,9 @@ class LDMTrain(object):
                 update_config(hrnet_config._C, config_path)
             else:
                 kwargs = {}
+                config_path = self.pr['model']['HRNET']['config']
+                update_config(hrnet_config._C, config_path)
                 model = get_face_alignment_net(hrnet_config._C, **kwargs)
-                logging.info(f'Loading model: {model_best_pth}')
         return model.cuda()
 
     def load_scheduler(self):
