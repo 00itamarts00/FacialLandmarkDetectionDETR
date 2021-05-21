@@ -206,12 +206,6 @@ def evaluate_normalized_mean_error(predictions, groundtruth):
     accuracy_under_007 = np.sum(error_per_image < 0.07) * 100. / error_per_image.size
     accuracy_under_008 = np.sum(error_per_image < 0.08) * 100. / error_per_image.size
 
-    # logging.info(
-    #     'Compute NME and AUC for {:} images with {:} points :: [(nms): mean={:.2f}, std={:.2f}], auc@0.07={:.2f},'
-    #     ' auc@0.08-{:.2f}, acc@0.07={:.2f}, acc@0.08={:.2f}'.format(
-    #         num_images, num_points, normalise_mean_error * 100, error_per_image.std() * 100, area_under_curve07 * 100,
-    #                                 area_under_curve08 * 100, accuracy_under_007, accuracy_under_008))
-
     for_pck_curve = []
     for x in range(0, 3501, 1):
         error_bar = x * 0.0001

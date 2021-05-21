@@ -14,7 +14,7 @@ def closest_divisors(n):
     a = round(math.sqrt(n))
     while n % a > 0:
         a -= 1
-    return a, n//a
+    return a, n // a
 
 
 def plot_ldm_on_image(image, pts, channels_last=False):
@@ -86,6 +86,8 @@ def plot_gt_pred_on_img(item, predictions, index):
     ax.imshow(img)
     ax.scatter(preds[:, 0].detach().cpu(), preds[:, 1], s=5, c='r', label='pred')
     ax.scatter(opts.T[0], opts.T[1], s=5, c='b', label='gt')
+    for ptp, ptgt in zip(preds, opts):
+        ax.plot([ptp[0], ptgt[0]], [ptp[1], ptgt[1]], 'g-', linewidth=0.5)
     ax.legend()
     canvas.draw()
     width, height = fig.get_size_inches() * fig.get_dpi()
@@ -130,6 +132,3 @@ def plot_grid_of_ldm(dataset, imgs, preds, opts, sfactors):
     width, height = fig.get_size_inches() * fig.get_dpi()
     image = np.fromstring(canvas.tostring_rgb(), dtype='uint8').reshape(int(height), int(width), 3)
     return image
-
-
-

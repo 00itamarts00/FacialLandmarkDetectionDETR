@@ -1,10 +1,10 @@
 import cProfile
-from utils.file_handler import FileHandler
-import logging
-import sys
 import os
+
 import main.globals as g
 from top_level import TopLevel
+from utils.file_handler import FileHandler
+
 timestamp = FileHandler.get_datetime()
 g.TIMESTAMP = timestamp
 
@@ -17,7 +17,4 @@ tl = TopLevel(override_params=None)
 # exec_str = 'tl.run_experiment()'
 exec_str = 'tl.train()'
 
-
-cProfile.run(exec_str, filename=fname+'.prof')
-
-
+cProfile.run(exec_str, filename=fname + '.prof')

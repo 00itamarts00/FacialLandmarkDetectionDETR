@@ -1,9 +1,3 @@
-# ------------------------------------------------------------------------------
-# Copyright (c) Microsoft
-# Licensed under the MIT License.
-# Created by Tianheng Cheng(tianhengcheng@gmail.com)
-# ------------------------------------------------------------------------------
-
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -15,9 +9,9 @@ import time
 import wandb
 
 from main.components.hm_regression import *
-from main.refactor.evaluation_functions import evaluate_normalized_mean_error
-from utils.plot_utils import plot_gt_pred_on_img
+from main.refactor.evaluation_functions import evaluate_normalized_mean_error, get_auc
 from utils.data_organizer import AverageMeter
+from utils.plot_utils import plot_gt_pred_on_img
 
 logger = logging.getLogger(__name__)
 
@@ -74,9 +68,9 @@ def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **
         if i % log_interval == 0:
             speed = str(int(input_.size(0) / batch_time.val)).zfill(3)
             msg = f'Epoch: [{str(epoch).zfill(3)}][{str(i).zfill(3)}/{len(train_loader)}]\t' \
-                  f' Time {batch_time.val:.3f}s ({batch_time.avg:.3f}s)\t Speed {speed}' \
-                  f' samples/s\t Data {data_time.val:.3f}s ({data_time.avg:.3f}s)\t' \
-                  f' Loss {losses.val:.5f} ({losses.avg:.5f})\t'
+                  f' Time: {batch_time.val:.3f}s ({batch_time.avg:.3f}s)\t Speed: {speed}' \
+                  f' samples/s\t Data: {data_time.val:.3f}s ({data_time.avg:.3f}s)\t' \
+                  f' Loss: {losses.val:.5f}\t AUC08: {auc08_batch:.2f}\t'
             logger.info(msg)
 
         if debug:
@@ -87,6 +81,10 @@ def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **
     ls = []
     [[ls.append(i) for i in j] for j in nme_vec]
     nme = np.array(ls).mean()
+    failure_008_rate = (np.hstack(np.array(ls).squeeze()) > 0.08).astype(int).mean()
+    failure_010_rate = (np.hstack(np.array(ls).squeeze()) > 0.10).astype(int).mean()
+    auc08_epoch = get_auc(np.array(ls), 0.08) * 100
+    auc10_epoch = get_auc(np.array(ls), 0.10) * 100
     wandb.log({'train/nme': nme, 'epoch': epoch})
     wandb.log({'train/loss': losses.avg, 'epoch': epoch})
     wandb.log({'train/batch_time': batch_time.avg, 'epoch': epoch})
@@ -102,6 +100,15 @@ def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **
         log[epoch].update({'train_nme': nme})
         writer.add_scalar('batch_time.avg', batch_time.avg, global_steps)
         log[epoch].update({'batch_time.avg': batch_time.avg})
+        writer.add_scalar('failure_008_rate', failure_008_rate, global_steps)
+        log[epoch].update({'failure_008_rate': failure_008_rate})
+        writer.add_scalar('failure_010_rate', failure_010_rate, global_steps)
+        log[epoch].update({'failure_010_rate': failure_010_rate})
+        writer.add_scalar('auc08_epoch', auc08_epoch, global_steps)
+        log[epoch].update({'auc08_epoch': auc08_epoch})
+        writer.add_scalar('auc10_epoch', auc10_epoch, global_steps)
+        log[epoch].update({'auc10_epoch': auc10_epoch})
+
         writer_dict['train_global_steps'] = global_steps + 1
 
     msg = f'Train Epoch {epoch} | time:{batch_time.avg:.4f} | loss:{losses.avg:.4f} | nme:{nme:.4f}'
@@ -156,9 +163,11 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
     nme = nme_vec_np.mean()
     failure_008_rate = (np.hstack(nme_vec_np.squeeze()) > 0.08).astype(int).mean()
     failure_010_rate = (np.hstack(nme_vec_np.squeeze()) > 0.10).astype(int).mean()
+    auc08_epoch = get_auc(nme_vec_np, 0.08) * 100
+    auc10_epoch = get_auc(nme_vec_np, 0.10) * 100
 
     msg = f'Test Epoch {epoch} | time: {batch_time.avg:.4f} | loss:{losses.avg:.4f} | nme: {nme:.4f}' \
-          f' | FR08: {failure_008_rate:.3f} | FR10: {failure_010_rate:.3f}'
+          f' | FR08: {failure_008_rate:.3f} | AUC08: {auc08_epoch:.2f}'
     logger.info(msg)
 
     dbg_img = plot_gt_pred_on_img(item=item, predictions=preds, index=-1)
@@ -168,6 +177,8 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
     wandb.log({'valid/loss': losses.avg, 'epoch': epoch})
     wandb.log({'valid/fail_rate_008': failure_008_rate, 'epoch': epoch})
     wandb.log({'valid/fail_rate_010': failure_010_rate, 'epoch': epoch})
+    wandb.log({'valid/auc08': auc08_epoch, 'epoch': epoch})
+    wandb.log({'valid/auc10': auc10_epoch, 'epoch': epoch})
     wandb.log({'valid/batch_time': batch_time.avg, 'epoch': epoch})
     # wandb.log({"debug_image": dbg_img})
 
@@ -184,6 +195,10 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
         log[epoch].update({'valid_failure_008_rate': failure_008_rate})
         writer.add_scalar('valid_failure_010_rate', failure_010_rate, global_steps)
         log[epoch].update({'valid_failure_010_rate': failure_010_rate})
+        writer.add_scalar('valid_auc010', auc10_epoch, global_steps)
+        log[epoch].update({'valid_auc010': auc10_epoch})
+        writer.add_scalar('valid_auc08', auc08_epoch, global_steps)
+        log[epoch].update({'valid_auc08': auc08_epoch})
         [log[epoch].update({k: v}) for (k, v) in loss_dict.items()]
         [writer.add_scalar(k, v, global_steps) for k, v in loss_dict.items()]
         writer.add_image('images', grid, global_steps)

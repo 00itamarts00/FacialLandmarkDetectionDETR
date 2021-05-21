@@ -5,8 +5,8 @@ experiment:
   log_interval: 20
   single_image_train: False
   pretrained:
-    use_pretrained: False
-    timestamp: '070421_084015'
+    use_pretrained: True
+    timestamp: '210521_125841'
   save_model: True
   single_batch_debug: False
 
@@ -41,7 +41,7 @@ train:
     pin_memory: True
   backend:
     use_torch: True
-  model: 'HRNET'  # 'DETR', 'HRNET'
+  model: 'DETR'  # 'DETR', 'HRNET'
   optimizer: 'ADAMW'
   scheduler: 'StepLR'
   criteria: 'MSELoss'
