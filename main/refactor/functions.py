@@ -170,7 +170,7 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
     auc08_epoch = get_auc(nme_vec_np, 0.08) * 100
     auc10_epoch = get_auc(nme_vec_np, 0.10) * 100
 
-    msg = f'Test Epoch {epoch} | time: {batch_time.avg:.4f} | loss:{losses.avg:.4f} | NME: {nme:.4f}' \
+    msg = f'Test Epoch {epoch}  | time: {batch_time.avg:.4f} | loss:{losses.avg:.4f} | NME: {nme:.4f}' \
           f' | AUC08: {auc08_epoch:.3f} | FR08: {failure_008_rate:.3f}'
     logger.info(msg)
 
