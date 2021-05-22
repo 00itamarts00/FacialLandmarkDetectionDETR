@@ -99,20 +99,18 @@ def save_tough_images(dataset, dataset_inst, ds_err, output, decoder_head=-1):
     num_images_to_analyze = 12
     ds_err_cpy = ds_err.T[0].copy()
     idx_argmax = ds_err_cpy.argsort()[-num_images_to_analyze:][::-1]
-    imgs, sfactor, preds, tpts = [], [], [], []
+    imgs, preds, tpts = [], [], []
 
     for b_idx, b_idx_inst in dataset_inst.items():
         [preds.append(b) for b in b_idx_inst['preds']]
         [tpts.append(b.numpy()) for b in b_idx_inst['tpts']]
-        [sfactor.append(b.numpy()) for b in b_idx_inst['sfactor']]
         [imgs.append(b) for b in b_idx_inst['img']]
 
     img_plot = [imgs[i] for i in idx_argmax]
     preds_plot = [preds[i] for i in idx_argmax]
     tpts_plot = [tpts[i] for i in idx_argmax]
-    sfactor_plot = [sfactor[i] for i in idx_argmax]
 
-    analyze_pic = plot_grid_of_ldm(dataset, img_plot, preds_plot, tpts_plot, sfactor_plot)
+    analyze_pic = plot_grid_of_ldm(dataset, img_plot, preds_plot, tpts_plot)
     im = Image.fromarray(analyze_pic)
     im.save(os.path.join(output, f'{dataset}_dec_{decoder_head}_analysis_image.png'))
 

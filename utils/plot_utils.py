@@ -104,7 +104,7 @@ def renorm_image(img):
     return np.ubyte(img_)
 
 
-def plot_grid_of_ldm(dataset, imgs, preds, opts, sfactors):
+def plot_grid_of_ldm(dataset, imgs, preds, tpts):
     fig = plt.figure(figsize=(10., 6.))
     canvas = FigureCanvas(fig)
     w, h = closest_divisors(imgs.__len__())
@@ -112,17 +112,15 @@ def plot_grid_of_ldm(dataset, imgs, preds, opts, sfactors):
                      nrows_ncols=(w, h),  # creates 16x16 grid of axes
                      axes_pad=0.0,  # pad between axes in inch.
                      )
-    for ax, img, pred, opt, scale in zip(grid, imgs, preds, opts, sfactors):
+    for ax, img, pred, tpt in zip(grid, imgs, preds, tpts):
         img = renorm_image(img)
         img = np.array(img).astype(np.uint8)
         ax.imshow(img)
         ax.axis('off')
-        pred_plot = pred.T * scale
-        opt_plot = opt.T * scale
 
-        a = ax.scatter(pred_plot[0], pred_plot[1], s=1, c='r', label='pred')
-        b = ax.scatter(opt_plot[0], opt_plot[1], s=1, c='b', label='gt')
-        for ptp, ptgt in zip(pred_plot.T, opt_plot.T):
+        a = ax.scatter(pred.T[0], pred.T[1], s=1, c='r', label='pred')
+        b = ax.scatter(tpt.T[0], tpt.T[1], s=1, c='b', label='gt')
+        for ptp, ptgt in zip(pred.T, tpt.T):
             ax.plot([ptp[0], ptgt[0]], [ptp[1], ptgt[1]], 'g-', linewidth=0.5)
 
     plt.suptitle(f'Dataset: {dataset}\nToughest Predictions', y=0.98)
