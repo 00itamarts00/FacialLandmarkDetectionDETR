@@ -51,10 +51,10 @@ def evaluate_model(test_loader, model, **kwargs):
     epts_batch = dict()
     with torch.no_grad():
         for batch_idx, item in enumerate(test_loader):
-            input_, target, opts = item['img'].cuda(), item['target'].cuda(), item['opts'].cuda()
+            input_, tpts = item['img'].cuda(), item['tpts'].cuda()
             scale, hm_factor, heatmaps = item['sfactor'].cuda(), item['hmfactor'], item['heatmaps'].cuda()
 
-            output, preds = inference(model, input_batch=input_, scale_factor=scale, **kwargs)
+            output, preds = inference(model, input_batch=input_, **kwargs)
 
             item['preds'] = [i.cpu().detach() for i in preds]
             epts_batch[batch_idx] = item

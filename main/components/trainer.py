@@ -29,7 +29,7 @@ torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
 os.environ["WANDB_API_KEY"] = g.WANDB_API_KEY
-os.environ["WANDB_MODE"] = "dryrun"
+# os.environ["WANDB_MODE"] = "dryrun"
 
 
 # TODO: Load tensorboard logs as df/dict
@@ -57,28 +57,7 @@ class LDMTrain(object):
         # Start a new run, tracking hyperparameters in config
         wandb.init(project="detr_landmark_detection",
                    # group='nothing',
-                   config={
-                       "lr_trans": detr_args.lr,
-                       "lr_backbone": detr_args.lr_backbone,
-                       "clip_max_norm": detr_args.clip_max_norm,
-                       'backbone': detr_args.backbone,
-                       "dropout": detr_args.dropout,
-                       "architecture": "DETR",
-                       'detr_hidden_dim': detr_args.hidden_dim,
-                       'detr_dim_feedforward': detr_args.dim_feedforward,
-                       "enc_layers": detr_args.enc_layers,
-                       "dec_layers": detr_args.dec_layers,
-                       "transformer_heads": detr_args.nheads,
-                       "transformer_position_embedding": detr_args.position_embedding,
-                       'batch_size': self.tr['batch_size'],
-                       # 'step_size': self.pr['scheduler'][self.tr['scheduler']]['step_size'],
-                       'epochs': self.tr['epochs'],
-                       'timestamp': g.TIMESTAMP,
-                       "dataset": "WS02",
-                       "multi_dec_loss": detr_args.multi_dec_loss,
-                   },
-                   # notes=None,
-                   # tags=[None],
+                   config=self.pr
                    )
         # wandb.watch(self.model)
         config = wandb.config

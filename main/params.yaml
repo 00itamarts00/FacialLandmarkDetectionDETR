@@ -5,7 +5,7 @@ experiment:
   log_interval: 20
   single_image_train: False
   pretrained:
-    use_pretrained: True
+    use_pretrained: False
     timestamp: '220521_021837'
   save_model: True
   single_batch_debug: False
@@ -29,7 +29,7 @@ train:
   trainset_partition: 0.8
   epochs: 250
   torch_seed: 0
-  batch_size: 64
+  batch_size: 32
   trainable_parameters: null
   hm_amp_factor: 100
   run_valid: True
@@ -70,7 +70,7 @@ optimizer:
     use_gc: True
     gc_conv_only: False
   ADAMW:
-    lr: 0.0001
+    lr: 1e-4
     weight_decay: 0.0001
 
 model:

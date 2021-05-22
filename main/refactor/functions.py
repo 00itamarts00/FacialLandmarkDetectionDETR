@@ -34,17 +34,17 @@ def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **
         # measure data time
         data_time.update(time.time() - end)
 
-        input_, target, tpts = item['img'].cuda(), item['target'].cuda(), item['tpts'].cuda()
+        input_, tpts = item['img'].cuda(), item['tpts'].cuda()
         scale, hm_factor, heatmaps = item['sfactor'].cuda(), item['hmfactor'], item['heatmaps'].cuda()
         weighted_loss_mask_awing = item['weighted_loss_mask_awing'].cuda()
         # compute the output
-        bs = target.shape[0]
+        bs = tpts.shape[0]
 
-        target_dict = {'labels': [torch.range(start=0, end=target.shape[1] - 1) for i in range(bs)],
-                       'coords': target, 'heatmap_bb': heatmaps,
+        target_dict = {'labels': [torch.range(start=0, end=tpts.shape[1] - 1) for i in range(bs)],
+                       'coords': tpts, 'heatmap_bb': heatmaps,
                        'weighted_loss_mask_awing': weighted_loss_mask_awing}
 
-        output, preds = inference(model, input_batch=input_, scale_factor=scale, **kwargs)
+        output, preds = inference(model, input_batch=input_, **kwargs)
         loss_dict, lossv = get_loss(criteria, output, target_dict=target_dict, **kwargs)
 
         if not math.isfinite(lossv.item()):
@@ -111,7 +111,7 @@ def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **
 
         writer_dict['train_global_steps'] = global_steps + 1
 
-    msg = f'Train Epoch {epoch} | time:{batch_time.avg:.4f} | loss:{losses.avg:.4f} | nme:{nme:.4f}'
+    msg = f'Train Epoch {epoch} | time: {batch_time.avg:.4f} | loss: {losses.avg:.4f} | nme: {nme:.4f}'
     logger.info(msg)
 
 
@@ -131,17 +131,17 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
     with torch.no_grad():
         for i, item in enumerate(val_loader):
             data_time.update(time.time() - end)
-            input_, target, tpts = item['img'].cuda(), item['target'].cuda(), item['tpts'].cuda()
+            input_, tpts = item['img'].cuda(), item['tpts'].cuda()
             scale, hm_factor, heatmaps = item['sfactor'].cuda(), item['hmfactor'], item['heatmaps'].cuda()
             weighted_loss_mask_awing = item['weighted_loss_mask_awing'].cuda()
 
-            bs = target.shape[0]
+            bs = tpts.shape[0]
 
-            target_dict = {'labels': [torch.range(start=0, end=target.shape[1] - 1) for i in range(bs)],
-                           'coords': target, 'heatmap_bb': heatmaps,
+            target_dict = {'labels': [torch.range(start=0, end=tpts.shape[1] - 1) for i in range(bs)],
+                           'coords': tpts, 'heatmap_bb': heatmaps,
                            'weighted_loss_mask_awing': weighted_loss_mask_awing}
 
-            output, preds = inference(model, input_batch=input_, scale_factor=scale, **kwargs)
+            output, preds = inference(model, input_batch=input_, **kwargs)
             loss_dict, lossv = get_loss(criteria, output, target_dict=target_dict, **kwargs)
 
             # NME
@@ -207,7 +207,7 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
     return nme
 
 
-def inference(model, input_batch, scale_factor, **kwargs):
+def inference(model, input_batch, **kwargs):
     # inference
     model_name = kwargs.get('model_name', None)
     output_ = model(input_batch)
@@ -216,9 +216,7 @@ def inference(model, input_batch, scale_factor, **kwargs):
         preds = decode_preds_heatmaps(output_).cuda()
     if model_name == 'DETR':
         decoder_head = kwargs.get('decoder_head', -1)
-        preds = output_['pred_coords'][decoder_head] * 256
-        scale_matrix = scale_factor[:, np.newaxis, np.newaxis] * torch.ones_like(preds)
-        preds /= scale_matrix
+        preds = output_['pred_coords'][decoder_head]
     return output_, preds
 
 

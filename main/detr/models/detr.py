@@ -58,7 +58,7 @@ class DETR(nn.Module):
         hs, memory = self.transformer(self.input_proj(src), mask, self.query_embed.weight, pos[-1])
 
         outputs_class = self.class_embed(hs)
-        outputs_coord = self.bbox_embed(hs).sigmoid()
+        outputs_coord = self.bbox_embed(hs).sigmoid() * samples.tensors.shape[-1]
         out = {'pred_logits': outputs_class, 'pred_coords': outputs_coord, 'hm_output': hm_reg}
 
         return out
@@ -95,12 +95,12 @@ class SetCriterion(nn.Module):
             return None
 
     @staticmethod
-    def l1_coord_loss(opts, preds, num_coords):
-        return F.l1_loss(opts, preds, reduction='sum')
+    def l1_coord_loss(outputs, targets, num_coords):
+        return F.l1_loss(outputs, targets, reduction='sum').float()
 
     @staticmethod
     def l2_coord_loss(outputs, targets, num_coords):
-        return F.mse_loss(outputs, targets, reduction='sum')
+        return F.mse_loss(outputs, targets, reduction='sum').float()
 
     def last_dec_coord_loss(self, outputs, targets, num_coords, type='l2'):
         preds = outputs['pred_coords'][-1]
@@ -157,9 +157,7 @@ class SetCriterion(nn.Module):
         losses = {}
         for loss_name, loss_func in self.losses.items():
             losses.update({loss_name: loss_func(outputs, targets, num_coords)})
-        lossv = 0
-        for loss in losses.values():
-            lossv += loss
+        lossv = sum(list(losses.values()))
         return losses, lossv
 
 

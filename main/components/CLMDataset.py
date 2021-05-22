@@ -133,7 +133,6 @@ class CLMDataset(data.Dataset):
         hm_sum = np.sum(heatmaps, axis=0)
 
         heatmaps = torch.Tensor(heatmaps)
-        target = torch.Tensor(pts / 256)
         # see: https://arxiv.org/pdf/1904.07399v3.pdf
         weighted_loss_mask_awing = dilation(hm_sum, square(3)) >= 0.2
 
@@ -146,8 +145,7 @@ class CLMDataset(data.Dataset):
 
         item = {'index': idx, 'img_name': img_name, 'dataset': dataset,
                 'img': img, 'heatmaps': heatmaps, 'hm_pts': hm_pts, 'opts': pts_, 'sfactor': sfactor,
-                'hmfactor': hmfactor, 'tpts': pts, 'target': target,
-                'weighted_loss_mask_awing': weighted_loss_mask_awing}
+                'hmfactor': hmfactor, 'tpts': pts, 'weighted_loss_mask_awing': weighted_loss_mask_awing}
         return item
 
     def update_mean_and_std(self):
