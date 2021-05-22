@@ -20,7 +20,6 @@ num_queries = 68
 pre_norm = True
 masks = False
 dataset_file = 'WS02'
-coco_path = '/home/itamar/thesis/DATASET/WS02'
 output_dir = '/home/itamar/thesis/outputs/detr'
 device = 'cuda'
 seed = 42

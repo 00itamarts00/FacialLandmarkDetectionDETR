@@ -115,7 +115,7 @@ def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **
         writer_dict['train_global_steps'] = global_steps + 1
 
     msg = f'Train Epoch {epoch} | time: {batch_time.avg:.4f} | loss: {losses.avg:.4f} | NME: {nme:.4f}' \
-          f' | AUC08: {auc08_epoch:.2f} | FR08 : {failure_008_rate:.2f}'
+          f' | AUC08: {auc08_epoch:.3f} | FR08 : {failure_008_rate:.3f}'
     logger.info(msg)
 
 
@@ -171,7 +171,7 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
     auc10_epoch = get_auc(nme_vec_np, 0.10) * 100
 
     msg = f'Test Epoch {epoch} | time: {batch_time.avg:.4f} | loss:{losses.avg:.4f} | NME: {nme:.4f}' \
-          f' | AUC08: {auc08_epoch:.2f} | FR08: {failure_008_rate:.3f}'
+          f' | AUC08: {auc08_epoch:.3f} | FR08: {failure_008_rate:.3f}'
     logger.info(msg)
 
     dbg_img = plot_gt_pred_on_img(item=item, predictions=preds, index=0)
