@@ -87,7 +87,10 @@ def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **
     auc10_epoch = get_auc(np.array(ls), 0.10) * 100
     wandb.log({'train/nme': nme, 'epoch': epoch})
     wandb.log({'train/loss': losses.avg, 'epoch': epoch})
-    wandb.log({'train/batch_time': batch_time.avg, 'epoch': epoch})
+    wandb.log({'train/failure_008_rate': failure_008_rate, 'epoch': epoch})
+    wandb.log({'train/failure_010_rate': failure_010_rate, 'epoch': epoch})
+    wandb.log({'train/auc08_epoch': auc08_epoch, 'epoch': epoch})
+    wandb.log({'train/auc10_epoch': auc10_epoch, 'epoch': epoch})
 
     if writer_dict:
         writer = writer_dict['writer']
@@ -167,8 +170,8 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
     auc08_epoch = get_auc(nme_vec_np, 0.08) * 100
     auc10_epoch = get_auc(nme_vec_np, 0.10) * 100
 
-    msg = f'Test Epoch {epoch} | time: {batch_time.avg:.4f} | loss:{losses.avg:.4f} | nme: {nme:.4f}' \
-          f' | FR08: {failure_008_rate:.3f} | AUC08: {auc08_epoch:.2f}'
+    msg = f'Test Epoch {epoch} | time: {batch_time.avg:.4f} | loss:{losses.avg:.4f} | NME: {nme:.4f}' \
+          f' | AUC08: {auc08_epoch:.2f} | FR08: {failure_008_rate:.3f}'
     logger.info(msg)
 
     dbg_img = plot_gt_pred_on_img(item=item, predictions=preds, index=0)
