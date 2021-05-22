@@ -80,7 +80,7 @@ def plot_gt_pred_on_img(item, predictions, index):
     fig = Figure()
     canvas = FigureCanvas(fig)
     preds = predictions[index] if predictions[index].device.type == 'cpu' else predictions[index].detach().cpu()
-    opts = item['tpts'].numpy()[index] * item['sfactor'].numpy()[index]
+    opts = item['tpts'].numpy()[index]
     ax = fig.add_subplot(111)
     ax.set_title(f'debug_image\ndataset: {dataset} name: {img_name}')
     ax.imshow(img)

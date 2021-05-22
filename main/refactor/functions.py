@@ -111,7 +111,8 @@ def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **
 
         writer_dict['train_global_steps'] = global_steps + 1
 
-    msg = f'Train Epoch {epoch} | time: {batch_time.avg:.4f} | loss: {losses.avg:.4f} | nme: {nme:.4f}'
+    msg = f'Train Epoch {epoch} | time: {batch_time.avg:.4f} | loss: {losses.avg:.4f} | NME: {nme:.4f}' \
+          f' | AUC08: {auc08_epoch:.2f} | FR08 : {failure_008_rate:.2f}'
     logger.info(msg)
 
 
@@ -170,7 +171,7 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
           f' | FR08: {failure_008_rate:.3f} | AUC08: {auc08_epoch:.2f}'
     logger.info(msg)
 
-    dbg_img = plot_gt_pred_on_img(item=item, predictions=preds, index=-1)
+    dbg_img = plot_gt_pred_on_img(item=item, predictions=preds, index=0)
     grid = torch.tensor(np.swapaxes(np.swapaxes(dbg_img, 0, -1), 1, 2))
 
     wandb.log({'valid/nme': nme, 'epoch': epoch})
