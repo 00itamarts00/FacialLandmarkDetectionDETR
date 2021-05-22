@@ -99,20 +99,20 @@ def save_tough_images(dataset, dataset_inst, ds_err, output, decoder_head=-1):
     num_images_to_analyze = 12
     ds_err_cpy = ds_err.T[0].copy()
     idx_argmax = ds_err_cpy.argsort()[-num_images_to_analyze:][::-1]
-    imgs, sfactor, preds, opts = [], [], [], []
+    imgs, sfactor, preds, tpts = [], [], [], []
 
     for b_idx, b_idx_inst in dataset_inst.items():
         [preds.append(b) for b in b_idx_inst['preds']]
-        [opts.append(b.numpy()) for b in b_idx_inst['opts']]
+        [tpts.append(b.numpy()) for b in b_idx_inst['tpts']]
         [sfactor.append(b.numpy()) for b in b_idx_inst['sfactor']]
         [imgs.append(b) for b in b_idx_inst['img']]
 
     img_plot = [imgs[i] for i in idx_argmax]
     preds_plot = [preds[i] for i in idx_argmax]
-    opts_plot = [opts[i] for i in idx_argmax]
+    tpts_plot = [tpts[i] for i in idx_argmax]
     sfactor_plot = [sfactor[i] for i in idx_argmax]
 
-    analyze_pic = plot_grid_of_ldm(dataset, img_plot, preds_plot, opts_plot, sfactor_plot)
+    analyze_pic = plot_grid_of_ldm(dataset, img_plot, preds_plot, tpts_plot, sfactor_plot)
     im = Image.fromarray(analyze_pic)
     im.save(os.path.join(output, f'{dataset}_dec_{decoder_head}_analysis_image.png'))
 
@@ -123,15 +123,15 @@ def analyze_results(datastets_inst, datasets, setnick, output=None, decoder_head
     tot_err = list()
     log = dict()
     for dataset, dataset_inst in datastets_inst.items():
-        preds, opts = list(), list()
+        preds, tpts = list(), list()
         setnick_ = dataset.replace('/', '_')
         if setnick_ not in datasets:
             continue
         for b_idx, b_idx_inst in dataset_inst.items():
             [preds.append(b.numpy()) for b in b_idx_inst['preds']]
-            [opts.append(b.numpy()) for b in b_idx_inst['opts']]
+            [tpts.append(b.numpy()) for b in b_idx_inst['tpts']]
         preds = np.array([np.array(i) for i in preds])
-        nme_ds, auc08_ds, auc10_ds, _ = evaluate_normalized_mean_error(np.array(preds), np.array(opts))
+        nme_ds, auc08_ds, auc10_ds, _ = evaluate_normalized_mean_error(np.array(preds), np.array(tpts))
         log_ds = {dataset: {'auc08': auc08_ds, 'auc10': auc10_ds}}
         log.update(log_ds)
         [tot_err.append(i) for i in nme_ds]
