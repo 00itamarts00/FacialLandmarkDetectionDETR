@@ -34,7 +34,7 @@ def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **
         # measure data time
         data_time.update(time.time() - end)
 
-        input_, target, opts = item['img'].cuda(), item['target'].cuda(), item['opts'].cuda()
+        input_, target, tpts = item['img'].cuda(), item['target'].cuda(), item['tpts'].cuda()
         scale, hm_factor, heatmaps = item['sfactor'].cuda(), item['hmfactor'], item['heatmaps'].cuda()
         weighted_loss_mask_awing = item['weighted_loss_mask_awing'].cuda()
         # compute the output
@@ -52,7 +52,7 @@ def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **
             sys.exit(1)
 
         # NME
-        nme_batch, auc08_batch, auc10_batch, for_pck_curve_batch = evaluate_normalized_mean_error(preds, opts)
+        nme_batch, auc08_batch, auc10_batch, for_pck_curve_batch = evaluate_normalized_mean_error(preds, tpts)
         nme_vec.append(nme_batch)
 
         # optimize
@@ -131,7 +131,7 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
     with torch.no_grad():
         for i, item in enumerate(val_loader):
             data_time.update(time.time() - end)
-            input_, target, opts = item['img'].cuda(), item['target'].cuda(), item['opts'].cuda()
+            input_, target, tpts = item['img'].cuda(), item['target'].cuda(), item['tpts'].cuda()
             scale, hm_factor, heatmaps = item['sfactor'].cuda(), item['hmfactor'], item['heatmaps'].cuda()
             weighted_loss_mask_awing = item['weighted_loss_mask_awing'].cuda()
 
@@ -145,7 +145,7 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
             loss_dict, lossv = get_loss(criteria, output, target_dict=target_dict, **kwargs)
 
             # NME
-            nme_batch, auc08_batch, auc10_batch, for_pck_curve_batch = evaluate_normalized_mean_error(preds, opts)
+            nme_batch, auc08_batch, auc10_batch, for_pck_curve_batch = evaluate_normalized_mean_error(preds, tpts)
             nme_vec.append(nme_batch)
 
             losses.update(lossv.item(), input_.size(0))

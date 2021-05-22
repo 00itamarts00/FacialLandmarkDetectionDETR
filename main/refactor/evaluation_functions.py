@@ -41,33 +41,6 @@ def get_preds(scores):
     return preds
 
 
-# # deprecated
-# def compute_nme(preds, opts, box_size=None):
-#     target = opts.detach().cpu().numpy() if not isinstance(opts, np.ndarray) else opts
-#     preds = preds.detach().cpu().numpy() if not isinstance(preds, np.ndarray) else preds
-#
-#     N = preds.shape[0]
-#     L = preds.shape[1]
-#     rmse = np.zeros(N)
-#
-#     for i in range(N):
-#         pts_pred, pts_gt = preds[i,], target[i,]
-#         if L == 19:  # aflw
-#             interocular = box_size[i]
-#         elif L == 29:  # cofw
-#             interocular = np.linalg.norm(pts_gt[8,] - pts_gt[9,])
-#         elif L == 68:  # 300w
-#             # interocular
-#             interocular = np.linalg.norm(pts_gt[36,] - pts_gt[45,])
-#         elif L == 98:
-#             interocular = np.linalg.norm(pts_gt[60,] - pts_gt[72,])
-#         else:
-#             raise ValueError('Number of landmarks is wrong')
-#         rmse[i] = np.sum(np.linalg.norm(pts_pred - pts_gt, axis=1)) / (interocular * L)
-#
-#     return rmse
-
-
 def get_interocular_distance(pts, num_landmarks=68, box_size=None, tensor=True):
     norm_func = torch.norm if tensor else np.linalg.norm
     if num_landmarks == 19:  # aflw

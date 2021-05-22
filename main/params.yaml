@@ -1,12 +1,12 @@
 experiment:
-  name: hrnet
+  name: detr
   workspace_path: '/home/itamar/thesis/outputs'
 #  workspace_path: '/media/itamar/Itsayag_500Gb/500GB/Thesis/outputs'
   log_interval: 20
   single_image_train: False
   pretrained:
-    use_pretrained: False
-    timestamp: '210521_125841'
+    use_pretrained: True
+    timestamp: '220521_021837'
   save_model: True
   single_batch_debug: False
 
@@ -29,7 +29,7 @@ train:
   trainset_partition: 0.8
   epochs: 250
   torch_seed: 0
-  batch_size: 32
+  batch_size: 64
   trainable_parameters: null
   hm_amp_factor: 100
   run_valid: True
@@ -41,14 +41,14 @@ train:
     pin_memory: True
   backend:
     use_torch: True
-  model: 'HRNET'  # 'DETR', 'HRNET'
+  model: 'DETR'  # 'DETR', 'HRNET'
   optimizer: 'ADAMW'
   scheduler: 'MultiStepLR'
   criteria: 'MSELoss'
 
 optimizer:
   ADAM:
-    lr: 0.001
+    lr: 0.0001
     betas: [0.5, 0.999]
     eps: 1e-8
     weight_decay: 0
