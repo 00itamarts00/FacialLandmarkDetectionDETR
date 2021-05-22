@@ -71,7 +71,7 @@ class LDMTrain(object):
                        "transformer_heads": detr_args.nheads,
                        "transformer_position_embedding": detr_args.position_embedding,
                        'batch_size': self.tr['batch_size'],
-                       'step_size': self.pr['scheduler'][self.tr['scheduler']]['step_size'],
+                       # 'step_size': self.pr['scheduler'][self.tr['scheduler']]['step_size'],
                        'epochs': self.tr['epochs'],
                        'timestamp': g.TIMESTAMP,
                        "dataset": "WS02",
@@ -193,6 +193,8 @@ class LDMTrain(object):
                     model = model_best_state['state_dict']
         if self.tr['model'] == 'HRNET':
             logging.info(f'Loading HRNET Model')
+            config_path = self.pr['model']['HRNET']['config']
+            update_config(hrnet_config._C, config_path)
             if self.ex['pretrained']['use_pretrained']:
                 model_best_pth = os.path.join(self.paths.checkpoint, 'model_best.pth')
                 model_best_state = torch.load(model_best_pth)
@@ -201,21 +203,17 @@ class LDMTrain(object):
                     model.load_state_dict(model_best_state['state_dict'].state_dict())
                 except:
                     model = model_best_state['state_dict']
-                config_path = self.pr['model']['HRNET']['config']
-                update_config(hrnet_config._C, config_path)
             else:
                 kwargs = {}
-                config_path = self.pr['model']['HRNET']['config']
-                update_config(hrnet_config._C, config_path)
                 model = get_face_alignment_net(hrnet_config._C, **kwargs)
         return model.cuda()
-
     def load_scheduler(self):
+
         if self.tr['model'] == 'DETR':
             args_sc = self.pr['scheduler'][self.tr['scheduler']]
-            scheduler = StepLR(optimizer=self.optimizer,
-                               step_size=args_sc['step_size'],
-                               gamma=args_sc['gamma'])
+            scheduler = MultiStepLR(optimizer=self.optimizer,
+                                    milestones=args_sc['milestones'],
+                                    gamma=args_sc['gamma'])
         if self.tr['model'] == 'HRNET':
             scheduler = MultiStepLR(optimizer=self.optimizer,
                                     milestones=hrnet_config._C.TRAIN.LR_STEP,
