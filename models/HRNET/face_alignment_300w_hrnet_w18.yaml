@@ -11,8 +11,9 @@ MODEL:
   NAME: 'hrnet'
   NUM_JOINTS: 68
   INIT_WEIGHTS: true
-  PRETRAINED: '/home/itamar/thesis/MODELS/HRNET/hrnetv2_w18_imagenet_pretrained.pth'
-  SIGMA: 1.0
+  PRETRAINED: ''
+#  PRETRAINED: '/home/itamar/thesis/MODELS/HRNET/hrnetv2_w18_imagenet_pretrained.pth'
+  SIGMA: 1.5
   IMAGE_SIZE:
     - 256
     - 256
