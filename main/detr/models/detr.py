@@ -96,16 +96,16 @@ class SetCriterion(nn.Module):
 
     @staticmethod
     def l1_coord_loss(outputs, targets, num_coords):
-        return F.l1_loss(outputs, targets, reduction='sum').float()
+        return F.l1_loss(outputs, targets, reduction='mean')
 
     @staticmethod
     def l2_coord_loss(outputs, targets, num_coords):
-        return F.mse_loss(outputs, targets, reduction='sum').float()
+        return F.mse_loss(outputs, targets, reduction='mean')
 
-    def last_dec_coord_loss(self, outputs, targets, num_coords, type='l2'):
+    def last_dec_coord_loss(self, outputs, targets, num_coords, loss_type='l2'):
         preds = outputs['pred_coords'][-1]
         opts = targets['coords']
-        loss = self.l2_coord_loss if type == 'l2' else self.l1_coord_loss
+        loss = self.l2_coord_loss if loss_type == 'l2' else self.l1_coord_loss
         res = loss(outputs=preds, targets=opts, num_coords=num_coords)
         return res
 

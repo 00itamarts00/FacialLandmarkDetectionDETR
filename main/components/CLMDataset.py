@@ -55,7 +55,7 @@ def transform_data(transform, im, pts):
     ptsa = []
     for item in kps_aug:
         ptsa.append([item.coords[0][0], item.coords[0][1]])
-    ptsa = np.float64(np.asarray(ptsa))
+    ptsa = np.float32(np.asarray(ptsa))
     ima = image_aug
     return ima, ptsa
 

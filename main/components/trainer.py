@@ -206,6 +206,7 @@ class LDMTrain(object):
         device = torch.device(cuda['device_type'] if use_cuda else 'cpu')
         torch.backends.benchmark = self.tr['backend']['use_torch']
         torch.backends.cudnn.benchmark = True
+        torch.set_default_dtype(torch.float32)
         return device
 
     def train(self):
