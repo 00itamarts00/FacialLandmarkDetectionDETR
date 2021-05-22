@@ -110,8 +110,7 @@ def plot_grid_of_ldm(dataset, imgs, preds, tpts):
     w, h = closest_divisors(imgs.__len__())
     grid = ImageGrid(fig, 111,  # similar to subplot(111)
                      nrows_ncols=(w, h),  # creates 16x16 grid of axes
-                     axes_pad=0.0,  # pad between axes in inch.
-                     )
+                     axes_pad=0.0)  # pad between axes in inch.
     for ax, img, pred, tpt in zip(grid, imgs, preds, tpts):
         img = renorm_image(img)
         img = np.array(img).astype(np.uint8)
@@ -120,7 +119,7 @@ def plot_grid_of_ldm(dataset, imgs, preds, tpts):
 
         a = ax.scatter(pred.T[0], pred.T[1], s=1, c='r', label='pred')
         b = ax.scatter(tpt.T[0], tpt.T[1], s=1, c='b', label='gt')
-        for ptp, ptgt in zip(pred.T, tpt.T):
+        for ptp, ptgt in zip(pred, tpt):
             ax.plot([ptp[0], ptgt[0]], [ptp[1], ptgt[1]], 'g-', linewidth=0.5)
 
     plt.suptitle(f'Dataset: {dataset}\nToughest Predictions', y=0.98)

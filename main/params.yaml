@@ -78,7 +78,7 @@ model:
     output_branch: 'DPTS'
     input_size: [ 256, 256 ]
   HRNET:
-    sigma: 1.5    # TODO: understand this parameter
+    sigma: 1.5
     input_size: [ 256, 256 ]
     heatmap_size: [ 64, 64 ]
     target_type: 'Gaussian'
@@ -91,7 +91,7 @@ model:
 scheduler:
   MultiStepLR:
     milestones: [50, 150]
-    gamma: 0.1
+    gamma: 0
   StepLR:
     step_size: 50
     gamma: 0.5
