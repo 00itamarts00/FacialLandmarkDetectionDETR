@@ -6,15 +6,14 @@
 
 import os
 import random
-from main.components.CLMDataset import fliplr
+
+import cv2
 import torch
 import torch.utils.data as data
-import pandas as pd
 from PIL import Image
-import numpy as np
-import cv2
+
+from main.core.transforms import fliplr_joints, crop, generate_target, transform_pixel
 from utils.file_handler import FileHandler
-from main.refactor.transforms import fliplr_joints, crop, generate_target, transform_pixel
 from utils.plot_utils import *
 
 
@@ -40,8 +39,8 @@ class DataSet68(data.Dataset):
         return len(self.df)
 
     def __getitem__(self, idx):
-        image_path = os.path.join(self.data_root, self.df.iloc[idx, 2], 'img', self.df.iloc[idx, 1]+'.jpg')
-        pts_path = os.path.join(self.data_root, self.df.iloc[idx, 2], 'pts68', self.df.iloc[idx, 1]+'.pts')
+        image_path = os.path.join(self.data_root, self.df.iloc[idx, 2], 'img', self.df.iloc[idx, 1] + '.jpg')
+        pts_path = os.path.join(self.data_root, self.df.iloc[idx, 2], 'pts68', self.df.iloc[idx, 1] + '.pts')
 
         im_ = np.array(Image.open(image_path), dtype=np.float32)
         img = cv2.resize(im_, dsize=tuple(self.input_size), interpolation=cv2.INTER_CUBIC)
@@ -49,7 +48,7 @@ class DataSet68(data.Dataset):
 
         pts = np.array(FileHandler.load_json(pts_path)['pts'], dtype=np.float)
 
-        scale *= 1.25   # TODO: why is this done?
+        scale *= 1.25  # TODO: why is this done?
         nparts = pts.shape[0]
 
         r = 0
@@ -70,12 +69,12 @@ class DataSet68(data.Dataset):
 
         for i in range(nparts):
             if tpts[i, 1] > 0:
-                tpts[i, 0:2] = transform_pixel(tpts[i, 0:2]+1, center,
+                tpts[i, 0:2] = transform_pixel(tpts[i, 0:2] + 1, center,
                                                scale, self.output_size, rot=r)
-                target[i] = generate_target(target[i], tpts[i]-1, self.sigma,
+                target[i] = generate_target(target[i], tpts[i] - 1, self.sigma,
                                             label_type=self.label_type)
         img = img.astype(np.float32)
-        img = (img/255.0 - self.mean) / self.std
+        img = (img / 255.0 - self.mean) / self.std
         img = img.transpose([2, 0, 1])
         target = torch.Tensor(target)
         tpts = torch.Tensor(tpts)
@@ -86,4 +85,3 @@ class DataSet68(data.Dataset):
         plot_ldm_on_image(img, pts)
         plt.show()
         return img, target, meta
-

@@ -14,12 +14,12 @@ from torch.utils import data
 
 import main.globals as g
 from main.components.CLMDataset import CLMDataset, get_def_transform, get_data_list
+from main.core.functions import train_epoch, validate_epoch
+from main.core.nnstats import CnnStats
+from main.core.utils import save_checkpoint
 from main.detr import detr_args
 from main.detr.models.detr import build as build_model
 from main.detr.models.detr import load_criteria as load_criteria_detr
-from main.refactor.functions import train_epoch, validate_epoch
-from main.refactor.nnstats import CnnStats
-from main.refactor.utils import save_checkpoint
 from models.HRNET import hrnet_config, update_config
 from models.HRNET.HRNET import get_face_alignment_net
 from models.HRNET.hrnet_utils import get_optimizer
@@ -29,6 +29,8 @@ torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
 os.environ["WANDB_API_KEY"] = g.WANDB_API_KEY
+
+
 # os.environ["WANDB_MODE"] = "dryrun"
 
 
@@ -187,6 +189,8 @@ class LDMTrain(object):
                 kwargs = {}
                 model = get_face_alignment_net(hrnet_config._C, **kwargs)
         return model.cuda()
+
+
     def load_scheduler(self):
         if self.tr['model'] == 'DETR':
             args_sc = self.pr['scheduler'][self.tr['scheduler']]

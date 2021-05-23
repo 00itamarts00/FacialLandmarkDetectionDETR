@@ -1,22 +1,19 @@
-# ------------------------------------------------------------------------------
-# Copyright (c) Microsoft
-# Licensed under the MIT License.
-# Created by Tianheng Cheng(tianhengcheng@gmail.com), Yang Zhao
-# ------------------------------------------------------------------------------
-
 import logging
 import math
 import os
+import sys
 
 import numpy as np
 import torch
 from PIL import Image
 from sklearn.metrics import auc
 
+from main.core.functions import inference
+
 logger = logging.getLogger(__name__)
 # import wandb
 
-from main.refactor.transforms import transform_preds
+from main.core.transforms import transform_preds
 from utils.plot_utils import plot_grid_of_ldm
 
 
@@ -143,7 +140,7 @@ def analyze_results(datastets_inst, datasets, setnick, output=None, decoder_head
     auc10 = get_auc(tot_err, thresh=0.10) * 100
     nle = tot_err.mean() * 100
 
-    return {'setnick': setnick, 'auc08': auc08, 'auc10': auc10,  'NLE': nle, 'fail08': fail08, 'fail10': fail10,
+    return {'setnick': setnick, 'auc08': auc08, 'auc10': auc10, 'NLE': nle, 'fail08': fail08, 'fail10': fail10,
             'ds_logger': log}
 
 
@@ -209,3 +206,21 @@ def calc_CED(err, x_limit=0.08):
     bins_o = bins[0:th_idx]
     ced68_o = ced68[0:th_idx]
     return auc, failure, bins_o, ced68_o
+
+
+def evaluate_model(test_loader, model, **kwargs):
+    epts_batch = dict()
+    with torch.no_grad():
+        for batch_idx, item in enumerate(test_loader):
+            input_, tpts = item['img'].cuda(), item['tpts'].cuda()
+            scale, hm_factor, heatmaps = item['sfactor'].cuda(), item['hmfactor'], item['heatmaps'].cuda()
+
+            output, preds = inference(model, input_batch=input_, **kwargs)
+
+            item['preds'] = [i.cpu().detach() for i in preds]
+            epts_batch[batch_idx] = item
+            percent = f' ({100. * (batch_idx + 1) / len(test_loader):.02f}%)]'
+            sys.stdout.write(f"\rTesting batch {batch_idx}\t{percent}")
+            sys.stdout.flush()
+    sys.stdout.write(f"\n")
+    return epts_batch

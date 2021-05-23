@@ -9,7 +9,7 @@ import time
 import wandb
 
 from main.components.hm_regression import *
-from main.refactor.evaluation_functions import evaluate_normalized_mean_error, get_auc
+from main.core.evaluation_functions import evaluate_normalized_mean_error, get_auc
 from utils.data_organizer import AverageMeter
 from utils.plot_utils import plot_gt_pred_on_img
 

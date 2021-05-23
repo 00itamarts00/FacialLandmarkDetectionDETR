@@ -11,9 +11,15 @@ return_interm_layers = True
 dilation = False
 position_embedding = 'learned'
 enc_layers = 2
+<<<<<<< Updated upstream
 dec_layers = 4
 dim_feedforward = 2048
 hidden_dim = 512
+=======
+dec_layers = 2
+dim_feedforward = 1024
+hidden_dim = 256
+>>>>>>> Stashed changes
 dropout = 0.1
 nheads = 2
 num_queries = 68

@@ -6,11 +6,8 @@
 
 import cv2
 import numpy as np
-import scipy
-import scipy.misc
-from skimage.transform import resize
 import torch
-import copy
+from skimage.transform import resize
 
 MATCHED_PARTS = {
     "300W": ([1, 17], [2, 16], [3, 15], [4, 14], [5, 13], [6, 12], [7, 11], [8, 10],

@@ -1,14 +1,10 @@
+import copy
 import math
 
 import numpy as np
 import skimage
 import torch
-import copy
-from PIL import Image
-from scipy.stats import multivariate_normal
 from skimage import color
-from scipy.ndimage import center_of_mass
-from common.resizer import fft_resize, fft_resize_to
 
 MATCHED_PARTS = {
     "300W": ([1, 17], [2, 16], [3, 15], [4, 14], [5, 13], [6, 12], [7, 11], [8, 10],
