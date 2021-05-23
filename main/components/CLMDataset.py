@@ -31,7 +31,7 @@ def get_def_transform():
     ia.seed(random.randint(0, 1000))
 
     aug_pipeline = iaa.Sequential([
-        iaa.Sometimes(0.1, iaa.Multiply((0.9, 1.2))), # change brightness, doesn't affect keypoints
+        # iaa.Sometimes(0.1, iaa.Multiply((0.9, 1.2))), # change brightness, doesn't affect keypoints
         iaa.Sometimes(0.1, iaa.CropAndPad(percent=(-0.10, 0.10))),
         iaa.Sometimes(0.1, iaa.Affine(rotate=(-30, 30))),
         iaa.Sometimes(0.1, iaa.Affine(scale=(0.75, 1.25))),

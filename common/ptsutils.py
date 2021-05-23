@@ -64,7 +64,7 @@ def create_heatmaps2(pts, im_size, dst_size, sigma_gauss):
     mu_vec = np.floor(hm_pts).astype(int)
     sigma_vec = np.ones_like(mu_vec) * sigma_gauss
     for i, (mu, sigma) in enumerate(zip(mu_vec, sigma_vec)):
-        heatmaps[i] = make_gaussian2d(mu, sigma, dst_size, theta=0)
+        heatmaps[i] = np.clip(make_gaussian2d(mu, sigma, dst_size, theta=0), a_min=1e-3, a_max=1.5)
     return heatmaps, hm_pts
 
 
