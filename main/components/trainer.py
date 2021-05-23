@@ -29,9 +29,7 @@ torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
 os.environ["WANDB_API_KEY"] = g.WANDB_API_KEY
-
-
-# os.environ["WANDB_MODE"] = "dryrun"
+os.environ["WANDB_MODE"] = "dryrun"
 
 
 # TODO: Load tensorboard logs as df/dict
@@ -189,7 +187,6 @@ class LDMTrain(object):
                 kwargs = {}
                 model = get_face_alignment_net(hrnet_config._C, **kwargs)
         return model.cuda()
-
 
     def load_scheduler(self):
         if self.tr['model'] == 'DETR':
