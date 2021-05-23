@@ -7,8 +7,11 @@ import sys
 import time
 
 import wandb
+import torch
+import math
+import numpy as np
 
-from main.components.hm_regression import *
+from main.components.ptsutils import decode_preds_heatmaps
 from main.core.evaluation_functions import evaluate_normalized_mean_error, get_auc
 from utils.data_organizer import AverageMeter
 from utils.plot_utils import plot_gt_pred_on_img
@@ -170,7 +173,7 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
     auc08_epoch = get_auc(nme_vec_np, 0.08) * 100
     auc10_epoch = get_auc(nme_vec_np, 0.10) * 100
 
-    msg = f'Test Epoch {epoch}  | time: {batch_time.avg:.4f} | loss:{losses.avg:.4f} | NME: {nme:.4f}' \
+    msg = f'Test Epoch {epoch}  | time: {batch_time.avg:.4f} | loss:{losses.avg:.4f}  | NME: {nme:.4f}' \
           f' | AUC08: {auc08_epoch:.3f} | FR08: {failure_008_rate:.3f}'
     logger.info(msg)
 
