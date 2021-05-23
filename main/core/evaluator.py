@@ -8,9 +8,9 @@ from torch.utils import data
 
 import main.globals as g
 from main.core.CLMDataset import CLMDataset, get_data_list
-from main.core.trainer import LDMTrain
 from main.core.evaluation_functions import analyze_results
 from main.core.functions import inference
+from main.core.trainer import LDMTrain
 from utils.file_handler import FileHandler
 
 torch.cuda.empty_cache()
@@ -96,8 +96,8 @@ class Evaluator(LDMTrain):
             kwargs.update({'decoder_head': self.ev['prediction_from_decoder_head']})
             logger.info(f'Evaluating model using decoder head: {self.ev["prediction_from_decoder_head"]}')
             dataset_eval[setnick] = self.evaluate_model(test_loader=test_loader,
-                                                   model=self.model,
-                                                   **kwargs)
+                                                        model=self.model,
+                                                        **kwargs)
             res.update(dataset_eval)
             FileHandler.save_dict_to_pkl(dict_arg=dataset_eval, dict_path=results_file)
         r300WPub = analyze_results(res, ['helen/testset', 'lfpw/testset', 'ibug'], '300W Public Set',

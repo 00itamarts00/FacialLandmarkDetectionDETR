@@ -4,27 +4,23 @@
 # Created by Tianheng Cheng(tianhengcheng@gmail.com), Yang Zhao
 # ------------------------------------------------------------------------------
 
-import copy
-import json
 import os
 import random
-from PIL import Image
 
-from main.components.ptsutils import fliplr_img_pts
-from utils.file_handler import FileHandler
 import imgaug as ia
 import imgaug.augmenters as iaa
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
 import torch.utils.data as data
+from PIL import Image
 from skimage.morphology import dilation, square
-from skimage.color import rgb2gray
-from skimage.transform import resize
+
 # from torchvision.utils.transforms import fliplr_joints, crop, generate_target, transform_pixel
 import common.fileutils as fu
-from common.ptsutils import imshowpts, create_heatmaps2, create_base_gaussian
+from common.ptsutils import create_heatmaps2
+from main.components.ptsutils import fliplr_img_pts
+from utils.file_handler import FileHandler
 
 
 def get_def_transform():

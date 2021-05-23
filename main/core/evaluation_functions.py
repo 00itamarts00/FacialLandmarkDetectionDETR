@@ -87,11 +87,13 @@ def decode_preds(output, center, scale, res):
 
     return preds
 
+
 def transform_preds(coords, center, scale, output_size):
     for p in range(coords.size(0)):
         coords[p, 0:2] = torch.tensor(transform_pixel(coords[p, 0:2], center, scale,
                                                       output_size, invert=False, rot=False))
     return coords
+
 
 def transform_pixel(pt, center, scale, output_size, invert=0, rot=0):
     # Transform pixel location to different reference
@@ -101,6 +103,8 @@ def transform_pixel(pt, center, scale, output_size, invert=0, rot=0):
     new_pt = np.array([pt[0] - 1, pt[1] - 1, 1.]).T
     new_pt = np.dot(t, new_pt)
     return new_pt[:2].astype(int) + 1
+
+
 def get_transform(center, scale, output_size, rot=0):
     """
     General image processing functions
@@ -129,6 +133,7 @@ def get_transform(center, scale, output_size, rot=0):
         t_inv[:2, 2] *= -1
         t = np.dot(t_inv, np.dot(rot_mat, np.dot(t_mat, t)))
     return t
+
 
 def save_tough_images(dataset, dataset_inst, ds_err, output, decoder_head=-1):
     num_images_to_analyze = 12
@@ -244,4 +249,3 @@ def calc_CED(err, x_limit=0.08):
     bins_o = bins[0:th_idx]
     ced68_o = ced68[0:th_idx]
     return auc, failure, bins_o, ced68_o
-
