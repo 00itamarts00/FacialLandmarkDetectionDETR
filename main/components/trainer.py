@@ -128,7 +128,8 @@ class LDMTrain(object):
         batch_size = self.tr['batch_size'] if not self.ex['single_image_train'] else 1
         train_loader = data.DataLoader(trainset, batch_size=batch_size, shuffle=True, **kwargs)
         valid_loader = data.DataLoader(validset, batch_size=batch_size, shuffle=False, **kwargs)
-
+        logger.info(f'Number of train images : {len(trainset)}')
+        logger.info(f'Number of valid images : {len(validset)}')
         return train_loader, valid_loader
 
     def create_workspace(self):
@@ -187,12 +188,11 @@ class LDMTrain(object):
                 model = get_face_alignment_net(hrnet_config._C, **kwargs)
         return model.cuda()
     def load_scheduler(self):
-
         if self.tr['model'] == 'DETR':
             args_sc = self.pr['scheduler'][self.tr['scheduler']]
-            scheduler = MultiStepLR(optimizer=self.optimizer,
-                                    milestones=args_sc['milestones'],
-                                    gamma=args_sc['gamma'])
+            scheduler = StepLR(optimizer=self.optimizer,
+                               step_size=args_sc['step_size'],
+                               gamma=args_sc['gamma'])
         if self.tr['model'] == 'HRNET':
             scheduler = MultiStepLR(optimizer=self.optimizer,
                                     milestones=hrnet_config._C.TRAIN.LR_STEP,

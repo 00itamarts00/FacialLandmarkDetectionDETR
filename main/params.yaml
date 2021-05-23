@@ -29,7 +29,7 @@ train:
   trainset_partition: 0.8
   epochs: 250
   torch_seed: 0
-  batch_size: 32
+  batch_size: 64
   trainable_parameters: null
   hm_amp_factor: 100
   run_valid: True
@@ -43,7 +43,7 @@ train:
     use_torch: True
   model: 'DETR'  # 'DETR', 'HRNET'
   optimizer: 'ADAMW'
-  scheduler: 'MultiStepLR'
+  scheduler: 'StepLR'
   criteria: 'MSELoss'
 
 optimizer:
