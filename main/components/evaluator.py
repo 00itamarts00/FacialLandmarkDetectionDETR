@@ -9,7 +9,8 @@ from torch.utils import data
 import main.globals as g
 from main.components.CLMDataset import CLMDataset, get_data_list
 from main.components.trainer import LDMTrain
-from main.core.evaluation_functions import analyze_results, evaluate_model
+from main.core.evaluation_functions import analyze_results
+from main.core.functions import inference
 from utils.file_handler import FileHandler
 
 torch.cuda.empty_cache()
@@ -94,7 +95,7 @@ class Evaluator(LDMTrain):
             kwargs.update({'model_name': self.tr['model']})
             kwargs.update({'decoder_head': self.ev['prediction_from_decoder_head']})
             logger.info(f'Evaluating model using decoder head: {self.ev["prediction_from_decoder_head"]}')
-            dataset_eval[setnick] = evaluate_model(test_loader=test_loader,
+            dataset_eval[setnick] = self.evaluate_model(test_loader=test_loader,
                                                    model=self.model,
                                                    **kwargs)
             res.update(dataset_eval)
@@ -131,3 +132,20 @@ class Evaluator(LDMTrain):
         wandb.log({'r300WPri': r300WPri})
         wandb.log({'rCOFW68': rCOFW68})
         wandb.log({'rWFLW': rWFLW})
+
+    def evaluate_model(self, test_loader, model, **kwargs):
+        epts_batch = dict()
+        with torch.no_grad():
+            for batch_idx, item in enumerate(test_loader):
+                input_, tpts = item['img'].cuda(), item['tpts'].cuda()
+                scale, hm_factor, heatmaps = item['sfactor'].cuda(), item['hmfactor'], item['heatmaps'].cuda()
+
+                output, preds = inference(model, input_batch=input_, **kwargs)
+
+                item['preds'] = [i.cpu().detach() for i in preds]
+                epts_batch[batch_idx] = item
+                percent = f' ({100. * (batch_idx + 1) / len(test_loader):.02f}%)]'
+                sys.stdout.write(f"\rTesting batch {batch_idx}\t{percent}")
+                sys.stdout.flush()
+        sys.stdout.write(f"\n")
+        return epts_batch
