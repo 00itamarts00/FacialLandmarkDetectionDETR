@@ -5,7 +5,7 @@ experiment:
   log_interval: 20
   single_image_train: False
   pretrained:
-    use_pretrained: True
+    use_pretrained: False
     timestamp: '230521_021130'
   save_model: True
   single_batch_debug: False

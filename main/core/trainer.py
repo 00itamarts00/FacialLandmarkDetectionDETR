@@ -13,10 +13,10 @@ from torch.optim.lr_scheduler import StepLR, MultiStepLR
 from torch.utils import data
 
 import main.globals as g
-from main.components.CLMDataset import CLMDataset, get_def_transform, get_data_list
+from main.core.CLMDataset import CLMDataset, get_def_transform, get_data_list
 from main.core.functions import train_epoch, validate_epoch
-from main.core.nnstats import CnnStats
-from main.core.utils import save_checkpoint
+from main.components.nnstats import CnnStats
+from main.components.utils import save_checkpoint
 from main.detr import detr_args
 from main.detr.models.detr import build as build_model
 from main.detr.models.detr import load_criteria as load_criteria_detr
@@ -29,7 +29,7 @@ torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
 os.environ["WANDB_API_KEY"] = g.WANDB_API_KEY
-os.environ["WANDB_MODE"] = "dryrun"
+# os.environ["WANDB_MODE"] = "dryrun"
 
 
 # TODO: Load tensorboard logs as df/dict
@@ -192,8 +192,8 @@ class LDMTrain(object):
         if self.tr['model'] == 'DETR':
             args_sc = self.pr['scheduler'][self.tr['scheduler']]
             scheduler = StepLR(optimizer=self.optimizer,
-                               step_size=args_sc['step_size'],
-                               gamma=args_sc['gamma'])
+                               step_size=1,
+                               gamma=0)
         if self.tr['model'] == 'HRNET':
             scheduler = MultiStepLR(optimizer=self.optimizer,
                                     milestones=hrnet_config._C.TRAIN.LR_STEP,

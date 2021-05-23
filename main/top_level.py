@@ -2,8 +2,8 @@ import logging
 import sys
 
 import main.globals as g
-from main.components.evaluator import Evaluator
-from main.components.trainer import LDMTrain
+from main.core.evaluator import Evaluator
+from main.core.trainer import LDMTrain
 from utils.file_handler import FileHandler
 from utils.param_utils import *
 
@@ -49,8 +49,12 @@ class TopLevel(object):
         if params['experiment']['pretrained']['use_pretrained']:
             wp = params['experiment']['workspace_path']
             name = params['experiment']['name']
-            path = os.path.join(wp, name, params['experiment']['pretrained']['timestamp'])
-            return FileHandler.load_yaml(os.path.join(path, 'params.yaml'))
+            timestamp = params['experiment']['pretrained']['timestamp']
+            path = os.path.join(wp, name, timestamp)
+            params = FileHandler.load_yaml(os.path.join(path, 'params.yaml'))
+            params['experiment']['pretrained']['timestamp'] = timestamp
+            params['experiment']['pretrained']['use_pretrained'] = True
+            return params
         return params
 
     def single_batch_train(self):
@@ -77,7 +81,7 @@ class TopLevel(object):
         override_params = {'experiment':
                                {'pretrained':
                                     {'use_pretrained': True,
-                                     'timestamp': '220521_152138_hrnet'
+                                     'timestamp': '230521_021130'
                                      }
                                 }
                            }

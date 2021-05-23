@@ -7,8 +7,8 @@ from prettytable import PrettyTable
 from torch.utils import data
 
 import main.globals as g
-from main.components.CLMDataset import CLMDataset, get_data_list
-from main.components.trainer import LDMTrain
+from main.core.CLMDataset import CLMDataset, get_data_list
+from main.core.trainer import LDMTrain
 from main.core.evaluation_functions import analyze_results
 from main.core.functions import inference
 from utils.file_handler import FileHandler
