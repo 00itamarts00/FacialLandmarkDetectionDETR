@@ -58,7 +58,6 @@ def transform_data(transform, im, pts):
 
 def get_data_list(worksets_path, datasets, nickname, numpts=68):
     csvfile = os.path.join(worksets_path, f'{nickname}.csv')
-    print(os.getcwd())
     if os.path.exists(csvfile):
         dflist = pd.read_csv(csvfile)
     else:
@@ -104,7 +103,7 @@ class CLMDataset(data.Dataset):
         img_path = os.path.join(self.worksets_path, dataset, 'img', f'{imgname}.jpg')
 
         im_ = np.array(Image.open(img_path), dtype=np.float32)
-        pts_ = np.array(FileHandler.load_json(pts_path)['pts'])
+        pts_ = np.array(FileHandler.load_json(pts_path)['pts']).astype(np.float32)
         return im_, pts_
 
     def get_infodata(self, idx):
@@ -118,13 +117,13 @@ class CLMDataset(data.Dataset):
 
         img = ia.imresize_single_image(im_, self.input_size)
         sfactor = img.shape[0] / im_.shape[0]
-        pts = pts_ * sfactor
+        tpts = pts_ * sfactor
         if self.transform is not None and self.is_train:
             if random.random() > 0.5:
-                img, pts = fliplr_img_pts(img, pts)  # dataset=dataset.split('/')[0].upper())
-            img, pts = transform_data(self.transform, img, pts)
+                img, tpts = fliplr_img_pts(img, tpts)  # dataset=dataset.split('/')[0].upper())
+            img, tpts = transform_data(self.transform, img, tpts)
 
-        heatmaps, hm_pts = create_heatmaps2(pts, np.shape(img), self.hmsize, self.gaustd)
+        heatmaps, hm_pts = create_heatmaps2(tpts, np.shape(img), self.hmsize, self.gaustd)
         heatmaps = np.float32(heatmaps)  # /np.max(hm)
         hm_sum = np.sum(heatmaps, axis=0)
 
@@ -141,7 +140,7 @@ class CLMDataset(data.Dataset):
 
         item = {'index': idx, 'img_name': img_name, 'dataset': dataset,
                 'img': img, 'heatmaps': heatmaps, 'hm_pts': hm_pts, 'opts': pts_, 'sfactor': sfactor,
-                'hmfactor': hmfactor, 'tpts': pts, 'weighted_loss_mask_awing': weighted_loss_mask_awing}
+                'hmfactor': hmfactor, 'tpts': tpts, 'weighted_loss_mask_awing': weighted_loss_mask_awing}
         return item
 
     def update_mean_and_std(self):

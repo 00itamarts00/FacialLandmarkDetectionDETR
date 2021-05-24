@@ -29,7 +29,7 @@ torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
 os.environ["WANDB_API_KEY"] = g.WANDB_API_KEY
-os.environ["WANDB_MODE"] = "dryrun"
+# os.environ["WANDB_MODE"] = "dryrun"
 
 
 # TODO: Load tensorboard logs as df/dict
@@ -43,7 +43,7 @@ class LDMTrain(object):
         self.paths = self.create_workspace()
         self.last_epoch = self.get_last_epoch()
         self.device = self.backend_operations()
-        self.train_loader, self.valid_loader = self.create_dataloaders()
+        self.train_loader, self.valid_loader = self.create_dataloaders(datasets=self.tr['datasets']['to_use'])
         self.model = self.load_model()
         self.criteria = self.load_criteria()
         self.optimizer = self.load_optimizer()
@@ -105,9 +105,8 @@ class LDMTrain(object):
         }
         return writer_dict
 
-    def create_dataloaders(self):
+    def create_dataloaders(self, datasets=None):
         use_cuda = self.tr['cuda']['use']
-        datasets = self.tr['datasets']['to_use']
         trainset_partition = self.tr['trainset_partition']
         partition_seed = self.tr['partition_seed']
         use_augmentations = self.tr['datasets']['use_augmentations']
@@ -140,7 +139,9 @@ class LDMTrain(object):
                      'logs': os.path.join(workspace_path, 'logs'),
                      'stats': os.path.join(workspace_path, 'stats'),
                      'workset': self.workset_path,
-                     'wandb': os.path.join(workspace_path, 'wandb')
+                     'wandb': os.path.join(workspace_path, 'wandb'),
+                     'eval': os.path.join(workspace_path, 'evaluation'),
+                     'analysis': os.path.join(workspace_path, 'analysis')
                      }
         paths = FileHandler.dict_to_nested_namedtuple(structure)
         [os.makedirs(i, exist_ok=True) for i in paths]

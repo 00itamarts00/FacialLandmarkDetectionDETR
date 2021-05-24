@@ -33,7 +33,7 @@ def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **
     nme_vec = list()
     end = time.time()
 
-    for i, item in enumerate(train_loader):
+    for batch_idx, item in enumerate(train_loader):
         # measure data time
         data_time.update(time.time() - end)
 
@@ -68,9 +68,9 @@ def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **
         losses.update(lossv.item(), input_.size(0))
 
         batch_time.update(time.time() - end)
-        if i % log_interval == 0:
+        if batch_idx % log_interval == 0:
             speed = str(int(input_.size(0) / batch_time.val)).zfill(3)
-            msg = f'Epoch: [{str(epoch).zfill(3)}][{str(i).zfill(3)}/{len(train_loader)}]\t' \
+            msg = f'Epoch: [{str(epoch).zfill(3)}][{str(batch_idx).zfill(3)}/{len(train_loader)}]\t' \
                   f' Time: {batch_time.val:.3f}s ({batch_time.avg:.3f}s)\t Speed: {speed}' \
                   f' samples/s\t Data: {data_time.val:.3f}s ({data_time.avg:.3f}s)\t' \
                   f' Loss: {losses.val:.5f}\t AUC08: {auc08_batch:.2f}\t'

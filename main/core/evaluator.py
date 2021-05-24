@@ -31,10 +31,6 @@ class Evaluator(LDMTrain):
         return self.ex['log_interval']
 
     @property
-    def ds(self):
-        return self.pr['dataset']
-
-    @property
     def ev(self):
         return self.pr['evaluation']
 
@@ -42,60 +38,38 @@ class Evaluator(LDMTrain):
     def tr(self):
         return self.pr['train']
 
-    @property
-    def ex(self):
-        return self.pr['experiment']
-
-    def create_workspace(self):
-        workspace_path = self.pr['workspace_path']
-        structure = {'workspace': workspace_path,
-                     'checkpoint': os.path.join(workspace_path, 'checkpoint'),
-                     'args': os.path.join(workspace_path, 'args'),
-                     'logs': os.path.join(workspace_path, 'logs'),
-                     'stats': os.path.join(workspace_path, 'stats'),
-                     'eval': os.path.join(workspace_path, 'evaluation'),
-                     'workset': self.workset_path,
-                     'analysis': os.path.join(workspace_path, 'analysis')
-                     }
-        paths = FileHandler.dict_to_nested_namedtuple(structure)
-        [os.makedirs(i, exist_ok=True) for i in paths]
-        return paths
-
-    def backend_operations(self):
-        cuda = self.tr['cuda']
-        torch.manual_seed(self.tr['torch_seed'])
-        use_cuda = cuda['use'] and torch.cuda.is_available()
-        device = torch.device(cuda['device_type'] if use_cuda else 'cpu')
-        torch.backends.benchmark = self.tr['backend']['use_torch']
-        return device
-
-    def create_test_data_loader(self, dataset):
+    def create_test_dataloaders(self, datasets):
         use_cuda = self.tr['cuda']['use']
         num_workers = self.tr['cuda']['num_workers'] if sys.gettrace() is None else 0
-        kwargs = {'num_workers': num_workers, 'pin_memory': True} if use_cuda else {}
         batch_size = self.tr['batch_size']
-        setnick = dataset.replace('/', '_')
-        dflist = get_data_list(self.paths.workset, [dataset], setnick)
-        dflist.to_csv(os.path.join(self.paths.workset, f'{setnick}.csv'))
-        testset = CLMDataset(self.pr, self.paths, dflist)
-        test_loader = data.DataLoader(testset, batch_size=batch_size, shuffle=True, **kwargs)
-        return test_loader
+        kwargs = {'num_workers': num_workers, 'pin_memory': True} if use_cuda else {}
+        res = dict()
+        for ds in datasets:
+            nickname = ds.replace('/', '_')
+            dflist = get_data_list(worksets_path=self.workset_path, datasets=ds, nickname=nickname, numpts=68)
+            dflist.to_csv(os.path.join(self.paths.workset, f'{nickname}.csv'))
+            testset = CLMDataset(self.pr, self.paths, dflist, is_train=False, transform=None)
+            test_loader = data.DataLoader(testset, batch_size=batch_size, **kwargs)
+            logging.info(f'Test set: {ds}, Number of test images: {len(testset)}')
+            res[ds] = test_loader
+        return res
 
     def evaluate(self):
         res, dataset_eval = dict(), dict()
         self.model.eval()
         self.model.to(self.device)
-        for dataset in self.ev['datasets']:
+        test_loaders = self.create_test_dataloaders(self.ev['datasets'])
+        for dataset, dataloader in test_loaders.items():
             setnick = dataset.replace('/', '_')
             results_file = os.path.join(self.paths.eval, f'{setnick}.pkl')
             logger.info(f'Evaluating {setnick} testset')
-            test_loader = self.create_test_data_loader(dataset=dataset)
+            # test_loader = self.create_dataloaders(datasets=dataset)
             kwargs = {'log_interval': self.log_interval}
             kwargs.update({'hm_amp_factor': self.tr['hm_amp_factor']})
             kwargs.update({'model_name': self.tr['model']})
             kwargs.update({'decoder_head': self.ev['prediction_from_decoder_head']})
             logger.info(f'Evaluating model using decoder head: {self.ev["prediction_from_decoder_head"]}')
-            dataset_eval[setnick] = self.evaluate_model(test_loader=test_loader,
+            dataset_eval[setnick] = self.evaluate_model(test_loader=dataloader,
                                                         model=self.model,
                                                         **kwargs)
             res.update(dataset_eval)
@@ -137,12 +111,11 @@ class Evaluator(LDMTrain):
         epts_batch = dict()
         with torch.no_grad():
             for batch_idx, item in enumerate(test_loader):
-                input_, tpts = item['img'].cuda(), item['tpts'].cuda()
-                scale, hm_factor, heatmaps = item['sfactor'].cuda(), item['hmfactor'], item['heatmaps'].cuda()
+                input_, tpts = item['img'].cuda(), item['tpts'].numpy()
 
                 output, preds = inference(model, input_batch=input_, **kwargs)
 
-                item['preds'] = [i.cpu().detach() for i in preds]
+                item['preds'] = preds.detach().cpu().numpy()
                 epts_batch[batch_idx] = item
                 percent = f' ({100. * (batch_idx + 1) / len(test_loader):.02f}%)]'
                 sys.stdout.write(f"\rTesting batch {batch_idx}\t{percent}")
