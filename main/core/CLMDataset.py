@@ -131,7 +131,7 @@ class CLMDataset(data.Dataset):
         # see: https://arxiv.org/pdf/1904.07399v3.pdf
         weighted_loss_mask_awing = dilation(hm_sum, square(3)) >= 0.2
 
-        img = (np.float32(img) / 256 - self.mean) / self.std
+        img = (np.float32(img) / 255 - self.mean) / self.std
         img = torch.Tensor(img)
         img = img.permute(2, 0, 1)
 
@@ -171,7 +171,7 @@ class CLMDataset(data.Dataset):
         std = np.array([0.2858, 0.2547, 0.2488], dtype=np.float32)
 
         img_ = np.array(img).transpose([1, 2, 0])
-        img_ = 256 * (img_ * std + mean)
+        img_ = 255 * (img_ * std + mean)
         img_ = np.clip(img_, a_min=0, a_max=255)
 
         return np.ubyte(img_)
