@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+from functools import partial
 
 import torch
 from prettytable import PrettyTable
@@ -40,22 +41,18 @@ class Evaluator(LDMTrain):
 
     def create_test_dataloaders(self, datasets):
         use_cuda = self.tr["cuda"]["use"]
-        num_workers = self.tr["cuda"]["num_workers"] if sys.gettrace() is None else 0
         batch_size = self.tr["batch_size"]
+        num_workers = self.tr["cuda"]["num_workers"] if sys.gettrace() is None else 0
         kwargs = {"num_workers": num_workers, "pin_memory": True} if use_cuda else {}
         res = dict()
         for ds in datasets:
             nickname = ds.replace("/", "_")
-            dflist = get_data_list(
-                worksets_path=self.workset_path,
-                datasets=ds,
-                nickname=nickname,
-                numpts=68,
-            )
+            dflist = get_data_list(worksets_path=self.workset_path,
+                                   datasets=ds,
+                                   nickname=nickname,
+                                   numpts=68)
             dflist.to_csv(os.path.join(self.paths.workset, f"{nickname}.csv"))
-            testset = CLMDataset(
-                self.pr, self.paths, dflist, is_train=False, transform=None
-            )
+            testset = CLMDataset(self.pr, self.paths, dflist, is_train=False, transform=None)
             test_loader = data.DataLoader(testset, batch_size=batch_size, **kwargs)
             logging.info(f"Test set: {ds}, Number of test images: {len(testset)}")
             res[ds] = test_loader
@@ -75,80 +72,36 @@ class Evaluator(LDMTrain):
             kwargs.update({"hm_amp_factor": self.tr["hm_amp_factor"]})
             kwargs.update({"model_name": self.tr["model"]})
             kwargs.update({"decoder_head": self.ev["prediction_from_decoder_head"]})
-            logger.info(
-                f'Evaluating model using decoder head: {self.ev["prediction_from_decoder_head"]}'
-            )
-            dataset_eval[setnick] = self.evaluate_model(
-                test_loader=dataloader, model=self.model, **kwargs
-            )
+            logger.info(f'Evaluating model using decoder head: {self.ev["prediction_from_decoder_head"]}')
+            dataset_eval[setnick] = self.evaluate_model(test_loader=dataloader, model=self.model, **kwargs)
             res.update(dataset_eval)
             FileHandler.save_dict_to_pkl(dict_arg=dataset_eval, dict_path=results_file)
-        r300WPub = analyze_results(
-            res,
-            ["helen/testset", "lfpw/testset", "ibug"],
-            "300W Public Set",
-            output=self.paths.analysis,
-            decoder_head=self.ev["prediction_from_decoder_head"],
-        )
-        r300WPri = analyze_results(
-            res,
-            ["300W"],
-            "300W Private Set",
-            output=self.paths.analysis,
-            decoder_head=self.ev["prediction_from_decoder_head"],
-        )
-        rCOFW68 = analyze_results(
-            res,
-            ["COFW68/COFW_test_color"],
-            "COFW68",
-            output=self.paths.analysis,
-            decoder_head=self.ev["prediction_from_decoder_head"],
-        )
-        rWFLW = analyze_results(
-            res,
-            ["WFLW/testset"],
-            "WFLW",
-            output=self.paths.analysis,
-            decoder_head=self.ev["prediction_from_decoder_head"],
-        )
 
-        p = PrettyTable()
-        p.field_names = ["SET NAME", "AUC08", "FAIL08", "NLE"]
-        p.add_row(
-            [
-                r300WPub["setnick"],
-                r300WPub["auc08"],
-                r300WPub["fail08"],
-                r300WPub["NLE"],
-            ]
-        )
-        p.add_row(
-            [
-                r300WPri["setnick"],
-                r300WPri["auc08"],
-                r300WPri["fail08"],
-                r300WPri["NLE"],
-            ]
-        )
-        p.add_row(
-            [rCOFW68["setnick"], rCOFW68["auc08"], rCOFW68["fail08"], rCOFW68["NLE"]]
-        )
-        p.add_row([rWFLW["setnick"], rWFLW["auc08"], rWFLW["fail08"], rWFLW["NLE"]])
-        logger.info(p)
+        analyze_results_to_analysis_path = partial(analyze_results,
+                                                   output=self.paths.analysis,
+                                                   decoder_head=self.ev["prediction_from_decoder_head"])
 
-        for ds in [r300WPub, r300WPri, rCOFW68, rWFLW]:
-            if ds is not None:
-                p = PrettyTable()
-                p.field_names = ["DATASET", "AUC08", "AUC10"]
-                for dsk, dsv in ds["ds_logger"].items():
-                    p.add_row([dsk, dsv["auc08"], dsv["auc10"]])
-                logger.info(p)
+        iterable = dict()
+        iterable.update({"300W Public Set": ["helen/testset", "lfpw/testset", "ibug"]})
+        iterable.update({"300W Private Set": ["300W"]})
+        iterable.update({"COFW68": ["COFW68/COFW_test_color"]})
+        iterable.update({"WFLW": ["WFLW/testset"]})
 
         wandb.init(project="detr_landmark_detection", id=g.WANDB_INIT, resume="must")
-        wandb.log({"r300WPub": r300WPub})
-        wandb.log({"r300WPri": r300WPri})
-        wandb.log({"rCOFW68": rCOFW68})
-        wandb.log({"rWFLW": rWFLW})
+        p_main = PrettyTable()
+        ds_analysis = PrettyTable()
+        p_main.field_names = ["SET NAME", "AUC08", "FAIL08", "NLE"]
+        ds_analysis.field_names = ["SET NAME", "DATASET", "AUC08", "AUC10"]
+
+        for key, val in iterable.items():
+            analysis_results = analyze_results_to_analysis_path(datastets_inst=res, datasets=val, eval_name=key)
+            p_main.add_row([analysis_results['setnick'], analysis_results['auc08'], analysis_results['fail08'],
+                            analysis_results['NLE']])
+            for dsk, dsv in analysis_results["ds_logger"].items():
+                ds_analysis.add_row([key, dsk, dsv["auc08"], dsv["auc10"]])
+            wandb.log({key: val})
+        logger.info(p_main)
+        logger.info(ds_analysis)
 
     def evaluate_model(self, test_loader, model, **kwargs):
         epts_batch = dict()

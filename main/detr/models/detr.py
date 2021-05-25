@@ -82,11 +82,11 @@ class SetCriterion(nn.Module):
     """
 
     def __init__(
-        self,
-        last_dec_coord_loss=True,
-        multi_dec_loss=False,
-        multi_enc_loss=False,
-        heatmap_regression_via_backbone=False,
+            self,
+            last_dec_coord_loss=True,
+            multi_dec_loss=False,
+            multi_enc_loss=False,
+            heatmap_regression_via_backbone=False,
     ):
         """Create the criterion.
         Parameters:
@@ -229,7 +229,6 @@ def build(args):
     #     param.requires_grad = True
 
     return model
-
 
 # class MultiTaskLoss(nn.Module):
 #     def __init__(self, tasks):

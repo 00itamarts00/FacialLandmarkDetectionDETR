@@ -89,11 +89,7 @@ def decode_preds(output, res):
 
 def transform_preds(coords, center, scale, output_size):
     for p in range(coords.size(0)):
-        coords[p, 0:2] = torch.tensor(
-            transform_pixel(
-                coords[p, 0:2], center, scale, output_size, invert=False, rot=False
-            )
-        )
+        coords[p, 0:2] = torch.tensor(transform_pixel(coords[p, 0:2],  center, scale, output_size, invert=False, rot=False))
     return coords
 
 
@@ -169,20 +165,16 @@ def analyze_results(datastets_inst, datasets, eval_name, output=None, decoder_he
         for b_idx, b_idx_inst in dataset_inst.items():
             [preds.append(b) for b in b_idx_inst["preds"]]
             [tpts.append(b.numpy()) for b in b_idx_inst["tpts"]]
-        nme_ds, auc08_ds, auc10_ds, _ = evaluate_normalized_mean_error(
-            np.array(preds), np.array(tpts)
-        )
+        nme_ds, auc08_ds, auc10_ds, _ = evaluate_normalized_mean_error(np.array(preds), np.array(tpts))
         log_ds = {dataset: {"auc08": auc08_ds, "auc10": auc10_ds}}
         log.update(log_ds)
         [tot_err.append(i) for i in nme_ds]
         if output is not None:
-            save_tough_images(
-                f'{eval_name.replace(" ", "_")}-{dataset}',
-                dataset_inst,
-                nme_ds,
-                output,
-                decoder_head=decoder_head,
-            )
+            save_tough_images(dataset=f'{eval_name.replace(" ", "_")}-{dataset}',
+                              dataset_inst=dataset_inst,
+                              ds_err=nme_ds,
+                              output=output,
+                              decoder_head=decoder_head)
     tot_err = np.array(tot_err)
     fail08 = (tot_err > 0.08).mean() * 100
     fail10 = (tot_err > 0.10).mean() * 100
@@ -202,16 +194,10 @@ def analyze_results(datastets_inst, datasets, eval_name, output=None, decoder_he
 
 
 def evaluate_normalized_mean_error(predictions, groundtruth):
-    groundtruth = (
-        groundtruth.detach().cpu().numpy()
-        if not isinstance(groundtruth, np.ndarray)
-        else groundtruth
-    )
-    predictions = (
-        predictions.detach().cpu().numpy()
-        if not isinstance(predictions, np.ndarray)
-        else predictions
-    )
+    groundtruth = (groundtruth.detach().cpu().numpy() if not isinstance(groundtruth, np.ndarray)
+                   else groundtruth)
+    predictions = (predictions.detach().cpu().numpy() if not isinstance(predictions, np.ndarray)
+                   else predictions)
 
     # compute total average normalized mean error
     assert len(predictions) == len(groundtruth), \
