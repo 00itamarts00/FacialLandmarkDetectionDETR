@@ -11,7 +11,7 @@ import numpy as np
 import torch
 import wandb
 
-from main.components.ptsutils import decode_preds_heatmaps
+from utils.ptsutils import decode_preds_heatmaps
 from main.core.evaluation_functions import evaluate_normalized_mean_error, get_auc
 from utils.data_organizer import AverageMeter
 from utils.plot_utils import plot_gt_pred_on_img

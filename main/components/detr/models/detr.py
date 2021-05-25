@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from torch import nn
 
 from main.components.Awing.awing_loss import Loss_weighted
-from main.detr.misc import (
+from main.components.detr.misc import (
     NestedTensor,
     nested_tensor_from_tensor_list,
     get_world_size,

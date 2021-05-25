@@ -10,7 +10,7 @@ from torch.utils import data
 import main.globals as g
 from main.core.CLMDataset import CLMDataset, get_data_list
 from main.core.evaluation_functions import analyze_results
-from main.core.functions import inference
+from main.core.train_functions import inference
 from main.core.trainer import LDMTrain
 from utils.file_handler import FileHandler
 

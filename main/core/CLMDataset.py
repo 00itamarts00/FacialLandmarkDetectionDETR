@@ -19,7 +19,7 @@ from skimage.morphology import dilation, square
 # from torchvision.utils.transforms import fliplr_joints, crop, generate_target, transform_pixel
 import common.fileutils as fu
 from common.ptsutils import create_heatmaps2
-from main.components.ptsutils import fliplr_img_pts
+from utils.ptsutils import fliplr_img_pts
 from utils.file_handler import FileHandler
 
 
