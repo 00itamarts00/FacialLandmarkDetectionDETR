@@ -5,12 +5,13 @@ import torch.nn as nn
 import numpy as np
 from common.ptsutils import extract_pts_from_hm
 
-#import torch.nn.functional as F
+# import torch.nn.functional as F
 import os
 import pandas as pd
 
+
 class FT(nn.Module):
-    def __init__(self,num_channels = 1, bnorm = False):
+    def __init__(self, num_channels=1, bnorm=False):
         super(FT, self).__init__()
         self.features = nn.Sequential(
             nn.Conv2d(3, 64, 3, 1, padding=1),
@@ -20,7 +21,6 @@ class FT(nn.Module):
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=False),
             nn.MaxPool2d(kernel_size=2, stride=2),
-
             nn.Conv2d(64, 64, 3, 1, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=False),
@@ -28,7 +28,6 @@ class FT(nn.Module):
             nn.BatchNorm2d(128),
             nn.ReLU(inplace=False),
             nn.MaxPool2d(kernel_size=2, stride=2),
-
             nn.Conv2d(128, 128, 3, 1, padding=1),
             nn.BatchNorm2d(128),
             nn.ReLU(inplace=False),
@@ -44,7 +43,7 @@ class FT(nn.Module):
 
 
 class HM(nn.Module):
-    def __init__(self , input_depth = 68 , npts = 68):
+    def __init__(self, input_depth=68, npts=68):
         super(HM, self).__init__()
         self.hm_regressor = nn.Sequential(
             nn.Conv2d(input_depth, 64, 7, 1, padding=3),
@@ -58,7 +57,7 @@ class HM(nn.Module):
             nn.ReLU(inplace=False),
             nn.Conv2d(128, npts, 1, 1),
             nn.BatchNorm2d(npts),
-            #nn.ReLU(inplace=False),
+            # nn.ReLU(inplace=False),
         )
 
     def forward(self, x):
@@ -68,7 +67,7 @@ class HM(nn.Module):
 
 
 class Net(nn.Module):
-    def __init__(self, npts = 68, num_channels = 3,output_branch = 'HM03'):
+    def __init__(self, npts=68, num_channels=3, output_branch="HM03"):
         super(Net, self).__init__()
 
         self.num_branches_aloc = 8
@@ -77,43 +76,43 @@ class Net(nn.Module):
         self.ft0 = FT(num_channels=num_channels)
         self.hm0 = HM(input_depth=npts)
 
-        self.ft1 = FT(num_channels = num_channels)
+        self.ft1 = FT(num_channels=num_channels)
 
-        self.hm1 = HM(input_depth= npts)
-        self.hm2 = HM(input_depth =2 * npts)
-        self.hm3 = HM(input_depth =2 * npts)
-        self.hm4 = HM(input_depth =2 * npts)
+        self.hm1 = HM(input_depth=npts)
+        self.hm2 = HM(input_depth=2 * npts)
+        self.hm3 = HM(input_depth=2 * npts)
+        self.hm4 = HM(input_depth=2 * npts)
 
         # not in use for meanwhile. Attend to use ist in later versions.
-        self.hm5 = HM(input_depth =2 * npts)
-        self.hm6 = HM(input_depth =2 * npts)
-        self.hm7 = HM(input_depth =2 * npts)
-        self.hm8 = HM(input_depth =2 * npts)
+        self.hm5 = HM(input_depth=2 * npts)
+        self.hm6 = HM(input_depth=2 * npts)
+        self.hm7 = HM(input_depth=2 * npts)
+        self.hm8 = HM(input_depth=2 * npts)
 
         self.output_branch = output_branch
-        self.loss_fn = nn.MSELoss(reduction='mean')
+        self.loss_fn = nn.MSELoss(reduction="mean")
 
     def forward(self, x):
         xft1 = self.ft1(x)
 
-        xhm = [None]*self.num_branches
+        xhm = [None] * self.num_branches
         xhm0 = self.hm1(xft1)
         xhm1 = self.hm2(torch.cat((xft1, xhm0), 1))
         xhm2 = self.hm3(torch.cat((xft1, xhm1), 1))
         xhm3 = self.hm4(torch.cat((xft1, xhm2), 1))
 
-        return [xhm0,xhm1, xhm2 , xhm3,xft1]
+        return [xhm0, xhm1, xhm2, xhm3, xft1]
 
     def get_loss_fn(self):
         return self.loss_fn
 
-    def loss(self,output,target,opts = None):
+    def loss(self, output, target, opts=None):
         loss0 = self.loss_fn(output[0], target)
         loss1 = self.loss_fn(output[1], target)
         loss2 = self.loss_fn(output[2], target)
         loss3 = self.loss_fn(output[3], target)
-        #loss = loss0 #+ loss1 + loss2 + loss3
-        loss = [loss0 , loss1 , loss2 , loss3]
+        # loss = loss0 #+ loss1 + loss2 + loss3
+        loss = [loss0, loss1, loss2, loss3]
         return loss
 
     def extract_epts(self, output, hm_factor=4, res_factor=5):
@@ -123,8 +122,8 @@ class Net(nn.Module):
 
         col = []
         for idx_b in range(num_b):
-            col.append(f'HM{idx_b:02}')
-        col.append(f'output')
+            col.append(f"HM{idx_b:02}")
+        col.append(f"output")
 
         row = np.array(range(num_i))
 
@@ -137,13 +136,12 @@ class Net(nn.Module):
                 epts = extract_pts_from_hm(ehms[idx_i], res_factor=res_factor)
 
                 epts_ = np.multiply(epts, hm_factor)
-                df[f'HM{idx_b:02}'].loc[idx_i] = epts_
+                df[f"HM{idx_b:02}"].loc[idx_i] = epts_
 
-            df[f'output'] = df[self.output_branch]
+            df[f"output"] = df[self.output_branch]
         return df
 
-
-    def init_weights(self, pretrained='',base_std = 0.01):
+    def init_weights(self, pretrained="", base_std=0.01):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 # nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
@@ -154,20 +152,20 @@ class Net(nn.Module):
                 nn.init.constant_(m.bias, 0)
         if os.path.isfile(pretrained):
             pretrained_dict = torch.load(pretrained)
-            print('=> loading pretrained model {}'.format(pretrained))
+            print("=> loading pretrained model {}".format(pretrained))
             model_dict = self.state_dict()
-            pretrained_dict = {k: v for k, v in pretrained_dict.items()
-                               if k in model_dict.keys()}
+            pretrained_dict = {
+                k: v for k, v in pretrained_dict.items() if k in model_dict.keys()
+            }
             for k, _ in pretrained_dict.items():
-                print('=> loading {} pretrained model {}'.format(k, pretrained))
+                print("=> loading {} pretrained model {}".format(k, pretrained))
 
             model_dict.update(pretrained_dict)
             self.load_state_dict(model_dict)
 
 
-def get_instance(pretrained='',output_branch = 'HM03'):
-    model = Net(npts = 68,output_branch = output_branch)
+def get_instance(pretrained="", output_branch="HM03"):
+    model = Net(npts=68, output_branch=output_branch)
     model.init_weights(pretrained)
 
     return model
-

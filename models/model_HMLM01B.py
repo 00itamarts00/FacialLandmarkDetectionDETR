@@ -19,7 +19,6 @@ class FT(nn.Module):
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=False),
             nn.MaxPool2d(kernel_size=2, stride=2),
-
             nn.Conv2d(64, 64, 3, 1, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=False),
@@ -27,7 +26,6 @@ class FT(nn.Module):
             nn.BatchNorm2d(128),
             nn.ReLU(inplace=False),
             nn.MaxPool2d(kernel_size=2, stride=2),
-
             nn.Conv2d(128, 128, 3, 1, padding=1),
             nn.BatchNorm2d(128),
             nn.ReLU(inplace=False),
@@ -89,8 +87,8 @@ class Net(nn.Module):
         self.hm7 = HM(input_depth=2 * npts)
         self.hm8 = HM(input_depth=2 * npts)
 
-        self.output_branch = 'HM03'
-        self.loss_fn = nn.MSELoss(reduction='mean')
+        self.output_branch = "HM03"
+        self.loss_fn = nn.MSELoss(reduction="mean")
 
     def forward(self, x):
         xft1 = self.ft1(x)
@@ -110,12 +108,12 @@ class Net(nn.Module):
         return loss
 
     def extract_epts(self, output, hm_factor=4, res_factor=5):
-        num_i = len(output[0])   # num samples
+        num_i = len(output[0])  # num samples
         num_b = len(output)  # num branches
         col = []
         for idx_b in range(num_b):
-            col.append(f'HM{idx_b:02}')
-        col.append(f'output')
+            col.append(f"HM{idx_b:02}")
+        col.append(f"output")
         row = np.array(range(num_i))
         df = pd.DataFrame(columns=col, index=row)
 
@@ -124,11 +122,11 @@ class Net(nn.Module):
                 ehms = output[idx_b].cpu().detach().numpy()
                 epts = extract_pts_from_hm(ehms[idx_i], res_factor=res_factor)
                 epts_ = np.multiply(epts, hm_factor)
-                df[f'HM{idx_b:02}'].loc[idx_i] = epts_
-            df[f'output'] = df[self.output_branch]
+                df[f"HM{idx_b:02}"].loc[idx_i] = epts_
+            df[f"output"] = df[self.output_branch]
         return df
 
-    def init_weights(self, pretrained=''):
+    def init_weights(self, pretrained=""):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 # nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
@@ -139,18 +137,19 @@ class Net(nn.Module):
                 nn.init.constant_(m.bias, 0)
         if os.path.isfile(pretrained):
             pretrained_dict = torch.load(pretrained)
-            print('=> loading pretrained model {}'.format(pretrained))
+            print("=> loading pretrained model {}".format(pretrained))
             model_dict = self.state_dict()
-            pretrained_dict = {k: v for k, v in pretrained_dict.items()
-                               if k in model_dict.keys()}
+            pretrained_dict = {
+                k: v for k, v in pretrained_dict.items() if k in model_dict.keys()
+            }
             for k, _ in pretrained_dict.items():
-                print('=> loading {} pretrained model {}'.format(k, pretrained))
+                print("=> loading {} pretrained model {}".format(k, pretrained))
 
             model_dict.update(pretrained_dict)
             self.load_state_dict(model_dict)
 
 
-def get_instance(pretrained=''):
+def get_instance(pretrained=""):
     model = Net(npts=68)
     model.init_weights(pretrained)
 

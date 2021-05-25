@@ -18,7 +18,7 @@ def get_preds(scores):
     get predictions from score maps in torch Tensor
     return type: torch.LongTensor
     """
-    assert scores.dim() == 4, 'Score maps should be 4-dim'
+    assert scores.dim() == 4, "Score maps should be 4-dim"
     maxval, idx = torch.max(scores.view(scores.size(0), scores.size(1), -1), 2)
 
     maxval = maxval.view(scores.size(0), scores.size(1), 1)
@@ -45,7 +45,7 @@ def get_interocular_distance(pts, num_landmarks=68, box_size=None, tensor=True):
     elif num_landmarks == 98:
         interocular = norm_func(pts[60,] - pts[72,])
     else:
-        raise ValueError('Number of landmarks is wrong')
+        raise ValueError("Number of landmarks is wrong")
     return interocular
 
 
@@ -57,12 +57,14 @@ def extract_pts_from_hm(score_maps, scale, hm_input_ratio):
             max_idx = np.unravel_index(np.argmax(hm, axis=None), hm.shape)  # returns a tuple
             pttmp = np.array(max_idx)
             pts[p] = np.array([pttmp[1], pttmp[0]])
-        pts = np.multiply(np.multiply(pts, 1 / scale.numpy()[k]), hm_input_ratio.numpy()[k])
+        pts = np.multiply(
+            np.multiply(pts, 1 / scale.numpy()[k]), hm_input_ratio.numpy()[k]
+        )
         pred[k] = pts
     return torch.tensor(pred)
 
 
-def decode_preds(output, center, scale, res):
+def decode_preds(output, res):
     coords = get_preds(output)  # float type
 
     coords = coords.cpu()
@@ -73,14 +75,11 @@ def decode_preds(output, center, scale, res):
             px = int(math.floor(coords[n][p][0]))
             py = int(math.floor(coords[n][p][1]))
             if (px > 1) and (px < res[0]) and (py > 1) and (py < res[1]):
-                diff = torch.Tensor([hm[py - 1][px] - hm[py - 1][px - 2], hm[py][px - 1] - hm[py - 2][px - 1]])
-                coords[n][p] += diff.sign() * .25
-    coords += 0.5
+                diff = torch.Tensor([hm[py - 1][px] - hm[py - 1][px - 2],
+                                     hm[py][px - 1] - hm[py - 2][px - 1]])
+                coords[n][p] += diff.sign() * 0.25
+    coords += 0.5 - 1  # SM - Added -1 beacuse of WFLW offset
     preds = coords.clone()
-
-    # Transform back
-    for i in range(coords.size(0)):
-        preds[i] = transform_preds(coords[i], center[i], scale[i], res)
 
     if preds.dim() < 3:
         preds = preds.view(1, preds.size())
@@ -90,8 +89,11 @@ def decode_preds(output, center, scale, res):
 
 def transform_preds(coords, center, scale, output_size):
     for p in range(coords.size(0)):
-        coords[p, 0:2] = torch.tensor(transform_pixel(coords[p, 0:2], center, scale,
-                                                      output_size, invert=False, rot=False))
+        coords[p, 0:2] = torch.tensor(
+            transform_pixel(
+                coords[p, 0:2], center, scale, output_size, invert=False, rot=False
+            )
+        )
     return coords
 
 
@@ -100,7 +102,7 @@ def transform_pixel(pt, center, scale, output_size, invert=0, rot=0):
     t = get_transform(center, scale, output_size, rot=rot)
     if invert:
         t = np.linalg.inv(t)
-    new_pt = np.array([pt[0] - 1, pt[1] - 1, 1.]).T
+    new_pt = np.array([pt[0] - 1, pt[1] - 1, 1.0]).T
     new_pt = np.dot(t, new_pt)
     return new_pt[:2].astype(int) + 1
 
@@ -114,8 +116,8 @@ def get_transform(center, scale, output_size, rot=0):
     t = np.zeros((3, 3))
     t[0, 0] = float(output_size[1]) / h
     t[1, 1] = float(output_size[0]) / h
-    t[0, 2] = output_size[1] * (-float(center[0]) / h + .5)
-    t[1, 2] = output_size[0] * (-float(center[1]) / h + .5)
+    t[0, 2] = output_size[1] * (-float(center[0]) / h + 0.5)
+    t[1, 2] = output_size[0] * (-float(center[1]) / h + 0.5)
     t[2, 2] = 1
     if not rot == 0:
         rot = -rot  # To match direction of rotation from cropping
@@ -142,9 +144,9 @@ def save_tough_images(dataset, dataset_inst, ds_err, output, decoder_head=-1):
     imgs, preds, tpts = [], [], []
 
     for b_idx, b_idx_inst in dataset_inst.items():
-        [preds.append(b) for b in b_idx_inst['preds']]
-        [tpts.append(b.numpy()) for b in b_idx_inst['tpts']]
-        [imgs.append(b) for b in b_idx_inst['img']]
+        [preds.append(b) for b in b_idx_inst["preds"]]
+        [tpts.append(b.numpy()) for b in b_idx_inst["tpts"]]
+        [imgs.append(b) for b in b_idx_inst["img"]]
 
     img_plot = [imgs[i] for i in idx_argmax]
     preds_plot = [preds[i] for i in idx_argmax]
@@ -152,28 +154,35 @@ def save_tough_images(dataset, dataset_inst, ds_err, output, decoder_head=-1):
 
     analyze_pic = plot_grid_of_ldm(dataset, img_plot, preds_plot, tpts_plot)
     im = Image.fromarray(analyze_pic)
-    im.save(os.path.join(output, f'{dataset}_dec_{decoder_head}_analysis_image.png'))
+    im.save(os.path.join(output, f"{dataset}_dec_{decoder_head}_analysis_image.png"))
 
 
 def analyze_results(datastets_inst, datasets, eval_name, output=None, decoder_head=-1):
-    logger.info(f'Analyzing results on {eval_name} Datasets')
-    datasets = [i.replace('/', '_') for i in datasets]
+    logger.info(f"Analyzing results on {eval_name} Datasets")
+    datasets = [i.replace("/", "_") for i in datasets]
     tot_err, log = list(), dict()
     for dataset, dataset_inst in datastets_inst.items():
         if dataset not in datasets:
             continue
-        logging.info(f'Analysing dataset {dataset} in {eval_name}')
+        logging.info(f"Analysing dataset {dataset} in {eval_name}")
         preds, tpts = list(), list()
         for b_idx, b_idx_inst in dataset_inst.items():
-            [preds.append(b) for b in b_idx_inst['preds']]
-            [tpts.append(b.numpy()) for b in b_idx_inst['tpts']]
-        nme_ds, auc08_ds, auc10_ds, _ = evaluate_normalized_mean_error(np.array(preds), np.array(tpts))
-        log_ds = {dataset: {'auc08': auc08_ds, 'auc10': auc10_ds}}
+            [preds.append(b) for b in b_idx_inst["preds"]]
+            [tpts.append(b.numpy()) for b in b_idx_inst["tpts"]]
+        nme_ds, auc08_ds, auc10_ds, _ = evaluate_normalized_mean_error(
+            np.array(preds), np.array(tpts)
+        )
+        log_ds = {dataset: {"auc08": auc08_ds, "auc10": auc10_ds}}
         log.update(log_ds)
         [tot_err.append(i) for i in nme_ds]
         if output is not None:
-            save_tough_images(f'{eval_name.replace(" ", "_")}-{dataset}', dataset_inst, nme_ds, output,
-                              decoder_head=decoder_head)
+            save_tough_images(
+                f'{eval_name.replace(" ", "_")}-{dataset}',
+                dataset_inst,
+                nme_ds,
+                output,
+                decoder_head=decoder_head,
+            )
     tot_err = np.array(tot_err)
     fail08 = (tot_err > 0.08).mean() * 100
     fail10 = (tot_err > 0.10).mean() * 100
@@ -181,18 +190,33 @@ def analyze_results(datastets_inst, datasets, eval_name, output=None, decoder_he
     auc10 = get_auc(tot_err, thresh=0.10) * 100
     nle = tot_err.mean() * 100
 
-    return {'setnick': eval_name, 'auc08': auc08, 'auc10': auc10, 'NLE': nle, 'fail08': fail08, 'fail10': fail10,
-            'ds_logger': log}
+    return {
+        "setnick": eval_name,
+        "auc08": auc08,
+        "auc10": auc10,
+        "NLE": nle,
+        "fail08": fail08,
+        "fail10": fail10,
+        "ds_logger": log,
+    }
 
 
 def evaluate_normalized_mean_error(predictions, groundtruth):
-    groundtruth = groundtruth.detach().cpu().numpy() if not isinstance(groundtruth, np.ndarray) else groundtruth
-    predictions = predictions.detach().cpu().numpy() if not isinstance(predictions, np.ndarray) else predictions
+    groundtruth = (
+        groundtruth.detach().cpu().numpy()
+        if not isinstance(groundtruth, np.ndarray)
+        else groundtruth
+    )
+    predictions = (
+        predictions.detach().cpu().numpy()
+        if not isinstance(predictions, np.ndarray)
+        else predictions
+    )
 
-    ## compute total average normlized mean error
+    # compute total average normalized mean error
     assert len(predictions) == len(groundtruth), \
-        'The lengths of predictions and ground-truth are not consistent : {} vs {}'.format(len(predictions),
-                                                                                           len(groundtruth))
+        "The lengths of predictions and ground-truth are not consistent : {} vs {}".format(
+            len(predictions), len(groundtruth))
     num_images = len(predictions)
 
     num_points = predictions.shape[1]
@@ -202,7 +226,7 @@ def evaluate_normalized_mean_error(predictions, groundtruth):
     elif num_points == 51 or num_points == 49:
         interocular_distance_gt = np.linalg.norm(groundtruth[:, 19] - groundtruth[:, 28], axis=1)
     else:
-        raise Exception('----> Unknown number of points : {}'.format(num_points))
+        raise Exception("----> Unknown number of points : {}".format(num_points))
     for i, (pred, gt) in enumerate(zip(predictions, groundtruth)):
         dis_sum = np.linalg.norm(pred - gt, axis=1).sum()
         error_per_image[i] = dis_sum / (num_points * interocular_distance_gt[i])
@@ -212,8 +236,8 @@ def evaluate_normalized_mean_error(predictions, groundtruth):
     area_under_curve08 = get_auc(error_per_image, 0.08) * 100
     area_under_curve10 = get_auc(error_per_image, 0.10) * 100
 
-    accuracy_under_007 = np.sum(error_per_image < 0.07) * 100. / error_per_image.size
-    accuracy_under_008 = np.sum(error_per_image < 0.08) * 100. / error_per_image.size
+    accuracy_under_007 = np.sum(error_per_image < 0.07) * 100.0 / error_per_image.size
+    accuracy_under_008 = np.sum(error_per_image < 0.08) * 100.0 / error_per_image.size
 
     for_pck_curve = []
     for x in range(0, 3501, 1):

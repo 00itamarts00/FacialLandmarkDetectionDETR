@@ -1,5 +1,5 @@
 experiment:
-  name: detr
+  name: hrnet
   workspace_path: '/home/itamar/thesis/outputs'
 #  workspace_path: '/media/itamar/Itsayag_500Gb/500GB/Thesis/outputs'
   log_interval: 20

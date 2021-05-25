@@ -7,22 +7,98 @@ import torch
 from skimage import color
 
 MATCHED_PARTS = {
-    "300W": ([1, 17], [2, 16], [3, 15], [4, 14], [5, 13], [6, 12], [7, 11], [8, 10],
-             [18, 27], [19, 26], [20, 25], [21, 24], [22, 23],
-             [32, 36], [33, 35],
-             [37, 46], [38, 45], [39, 44], [40, 43], [41, 48], [42, 47],
-             [49, 55], [50, 54], [51, 53], [62, 64], [61, 65], [68, 66], [59, 57], [60, 56]),
-    "MENPO": ([1, 6], [2, 5], [3, 4],
-              [7, 12], [8, 11], [9, 10],
-              [13, 15], [16, 18]),
-    "COFW": ([1, 2], [5, 7], [3, 4], [6, 8], [9, 10], [11, 12], [13, 15], [17, 18], [14, 16], [19, 20], [23, 24]),
-    "WFLW": ([0, 32], [1, 31], [2, 30], [3, 29], [4, 28], [5, 27], [6, 26], [7, 25], [8, 24], [9, 23], [10, 22],
-             [11, 21], [12, 20], [13, 19], [14, 18], [15, 17],  # check
-             [33, 46], [34, 45], [35, 44], [36, 43], [37, 42], [38, 50], [39, 49], [40, 48], [41, 47],  # elbrow
-             [60, 72], [61, 71], [62, 70], [63, 69], [64, 68], [65, 75], [66, 74], [67, 73],
-             [55, 59], [56, 58],
-             [76, 82], [77, 81], [78, 80], [87, 83], [86, 84],
-             [88, 92], [89, 91], [95, 93], [96, 97])}
+    "300W": (
+        [1, 17],
+        [2, 16],
+        [3, 15],
+        [4, 14],
+        [5, 13],
+        [6, 12],
+        [7, 11],
+        [8, 10],
+        [18, 27],
+        [19, 26],
+        [20, 25],
+        [21, 24],
+        [22, 23],
+        [32, 36],
+        [33, 35],
+        [37, 46],
+        [38, 45],
+        [39, 44],
+        [40, 43],
+        [41, 48],
+        [42, 47],
+        [49, 55],
+        [50, 54],
+        [51, 53],
+        [62, 64],
+        [61, 65],
+        [68, 66],
+        [59, 57],
+        [60, 56],
+    ),
+    "MENPO": ([1, 6], [2, 5], [3, 4], [7, 12], [8, 11], [9, 10], [13, 15], [16, 18]),
+    "COFW": (
+        [1, 2],
+        [5, 7],
+        [3, 4],
+        [6, 8],
+        [9, 10],
+        [11, 12],
+        [13, 15],
+        [17, 18],
+        [14, 16],
+        [19, 20],
+        [23, 24],
+    ),
+    "WFLW": (
+        [0, 32],
+        [1, 31],
+        [2, 30],
+        [3, 29],
+        [4, 28],
+        [5, 27],
+        [6, 26],
+        [7, 25],
+        [8, 24],
+        [9, 23],
+        [10, 22],
+        [11, 21],
+        [12, 20],
+        [13, 19],
+        [14, 18],
+        [15, 17],  # check
+        [33, 46],
+        [34, 45],
+        [35, 44],
+        [36, 43],
+        [37, 42],
+        [38, 50],
+        [39, 49],
+        [40, 48],
+        [41, 47],  # elbrow
+        [60, 72],
+        [61, 71],
+        [62, 70],
+        [63, 69],
+        [64, 68],
+        [65, 75],
+        [66, 74],
+        [67, 73],
+        [55, 59],
+        [56, 58],
+        [76, 82],
+        [77, 81],
+        [78, 80],
+        [87, 83],
+        [86, 84],
+        [88, 92],
+        [89, 91],
+        [95, 93],
+        [96, 97],
+    ),
+}
 
 
 def get_face68_flip():
@@ -72,12 +148,12 @@ def fliplr_img_pts(im, pts):
 
 def fliplr_img_pts_ver2(img, pts, dataset):
     img_ = np.fliplr(img)
-    parent_dataset = '300W' if dataset in ['HELEN', 'LFPW', 'IBUG'] else dataset
+    parent_dataset = "300W" if dataset in ["HELEN", "LFPW", "IBUG"] else dataset
     pts_ = fliplr_joints(pts, img_.shape[0], dataset=parent_dataset)
     return img_, pts_
 
 
-def fliplr_joints(x, width, dataset='menpo'):
+def fliplr_joints(x, width, dataset="menpo"):
     """
     flip coords
     """
@@ -85,7 +161,7 @@ def fliplr_joints(x, width, dataset='menpo'):
     # Flip horizontal
     x[:, 0] = width - x[:, 0]
 
-    if dataset == 'WFLW':
+    if dataset == "WFLW":
         for pair in matched_parts:
             tmp = x[pair[0], :].copy()
             x[pair[0], :] = x[pair[1], :]
@@ -103,7 +179,7 @@ def get_preds(scores):
     get predictions from score maps in torch Tensor
     return type: torch.LongTensor
     """
-    assert scores.dim() == 4, 'Score maps should be 4-dim'
+    assert scores.dim() == 4, "Score maps should be 4-dim"
     maxval, idx = torch.max(scores.view(scores.size(0), scores.size(1), -1), 2)
 
     maxval = maxval.view(scores.size(0), scores.size(1), 1)
@@ -130,8 +206,13 @@ def decode_preds_heatmaps(output, hm_size=None):
         for p, hm in enumerate(img):
             px, py = coord[p][0].floor().int().item(), coord[p][1].floor().int().item()
             if (px > 1) and (px < hm_size[0]) and (py > 1) and (py < hm_size[1]):
-                diff = torch.Tensor([hm[py - 1][px] - hm[py - 1][px - 2], hm[py][px - 1] - hm[py - 2][px - 1]])
-                coords[n][p] += diff.sign() * .25
+                diff = torch.Tensor(
+                    [
+                        hm[py - 1][px] - hm[py - 1][px - 2],
+                        hm[py][px - 1] - hm[py - 2][px - 1],
+                    ]
+                )
+                coords[n][p] += diff.sign() * 0.25
     coords += 0.5
     preds = coords.clone()
 
@@ -183,7 +264,7 @@ def crop_image_by_pts(im, pts, ppad=20):
     nw = math.floor(min(nw, imw) / 2) * 2
     nh = math.floor(min(nh, imh) / 2) * 2
 
-    imc = np.copy(im[min_yp:min_yp + nh, min_xp:min_xp + nw])
+    imc = np.copy(im[min_yp : min_yp + nh, min_xp : min_xp + nw])
 
     pts_ = np.copy(pts)
     pts_[:, 0] = pts_[:, 0] - min_xp
@@ -200,7 +281,7 @@ def crop_image_by_pts(im, pts, ppad=20):
     yy = (dim - nh) // 2
 
     # copy img image into center of result image
-    im_[yy:yy + nh, xx:xx + nw] = imc
+    im_[yy : yy + nh, xx : xx + nw] = imc
 
     pts_[:, 0] = pts_[:, 0] + xx
     pts_[:, 1] = pts_[:, 1] + yy

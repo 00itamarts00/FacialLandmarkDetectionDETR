@@ -14,7 +14,7 @@ from torchvision.transforms import ToTensor
 
 def fig_to_image():
     buf = io.BytesIO()
-    plt.savefig(buf, format='jpeg')
+    plt.savefig(buf, format="jpeg")
     buf.seek(0)
 
     image = PIL.Image.open(buf)
@@ -30,20 +30,23 @@ class SquarePad:
         hp = int((max_wh - w) / 2)
         vp = int((max_wh - h) / 2)
         padding = (hp, vp, hp, vp)
-        return F.pad(image, padding, 0, 'constant')
+        return F.pad(image, padding, 0, "constant")
 
 
 # now use it as the replacement of transforms.Pad class
 
+
 def get_grid_image(gen, point):
     image_size = 256
-    data_transforms = transforms.Compose([
-        SquarePad(),
-        transforms.Resize(image_size),
-        transforms.CenterCrop(image_size),
-        transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-    ])
+    data_transforms = transforms.Compose(
+        [
+            SquarePad(),
+            transforms.Resize(image_size),
+            transforms.CenterCrop(image_size),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ]
+    )
     im_ = PIL.Image.fromarray(np.uint8(gen[0]))
 
     images = [data_transforms(image) for image in gen]
@@ -53,7 +56,7 @@ def get_grid_image(gen, point):
     return image.cpu().numpy().transpose(1, 2, 0)
 
 
-'''
+"""
 plt.figure()
 plt.plot([1, 2])
 plt.title("test")
@@ -71,4 +74,4 @@ for n_iter in range(100):
     if n_iter % 10 == 0:
         writer.add_image('Image', image, n_iter)
 
-'''
+"""

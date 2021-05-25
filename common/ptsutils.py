@@ -32,7 +32,12 @@ def create_base_gaussian(dst_size, std_factor, magnify=20):
     img = img.reshape((xres, yres))
 
     winsize = round(std_factor * 3)
-    imga = np.copy(img[int(mu_y - winsize + 1):int(mu_y + winsize), int(mu_x - winsize + 1):int(mu_x + winsize)])
+    imga = np.copy(
+        img[
+            int(mu_y - winsize + 1) : int(mu_y + winsize),
+            int(mu_x - winsize + 1) : int(mu_x + winsize),
+        ]
+    )
     return imga
 
 
@@ -64,7 +69,9 @@ def create_heatmaps2(pts, im_size, dst_size, sigma_gauss):
     mu_vec = np.floor(hm_pts).astype(int)
     sigma_vec = np.ones_like(mu_vec) * sigma_gauss
     for i, (mu, sigma) in enumerate(zip(mu_vec, sigma_vec)):
-        heatmaps[i] = np.clip(make_gaussian2d(mu, sigma, dst_size, theta=0), a_min=1e-3, a_max=1.5)
+        heatmaps[i] = np.clip(
+            make_gaussian2d(mu, sigma, dst_size, theta=0), a_min=1e-3, a_max=1.5
+        )
     return heatmaps, hm_pts
 
 
@@ -86,7 +93,9 @@ def make_gaussian2d(mu, sigma, out_size, theta=0):
     a0 = np.cos(theta) * x0 - np.sin(theta) * y0
     b0 = np.sin(theta) * x0 + np.cos(theta) * y0
 
-    return np.exp(-(((a - a0) ** 2) / (2 * (sx ** 2)) + ((b - b0) ** 2) / (2 * (sy ** 2))))
+    return np.exp(
+        -(((a - a0) ** 2) / (2 * (sx ** 2)) + ((b - b0) ** 2) / (2 * (sy ** 2)))
+    )
 
 
 def extract_pts_from_hm(hm, res_factor=5):
@@ -104,16 +113,20 @@ def extract_pts_from_hm(hm, res_factor=5):
     return pts
 
 
-def imshowpts(im, pts=[], figure_flag=True, opts=[], title='', show_flag=True):
+def imshowpts(im, pts=[], figure_flag=True, opts=[], title="", show_flag=True):
     if figure_flag:
         plt.figure()
     plt.imshow(im)
     if len(pts) != 0:
-        plt.scatter(pts[:, 0], pts[:, 1], s=10, marker='.', c='r')  # pts[:, 0] => x , pts[:, 1] => y
-        plt.scatter(pts[0, 0], pts[0, 1], s=30, marker='*', c='r')
+        plt.scatter(
+            pts[:, 0], pts[:, 1], s=10, marker=".", c="r"
+        )  # pts[:, 0] => x , pts[:, 1] => y
+        plt.scatter(pts[0, 0], pts[0, 1], s=30, marker="*", c="r")
     if len(opts) != 0:
-        plt.scatter(opts[:, 0], opts[:, 1], s=10, marker='o', c='g')  # pts[:, 0] => x , pts[:, 1] => y
-        plt.scatter(pts[0, 0], pts[0, 1], s=30, marker='*', c='g')
+        plt.scatter(
+            opts[:, 0], opts[:, 1], s=10, marker="o", c="g"
+        )  # pts[:, 0] => x , pts[:, 1] => y
+        plt.scatter(pts[0, 0], pts[0, 1], s=30, marker="*", c="g")
     plt.pause(0.001)  # p
     plt.title(title)
     if show_flag:
@@ -162,7 +175,7 @@ def crop_image_by_pts(im, pts, ppad=20):
     nw = math.floor(min(nw, imw) / 2) * 2
     nh = math.floor(min(nh, imh) / 2) * 2
 
-    imc = np.copy(im[min_yp:min_yp + nh, min_xp:min_xp + nw])
+    imc = np.copy(im[min_yp : min_yp + nh, min_xp : min_xp + nw])
 
     pts_ = np.copy(pts)
     pts_[:, 0] = pts_[:, 0] - min_xp
@@ -179,7 +192,7 @@ def crop_image_by_pts(im, pts, ppad=20):
     yy = (dim - nh) // 2
 
     # copy img image into center of result image
-    im_[yy:yy + nh, xx:xx + nw] = imc
+    im_[yy : yy + nh, xx : xx + nw] = imc
 
     pts_[:, 0] = pts_[:, 0] + xx
     pts_[:, 1] = pts_[:, 1] + yy
@@ -203,8 +216,7 @@ def distance(a, b):
 
 def rotate(p, origin=(0, 0), degrees=0):
     angle = np.deg2rad(degrees)
-    R = np.array([[np.cos(angle), -np.sin(angle)],
-                  [np.sin(angle), np.cos(angle)]])
+    R = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
     o = np.atleast_2d(origin)
     p = np.atleast_2d(p)
     return np.squeeze((R @ (p.T - o.T) + o.T).T)
@@ -264,7 +276,12 @@ def image_pad(img, pts, per=50):
     padsz1s = int(round(padsz1 / 2))
     padsz1e = padsz1 - padsz1s
 
-    pimg = np.pad(img, ((padsz0s, padsz0e), (padsz1s, padsz1e)), mode='constant', constant_values=(0, 0))
+    pimg = np.pad(
+        img,
+        ((padsz0s, padsz0e), (padsz1s, padsz1e)),
+        mode="constant",
+        constant_values=(0, 0),
+    )
     ppts = np.copy(pts)
     ppts[:, 0] = pts[:, 0] + padsz1s  # Y,X are dims 0,1 at shape, but 1,0 at pts
     ppts[:, 1] = pts[:, 1] + padsz0s

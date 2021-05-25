@@ -9,6 +9,7 @@ import os
 import pandas as pd
 from common.ptsutils import extract_pts_from_hm
 from models.model_DETR import DETR_Decoder
+
 # import torch.nn.functional as F
 import os
 
@@ -32,7 +33,6 @@ class FT(nn.Module):
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=False),
             nn.MaxPool2d(kernel_size=2, stride=2),
-
             nn.Conv2d(64, 64, 3, 1, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=False),
@@ -40,7 +40,6 @@ class FT(nn.Module):
             nn.BatchNorm2d(128),
             nn.ReLU(inplace=False),
             nn.MaxPool2d(kernel_size=2, stride=2),
-
             nn.Conv2d(128, 128, 3, 1, padding=1),
             nn.BatchNorm2d(128),
             nn.ReLU(inplace=False),
@@ -80,7 +79,7 @@ class HM(nn.Module):
 
 
 class Net(nn.Module):
-    def __init__(self, npts=68, num_channels=3, output_branch='HM03'):
+    def __init__(self, npts=68, num_channels=3, output_branch="HM03"):
         super(Net, self).__init__()
 
         self.num_branches_aloc = 8
@@ -103,8 +102,8 @@ class Net(nn.Module):
         self.hm8 = HM(input_depth=2 * npts)
 
         self.output_branch = output_branch
-        self.loss_hm = nn.MSELoss(reduction='mean')
-        self.loss_pts = nn.MSELoss(reduction='mean')
+        self.loss_hm = nn.MSELoss(reduction="mean")
+        self.loss_pts = nn.MSELoss(reduction="mean")
 
         self.decoder = DETR_Decoder()
         self.ffwd = nn.Sequential(
@@ -114,10 +113,7 @@ class Net(nn.Module):
             nn.Dropout2d(0.5),
         )
 
-        self.dec_fc = nn.Sequential(
-            nn.Linear(512, 2),
-            nn.ReLU(inplace=False)
-        )
+        self.dec_fc = nn.Sequential(nn.Linear(512, 2), nn.ReLU(inplace=False))
 
     def forward(self, x):
         xft1 = self.ft1(x)
@@ -161,14 +157,16 @@ class Net(nn.Module):
                 ehms = output[b].cpu().detach().numpy()
                 epts = extract_pts_from_hm(ehms[i], res_factor=res_factor)
                 epts_ = np.multiply(epts, hm_factor)
-                res[i][f'HM{str(b).zfill(2)}'] = {k: v for k, v in enumerate(epts_)}
+                res[i][f"HM{str(b).zfill(2)}"] = {k: v for k, v in enumerate(epts_)}
             # hm_factor*ehms.shape[2] -> Reconstructing the image size
-            recon = np.multiply(output[-1][i].cpu().detach().numpy(), hm_factor * ehms.shape[2])
+            recon = np.multiply(
+                output[-1][i].cpu().detach().numpy(), hm_factor * ehms.shape[2]
+            )
             res[i][self.output_branch] = {k: v for k, v in enumerate(recon)}
-            res[i]['output'] = res[i][self.output_branch]
+            res[i]["output"] = res[i][self.output_branch]
         return res
 
-    def init_weights(self, pretrained='', base_std=0.01):
+    def init_weights(self, pretrained="", base_std=0.01):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 # nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
@@ -179,18 +177,19 @@ class Net(nn.Module):
                 nn.init.constant_(m.bias, 0)
         if os.path.isfile(pretrained):
             pretrained_dict = torch.load(pretrained)
-            print('=> loading pretrained model {}'.format(pretrained))
+            print("=> loading pretrained model {}".format(pretrained))
             model_dict = self.state_dict()
-            pretrained_dict = {k: v for k, v in pretrained_dict.items()
-                               if k in model_dict.keys()}
+            pretrained_dict = {
+                k: v for k, v in pretrained_dict.items() if k in model_dict.keys()
+            }
             for k, _ in pretrained_dict.items():
-                print('=> loading {} pretrained model {}'.format(k, pretrained))
+                print("=> loading {} pretrained model {}".format(k, pretrained))
 
             model_dict.update(pretrained_dict)
             self.load_state_dict(model_dict)
 
 
-def get_instance(pretrained='', output_branch='HM03'):
+def get_instance(pretrained="", output_branch="HM03"):
     model = Net(npts=68, output_branch=output_branch)
     model.init_weights(pretrained)
 

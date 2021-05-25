@@ -7,17 +7,16 @@ import os
 import torch
 
 
-def save_checkpoint(states, is_best,
-                    output_dir, filename='checkpoint.pth'):
+def save_checkpoint(states, is_best, output_dir, filename="checkpoint.pth"):
     torch.save(states, os.path.join(output_dir, filename))
 
-    latest_path = os.path.join(output_dir, 'latest.pth')
+    latest_path = os.path.join(output_dir, "latest.pth")
     if os.path.islink(latest_path):
         os.remove(latest_path)
     os.symlink(os.path.join(output_dir, filename), latest_path)
 
-    if is_best and 'state_dict' in states.keys():
+    if is_best and "state_dict" in states.keys():
         try:
-            torch.save(states.module, os.path.join(output_dir, 'model_best.pth'))
+            torch.save(states.module, os.path.join(output_dir, "model_best.pth"))
         except:
-            torch.save(states, os.path.join(output_dir, 'model_best.pth'))
+            torch.save(states, os.path.join(output_dir, "model_best.pth"))

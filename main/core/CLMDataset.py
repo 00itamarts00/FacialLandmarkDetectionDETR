@@ -26,21 +26,28 @@ from utils.file_handler import FileHandler
 def get_def_transform():
     ia.seed(random.randint(0, 1000))
 
-    aug_pipeline = iaa.Sequential([
-        # iaa.Sometimes(0.1, iaa.Multiply((0.9, 1.2))), # change brightness, doesn't affect keypoints
-        iaa.Sometimes(0.1, iaa.CropAndPad(percent=(-0.10, 0.10))),
-        iaa.Sometimes(0.1, iaa.Affine(rotate=(-30, 30))),
-        iaa.Sometimes(0.1, iaa.Affine(scale=(0.75, 1.25))),
-        iaa.Sometimes(0.1, iaa.contrast.LinearContrast(alpha=(0.6, 1.4))),
-
-        # apply from 0 to 3 of the augmentations from the list
-        iaa.SomeOf((0, 3), [
-            iaa.Sometimes(0.1, iaa.Sharpen(alpha=(0, 1.0), lightness=(0.75, 1.2))),  # sharpen images
-            iaa.Sometimes(0.1, iaa.Emboss(alpha=(0, 1.0), strength=(0, 1.2))),  # emboss images
-            iaa.Sometimes(0.1, iaa.GaussianBlur((0, 2.0))),
-        ])
-    ],
-        random_order=True  # apply the augmentations in random order
+    aug_pipeline = iaa.Sequential(
+        [
+            # iaa.Sometimes(0.1, iaa.Multiply((0.9, 1.2))), # change brightness, doesn't affect keypoints
+            iaa.Sometimes(0.1, iaa.CropAndPad(percent=(-0.10, 0.10))),
+            iaa.Sometimes(0.1, iaa.Affine(rotate=(-30, 30))),
+            iaa.Sometimes(0.1, iaa.Affine(scale=(0.75, 1.25))),
+            iaa.Sometimes(0.1, iaa.contrast.LinearContrast(alpha=(0.6, 1.4))),
+            # apply from 0 to 3 of the augmentations from the list
+            iaa.SomeOf(
+                (0, 3),
+                [
+                    iaa.Sometimes(
+                        0.1, iaa.Sharpen(alpha=(0, 1.0), lightness=(0.75, 1.2))
+                    ),  # sharpen images
+                    iaa.Sometimes(
+                        0.1, iaa.Emboss(alpha=(0, 1.0), strength=(0, 1.2))
+                    ),  # emboss images
+                    iaa.Sometimes(0.1, iaa.GaussianBlur((0, 2.0))),
+                ],
+            ),
+        ],
+        random_order=True,  # apply the augmentations in random order
     )
     return aug_pipeline
 
@@ -57,20 +64,23 @@ def transform_data(transform, im, pts):
 
 
 def get_data_list(worksets_path, datasets, nickname, numpts=68):
-    csvfile = os.path.join(worksets_path, f'{nickname}.csv')
+    csvfile = os.path.join(worksets_path, f"{nickname}.csv")
     if os.path.exists(csvfile):
         dflist = pd.read_csv(csvfile)
     else:
         dflist = pd.DataFrame()
         for dataset in datasets:
             df = pd.DataFrame()
-            ptsdir = os.path.join(worksets_path, dataset, f'pts{numpts}')
+            ptsdir = os.path.join(worksets_path, dataset, f"pts{numpts}")
             if os.path.exists(ptsdir):
-                ptspath = os.path.join(worksets_path, dataset, f'pts{numpts}')
-                ptsfilelist = fu.get_files_list(ptspath, ('.pts'))
-                imgnames = [os.path.splitext(os.path.relpath(f, ptspath))[0] for f in ptsfilelist]
-                df['imgnames'] = imgnames
-                df['dataset'] = dataset
+                ptspath = os.path.join(worksets_path, dataset, f"pts{numpts}")
+                ptsfilelist = fu.get_files_list(ptspath, (".pts"))
+                imgnames = [
+                    os.path.splitext(os.path.relpath(f, ptspath))[0]
+                    for f in ptsfilelist
+                ]
+                df["imgnames"] = imgnames
+                df["dataset"] = dataset
                 dflist = pd.concat([dflist, df], ignore_index=True)
         dflist.to_csv(csvfile)
     return dflist
@@ -80,12 +90,12 @@ class CLMDataset(data.Dataset):
     def __init__(self, params, paths, dflist, is_train=True, transform=None):
         self.worksets_path = paths.workset
         self.transform = transform
-        self.num_landmarks = params['train']['num_landmarks']
-        model_args = params['model'][params['train']['model']]
+        self.num_landmarks = params["train"]["num_landmarks"]
+        model_args = params["model"][params["train"]["model"]]
         self.dflist = dflist
         self.is_train = is_train
-        self.input_size = model_args['input_size']
-        self.hmsize = model_args['heatmap_size']
+        self.input_size = model_args["input_size"]
+        self.hmsize = model_args["heatmap_size"]
         self.gaustd = 1.5
         # Extracted from trainset_full.csv
         self.mean = np.array([0.5021, 0.3964, 0.3471], dtype=np.float32)
@@ -96,19 +106,21 @@ class CLMDataset(data.Dataset):
 
     def get_pairdata(self, idx):
         df = self.dflist
-        imgname = df.iloc[idx]['imgnames']
-        dataset = df.iloc[idx]['dataset']
+        imgname = df.iloc[idx]["imgnames"]
+        dataset = df.iloc[idx]["dataset"]
 
-        pts_path = os.path.join(self.worksets_path, dataset, f'pts{self.num_landmarks}', f'{imgname}.pts')
-        img_path = os.path.join(self.worksets_path, dataset, 'img', f'{imgname}.jpg')
+        pts_path = os.path.join(
+            self.worksets_path, dataset, f"pts{self.num_landmarks}", f"{imgname}.pts"
+        )
+        img_path = os.path.join(self.worksets_path, dataset, "img", f"{imgname}.jpg")
 
         im_ = np.array(Image.open(img_path), dtype=np.float32)
-        pts_ = np.array(FileHandler.load_json(pts_path)['pts']).astype(np.float32)
+        pts_ = np.array(FileHandler.load_json(pts_path)["pts"]).astype(np.float32)
         return im_, pts_
 
     def get_infodata(self, idx):
-        imgname = self.dflist.iloc[idx]['imgnames']
-        dataset = self.dflist.iloc[idx]['dataset']
+        imgname = self.dflist.iloc[idx]["imgnames"]
+        dataset = self.dflist.iloc[idx]["dataset"]
         return dataset, imgname
 
     def __getitem__(self, idx):
@@ -120,7 +132,9 @@ class CLMDataset(data.Dataset):
         tpts = pts_ * sfactor
         if self.transform is not None and self.is_train:
             if random.random() > 0.5:
-                img, tpts = fliplr_img_pts(img, tpts)  # dataset=dataset.split('/')[0].upper())
+                img, tpts = fliplr_img_pts(
+                    img, tpts
+                )  # dataset=dataset.split('/')[0].upper())
             img, tpts = transform_data(self.transform, img, tpts)
 
         heatmaps, hm_pts = create_heatmaps2(tpts, np.shape(img), self.hmsize, self.gaustd)
@@ -138,28 +152,40 @@ class CLMDataset(data.Dataset):
         hmfactor = self.input_size[0] / self.hmsize[0]
         pts_ = torch.Tensor(pts_)
 
-        item = {'index': idx, 'img_name': img_name, 'dataset': dataset,
-                'img': img, 'heatmaps': heatmaps, 'hm_pts': hm_pts, 'opts': pts_, 'sfactor': sfactor,
-                'hmfactor': hmfactor, 'tpts': tpts, 'weighted_loss_mask_awing': weighted_loss_mask_awing}
+        item = {
+            "index": idx,
+            "img_name": img_name,
+            "dataset": dataset,
+            "img": img,
+            "heatmaps": heatmaps,
+            "hm_pts": hm_pts,
+            "opts": pts_,
+            "sfactor": sfactor,
+            "hmfactor": hmfactor,
+            "tpts": tpts,
+            "weighted_loss_mask_awing": weighted_loss_mask_awing,
+        }
         return item
 
     def update_mean_and_std(self):
         n = self.__len__()
-        dims = np.array(self.__getitem__(0)['img']).shape
+        dims = np.array(self.__getitem__(0)["img"]).shape
 
         x = 0
         x2 = 0
         for i in range(n):
             item = self.__getitem__(i)
-            im = item['img']
+            im = item["img"]
             x = x + torch.sum(im, [1, 2])
             x2 = x2 + torch.sum(torch.pow(im, 2), [1, 2])
 
             if not i % 100:
-                print(f'{i} out of {n}')
+                print(f"{i} out of {n}")
 
         meanx = x / (n * dims[1] * dims[2])
-        stdx = ((x2 - (n * dims[1] * dims[2]) * meanx ** 2) / (n * dims[1] * dims[2])) ** 0.5
+        stdx = (
+            (x2 - (n * dims[1] * dims[2]) * meanx ** 2) / (n * dims[1] * dims[2])
+        ) ** 0.5
 
         self.mean = meanx
         self.std = stdx

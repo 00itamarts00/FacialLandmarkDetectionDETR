@@ -21,23 +21,23 @@ class FileHandler(object):
 
     @staticmethod
     def load_json(jsn_path):
-        with open(jsn_path, 'r') as f:
+        with open(jsn_path, "r") as f:
             distros_dict = json.load(f)
         return distros_dict
 
     @staticmethod
     def dict2json(dictionary, fname):
-        with open(fname, 'w') as fp:
+        with open(fname, "w") as fp:
             json.dump(dictionary, fp)
 
     @staticmethod
     def save_dict_to_pkl(dict_arg, dict_path):
-        with open(dict_path, 'wb') as handle:
+        with open(dict_path, "wb") as handle:
             pickle.dump(dict_arg, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     @staticmethod
     def load_pkl(pkl_path):
-        with open(pkl_path, 'rb') as handle:
+        with open(pkl_path, "rb") as handle:
             b = pickle.load(handle)
         return b
 
@@ -54,7 +54,7 @@ class FileHandler(object):
         if not os.path.exists(fname):
             os.makedirs(fname)
         else:
-            raise FileExistsError(f'folder {fname} already exists!')
+            raise FileExistsError(f"folder {fname} already exists!")
         return fname
 
     @staticmethod
@@ -67,7 +67,7 @@ class FileHandler(object):
     @staticmethod
     def check_if_folder_exists(path):
         if not os.path.exists(path):
-            raise FileNotFoundError(f'directory {path} does not exist!')
+            raise FileNotFoundError(f"directory {path} does not exist!")
         return path
 
     @staticmethod
@@ -76,7 +76,7 @@ class FileHandler(object):
 
     @staticmethod
     def dict_to_nested_namedtuple(d):
-        MyTuple = namedtuple('MyTuple', d)
+        MyTuple = namedtuple("MyTuple", d)
         my_tuple = MyTuple(**d)
         return my_tuple
 
@@ -87,5 +87,5 @@ class FileHandler(object):
 
     @staticmethod
     def save_dict_as_yaml(data, dict_path):
-        with open(dict_path, 'w') as outfile:
+        with open(dict_path, "w") as outfile:
             yaml.dump(data, outfile, default_flow_style=False)

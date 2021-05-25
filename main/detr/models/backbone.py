@@ -40,15 +40,29 @@ class FrozenBatchNorm2d(torch.nn.Module):
         self.register_buffer("running_mean", torch.zeros(n))
         self.register_buffer("running_var", torch.ones(n))
 
-    def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict,
-                              missing_keys, unexpected_keys, error_msgs):
-        num_batches_tracked_key = prefix + 'num_batches_tracked'
+    def _load_from_state_dict(
+        self,
+        state_dict,
+        prefix,
+        local_metadata,
+        strict,
+        missing_keys,
+        unexpected_keys,
+        error_msgs,
+    ):
+        num_batches_tracked_key = prefix + "num_batches_tracked"
         if num_batches_tracked_key in state_dict:
             del state_dict[num_batches_tracked_key]
 
         super(FrozenBatchNorm2d, self)._load_from_state_dict(
-            state_dict, prefix, local_metadata, strict,
-            missing_keys, unexpected_keys, error_msgs)
+            state_dict,
+            prefix,
+            local_metadata,
+            strict,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
+        )
 
     def forward(self, x):
         # move reshapes to the beginning
@@ -70,7 +84,9 @@ class HMExtractor(nn.Module):
             nn.ConvTranspose2d(num_channels, 1024, 1, 1, padding=0, dilation=4),
             nn.BatchNorm2d(1024),
             nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(1024, 512, 1, 1, padding=0, dilation=6, output_padding=0),
+            nn.ConvTranspose2d(
+                1024, 512, 1, 1, padding=0, dilation=6, output_padding=0
+            ),
             nn.BatchNorm2d(512),
             nn.ReLU(inplace=True),
         )
@@ -97,7 +113,7 @@ class HMExtractor(nn.Module):
             nn.ConvTranspose2d(128, 68, 3, 1, padding=0, dilation=4, output_padding=0),
             nn.BatchNorm2d(68),
             nn.ReLU(inplace=True),
-            nn.Dropout2d(0.5)
+            nn.Dropout2d(0.5),
         )
 
     def forward(self, x):
@@ -109,15 +125,26 @@ class HMExtractor(nn.Module):
 
 
 class BackboneBase(nn.Module):
-    def __init__(self, backbone: nn.Module, train_backbone: bool, num_channels: int, return_interm_layers: bool):
+    def __init__(
+        self,
+        backbone: nn.Module,
+        train_backbone: bool,
+        num_channels: int,
+        return_interm_layers: bool,
+    ):
         super().__init__()
         for name, parameter in backbone.named_parameters():
-            if not train_backbone or 'layer2' not in name and 'layer3' not in name and 'layer4' not in name:
+            if (
+                not train_backbone
+                or "layer2" not in name
+                and "layer3" not in name
+                and "layer4" not in name
+            ):
                 parameter.requires_grad_(False)
         if return_interm_layers:
             return_layers = {"layer1": "0", "layer2": "1", "layer3": "2", "layer4": "3"}
         else:
-            return_layers = {'layer4': "0"}
+            return_layers = {"layer4": "0"}
         self.body = IntermediateLayerGetter(backbone, return_layers=return_layers)
         self.num_channels = num_channels
 
@@ -136,16 +163,24 @@ class BackboneBase(nn.Module):
 class Backbone(BackboneBase):
     """ResNet backbone with frozen BatchNorm."""
 
-    def __init__(self, name: str,
-                 train_backbone: bool,
-                 return_interm_layers: bool,
-                 dilation: bool, pretrained: bool):
-        backbone = resnet50(pretrained=pretrained, progress=True,
-                            replace_stride_with_dilation=[False, False, dilation], norm_layer=FrozenBatchNorm2d)
+    def __init__(
+        self,
+        name: str,
+        train_backbone: bool,
+        return_interm_layers: bool,
+        dilation: bool,
+        pretrained: bool,
+    ):
+        backbone = resnet50(
+            pretrained=pretrained,
+            progress=True,
+            replace_stride_with_dilation=[False, False, dilation],
+            norm_layer=FrozenBatchNorm2d,
+        )
         # backbone = getattr(torchvision.models, name)(
         #     replace_stride_with_dilation=[False, False, dilation],
         #     pretrained=is_main_process(), norm_layer=FrozenBatchNorm2d)
-        num_channels = 1024 #if name in ('resnet18', 'resnet34') else 2048
+        num_channels = 1024  # if name in ('resnet18', 'resnet34') else 2048
         super().__init__(backbone, train_backbone, num_channels, return_interm_layers)
 
 
@@ -155,8 +190,12 @@ class Joiner(nn.Sequential):
 
     def forward(self, tensor_list: NestedTensor):
         xs = self[0](tensor_list)
-        outxs = {'0': xs.pop('2')} if xs.__len__() != 1 else xs
-        hmxs = self[2](xs['2'].tensors) if (xs.__len__() != 1) and (self[2] is not None) else None
+        outxs = {"0": xs.pop("2")} if xs.__len__() != 1 else xs
+        hmxs = (
+            self[2](xs["2"].tensors)
+            if (xs.__len__() != 1) and (self[2] is not None)
+            else None
+        )
         out: List[NestedTensor] = []
         pos = []
         for name, x in outxs.items():
@@ -171,7 +210,13 @@ def build_backbone(args):
     train_backbone = args.lr_backbone > 0
     return_interm_layers = args.return_interm_layers
     hm_extractor = HMExtractor() if args.heatmap_regression_via_backbone else None
-    backbone = Backbone(args.backbone, train_backbone, return_interm_layers, args.dilation, args.backbone_pretrained)
+    backbone = Backbone(
+        args.backbone,
+        train_backbone,
+        return_interm_layers,
+        args.dilation,
+        args.backbone_pretrained,
+    )
     model = Joiner(backbone, position_embedding, hm_extractor=hm_extractor)
     model.num_channels = backbone.num_channels
     return model

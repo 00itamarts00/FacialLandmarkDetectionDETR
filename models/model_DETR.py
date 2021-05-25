@@ -1,8 +1,12 @@
 import torch
 import torch.nn as nn
 
-from models.transformer import TransformerDecoder, TransformerDecoderLayer, \
-    TransformerEncoder, TransformerEncoderLayer
+from models.transformer import (
+    TransformerDecoder,
+    TransformerDecoderLayer,
+    TransformerEncoder,
+    TransformerEncoderLayer,
+)
 
 
 def SetUseMixedPrecision(Flag):
@@ -35,7 +39,9 @@ def Prepare2DPosEncodingSequence(PosEncodingX, PosEncodingY, RowNo, ColNo):
 
     PosEncoding = PosEncoding2D.permute(2, 0, 1)
     PosEncoding = PosEncoding[:, 0:RowNo, 0:ColNo]
-    PosEncoding = PosEncoding.reshape((PosEncoding.shape[0], PosEncoding.shape[1] * PosEncoding.shape[2]))
+    PosEncoding = PosEncoding.reshape(
+        (PosEncoding.shape[0], PosEncoding.shape[1] * PosEncoding.shape[2])
+    )
     PosEncoding = PosEncoding.permute(1, 0).unsqueeze(1)
 
     return PosEncoding
@@ -50,14 +56,30 @@ class DETR_Decoder(nn.Module):
         self.PosEncodingY = nn.Parameter(torch.randn(EmbeddingMaxDim, int(K / 2)))
 
         # Encoder
-        self.EncoderLayer = TransformerEncoderLayer(d_model=K, nhead=HeadsNo, dim_feedforward=int(K),
-                                                    dropout=0.1, activation="relu", normalize_before=False)
-        self.Encoder = TransformerEncoder(encoder_layer=self.EncoderLayer, num_layers=LayersNo)
+        self.EncoderLayer = TransformerEncoderLayer(
+            d_model=K,
+            nhead=HeadsNo,
+            dim_feedforward=int(K),
+            dropout=0.1,
+            activation="relu",
+            normalize_before=False,
+        )
+        self.Encoder = TransformerEncoder(
+            encoder_layer=self.EncoderLayer, num_layers=LayersNo
+        )
 
         # Decoder
-        self.DecoderLayer = TransformerDecoderLayer(d_model=K, nhead=HeadsNo, dim_feedforward=K,
-                                                    dropout=0.1, activation="relu", normalize_before=False)
-        self.Decoder = TransformerDecoder(decoder_layer=self.DecoderLayer, num_layers=LayersNo)
+        self.DecoderLayer = TransformerDecoderLayer(
+            d_model=K,
+            nhead=HeadsNo,
+            dim_feedforward=K,
+            dropout=0.1,
+            activation="relu",
+            normalize_before=False,
+        )
+        self.Decoder = TransformerDecoder(
+            decoder_layer=self.DecoderLayer, num_layers=LayersNo
+        )
 
         # Decoder parameters ( Quries)
         self.DecoderQueriesPos = nn.Parameter(torch.randn(NumClasses, K))
@@ -65,8 +87,9 @@ class DETR_Decoder(nn.Module):
 
     # @torch.cuda.amp.autocast(enabled=UseMixedPrecision)
     def forward(self, x, DropoutP=0.0):
-        PosEncoding = Prepare2DPosEncodingSequence(self.PosEncodingX, self.PosEncodingY,
-                                                   x.shape[2], x.shape[3])
+        PosEncoding = Prepare2DPosEncodingSequence(
+            self.PosEncodingX, self.PosEncodingY, x.shape[2], x.shape[3]
+        )
 
         x = x.reshape((x.shape[0], x.shape[1], x.shape[2] * x.shape[3]))
         x = x.permute(2, 0, 1)
@@ -74,10 +97,12 @@ class DETR_Decoder(nn.Module):
         x = self.Encoder(src=x, pos=PosEncoding)
 
         DecoderQueries = self.DecoderQueries.unsqueeze(1).repeat(1, x.shape[1], 1)
-        out = self.Decoder(tgt=DecoderQueries,
-                           memory=x,
-                           pos=PosEncoding,
-                           query_pos=self.DecoderQueriesPos.unsqueeze(1))[0]
+        out = self.Decoder(
+            tgt=DecoderQueries,
+            memory=x,
+            pos=PosEncoding,
+            query_pos=self.DecoderQueriesPos.unsqueeze(1),
+        )[0]
 
         out = out.permute(1, 2, 0)
 
