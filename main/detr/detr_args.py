@@ -14,7 +14,6 @@ enc_layers = 2
 dec_layers = 4
 dim_feedforward = 2048
 hidden_dim = 512
-dec_layers = 2
 dim_feedforward = 1024
 hidden_dim = 256
 dropout = 0.1
