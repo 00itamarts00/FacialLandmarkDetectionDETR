@@ -69,6 +69,7 @@ def get_data_list(worksets_path, datasets, nickname, numpts=68):
         dflist = pd.read_csv(csvfile)
     else:
         dflist = pd.DataFrame()
+        datasets = [datasets] if type(datasets) != list else datasets
         for dataset in datasets:
             df = pd.DataFrame()
             ptsdir = os.path.join(worksets_path, dataset, f"pts{numpts}")
