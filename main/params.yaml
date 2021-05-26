@@ -1,5 +1,5 @@
 experiment:
-  name: hrnet
+  name: awing
   workspace_path: '/home/itamar/thesis/outputs'
 #  workspace_path: '/media/itamar/Itsayag_500Gb/500GB/Thesis/outputs'
   log_interval: 20
@@ -41,7 +41,7 @@ train:
     pin_memory: True
   backend:
     use_torch: True
-  model: 'HRNET'  # 'DETR', 'HRNET'
+  model: 'AWING'  # 'DETR', 'HRNET', "AWING"
   optimizer: 'ADAMW'
   scheduler: 'StepLR'
   criteria: 'MSELoss'
@@ -87,6 +87,10 @@ model:
     input_size: [ 256, 256 ]
     heatmap_size: [ 64, 64 ]
     backbone: 'resnet50'
+  AWING:
+    model: '/home/itamar/thesis/MODELS/AWING/WFLW_4HG.pth'
+    input_size: [ 256, 256 ]
+    heatmap_size: [ 64, 64 ]
 
 scheduler:
   MultiStepLR:

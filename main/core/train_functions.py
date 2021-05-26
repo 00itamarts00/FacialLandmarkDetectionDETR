@@ -253,6 +253,8 @@ def inference(model, input_batch, **kwargs):
     model_name = kwargs.get("model_name", None)
     output_ = model(input_batch)
 
+    if model_name == "AWING":
+        preds = decode_preds_heatmaps(output_[0][-1]).cuda()
     if model_name == "HRNET":
         preds = decode_preds_heatmaps(output_).cuda()
     if model_name == "DETR":

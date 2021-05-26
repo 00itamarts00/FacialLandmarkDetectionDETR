@@ -4,6 +4,7 @@ import logging
 import math
 import os
 import sys
+
 import torch.backends.cudnn
 import torch.backends.cudnn
 import torch.optim as optim
@@ -13,17 +14,18 @@ from torch.optim.lr_scheduler import StepLR, MultiStepLR
 from torch.utils import data
 
 import main.globals as g
-from main.core.CLMDataset import CLMDataset, get_def_transform, get_data_list
-from main.core.train_functions import train_epoch, validate_epoch
-from utils.nnstats import CnnStats
-from utils.utils import save_checkpoint
 from main.components.detr import detr_args
 from main.components.detr.models.detr import build as build_model
 from main.components.detr.models.detr import load_criteria as load_criteria_detr
+from main.core.CLMDataset import CLMDataset, get_def_transform, get_data_list
+from main.core.train_functions import train_epoch, validate_epoch
+from models.AWING.awing_model import FAN
 from models.HRNET import hrnet_config, update_config
 from models.HRNET.HRNET import get_face_alignment_net
 from models.HRNET.hrnet_utils import get_optimizer
 from utils.file_handler import FileHandler
+from utils.nnstats import CnnStats
+from utils.utils import save_checkpoint
 
 torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
@@ -164,6 +166,13 @@ class LDMTrain(object):
         return paths
 
     def load_optimizer(self):
+        if self.tr["model"] == "AWING":
+            model_path = os.path.join(self.pr['model'][self.tr['model']]['model'])
+            model_best_state = torch.load(model_path)
+            optimizer = optim.AdamW(
+                params=filter(lambda p: p.requires_grad, self.model.parameters()),
+                lr=0.01,
+                weight_decay=0)
         if self.tr["model"] == "DETR":
             args_op = self.pr["optimizer"][self.tr["optimizer"]]
             optimizer = optim.AdamW(
@@ -179,6 +188,18 @@ class LDMTrain(object):
         return optimizer
 
     def load_model(self):
+        if self.tr["model"] == "AWING":
+            logging.info(f"Loading AWING Model")
+            model = FAN(num_modules=4, end_relu=False, gray_scale=False, num_landmarks=98)
+            model_path = os.path.join(self.pr['model'][self.tr['model']]['model'])
+            model_best_state = torch.load(model_path)
+            pretrained_weights = model_best_state['state_dict']
+            model_weights = model.state_dict()
+            pretrained_weights = {k: v for k, v in pretrained_weights.items()
+                                  if k in model_weights}
+            model_weights.update(pretrained_weights)
+            model.load_state_dict(model_weights)
+
         if self.tr["model"] == "DETR":
             logging.info(f"Loading DETR Model")
             model = build_model(args=detr_args)
@@ -211,6 +232,9 @@ class LDMTrain(object):
         return model.cuda()
 
     def load_scheduler(self):
+        if self.tr["model"] == "AWING":
+            args_sc = self.pr["scheduler"][self.tr["scheduler"]]
+            scheduler = StepLR(optimizer=self.optimizer, step_size=1, gamma=0)
         if self.tr["model"] == "DETR":
             args_sc = self.pr["scheduler"][self.tr["scheduler"]]
             scheduler = StepLR(optimizer=self.optimizer, step_size=1, gamma=0)
