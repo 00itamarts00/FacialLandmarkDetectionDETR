@@ -11,7 +11,7 @@ from torch import nn
 from torchvision.models._utils import IntermediateLayerGetter
 
 from models.resnet import resnet50
-from main.components.detr.misc import NestedTensor
+from main.detr.misc import NestedTensor
 
 try:
     from torch.hub import load_state_dict_from_url

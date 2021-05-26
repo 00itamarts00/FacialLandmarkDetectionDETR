@@ -57,8 +57,6 @@ def detr_resnet50_dc5(pretrained=False, num_classes=91, return_postprocessor=Fal
             check_hash=True,
         )
         model.load_state_dict(checkpoint["model"])
-    if return_postprocessor:
-        return model, PostProcess()
     return model
 
 
@@ -76,8 +74,6 @@ def detr_resnet101(pretrained=False, num_classes=91, return_postprocessor=False)
             check_hash=True,
         )
         model.load_state_dict(checkpoint["model"])
-    if return_postprocessor:
-        return model, PostProcess()
     return model
 
 
@@ -97,8 +93,6 @@ def detr_resnet101_dc5(pretrained=False, num_classes=91, return_postprocessor=Fa
             check_hash=True,
         )
         model.load_state_dict(checkpoint["model"])
-    if return_postprocessor:
-        return model, PostProcess()
     return model
 
 
@@ -120,8 +114,6 @@ def detr_resnet50_panoptic(
             check_hash=True,
         )
         model.load_state_dict(checkpoint["model"])
-    if return_postprocessor:
-        return model, PostProcessPanoptic(is_thing_map, threshold=threshold)
     return model
 
 
@@ -146,8 +138,6 @@ def detr_resnet50_dc5_panoptic(
             check_hash=True,
         )
         model.load_state_dict(checkpoint["model"])
-    if return_postprocessor:
-        return model, PostProcessPanoptic(is_thing_map, threshold=threshold)
     return model
 
 
@@ -170,6 +160,4 @@ def detr_resnet101_panoptic(
             check_hash=True,
         )
         model.load_state_dict(checkpoint["model"])
-    if return_postprocessor:
-        return model, PostProcessPanoptic(is_thing_map, threshold=threshold)
     return model
