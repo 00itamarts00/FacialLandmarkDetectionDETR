@@ -31,8 +31,7 @@ def get_files_list_(dir_name):
 def get_files_list(dir_name, types):
     fileslist = get_files_list_(dir_name)
     fileslist_ = [
-        f
-        for f in fileslist
+        f for f in fileslist
         if os.path.isfile(os.path.join("", f)) and f.endswith(types)
     ]
     return fileslist_
