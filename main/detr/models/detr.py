@@ -201,8 +201,8 @@ def build(args):
         num_classes=num_classes,
         num_queries=args.num_queries,
     )
-    # for param in model.parameters():
-    #     param.requires_grad = True
+    for param in model.parameters():
+        param.requires_grad = True
 
     return model
 

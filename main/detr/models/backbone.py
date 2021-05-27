@@ -10,8 +10,8 @@ import torch.nn.functional as F
 from torch import nn
 from torchvision.models._utils import IntermediateLayerGetter
 
-from models.resnet import resnet50
 from main.detr.misc import NestedTensor
+from models.resnet import resnet50
 
 try:
     from torch.hub import load_state_dict_from_url
@@ -145,7 +145,7 @@ class Backbone(BackboneBase):
         # backbone = getattr(torchvision.models, name)(
         #     replace_stride_with_dilation=[False, False, dilation],
         #     pretrained=is_main_process(), norm_layer=FrozenBatchNorm2d)
-        num_channels = 1024 #if name in ('resnet18', 'resnet34') else 2048
+        num_channels = 1024  # if name in ('resnet18', 'resnet34') else 2048
         super().__init__(backbone, train_backbone, num_channels, return_interm_layers)
 
 

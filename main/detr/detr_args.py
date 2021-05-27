@@ -27,7 +27,7 @@ output_dir = '/home/itamar/thesis/outputs/detr'
 device = 'cuda'
 seed = 42
 # losses
-multi_dec_loss = True
+multi_dec_loss = False
 multi_enc_loss = False
 heatmap_regression_via_backbone = False
 last_dec_coord_loss = True

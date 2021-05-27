@@ -46,11 +46,15 @@ class TopLevel(object):
 
     def load_params(self):
         params = FileHandler.load_yaml(PARAMS)
-        if params['experiment']['pretrained']['use_pretrained']:
-            wp = params['experiment']['workspace_path']
-            name = params['experiment']['name']
-            path = os.path.join(wp, name, params['experiment']['pretrained']['timestamp'])
-            return FileHandler.load_yaml(os.path.join(path, 'params.yaml'))
+        if params["experiment"]["pretrained"]["use_pretrained"]:
+            wp = params["experiment"]["workspace_path"]
+            name = params["experiment"]["name"]
+            timestamp = params["experiment"]["pretrained"]["timestamp"]
+            path = os.path.join(wp, name, timestamp)
+            params = FileHandler.load_yaml(os.path.join(path, "params.yaml"))
+            params["experiment"]["pretrained"]["timestamp"] = timestamp
+            params["experiment"]["pretrained"]["use_pretrained"] = True
+            return params
         return params
 
     def single_batch_train(self):

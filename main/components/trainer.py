@@ -59,7 +59,7 @@ class LDMTrain(object):
                    # group='nothing',
                    config=self.pr
                    )
-        # wandb.watch(self.model)
+        wandb.watch(self.model)
         config = wandb.config
         id = wandb.util.generate_id()
         g.WANDB_INIT = id
@@ -133,15 +133,18 @@ class LDMTrain(object):
         return train_loader, valid_loader
 
     def create_workspace(self):
-        workspace_path = self.pr['workspace_path']
-        structure = {'workspace': workspace_path,
-                     'checkpoint': os.path.join(workspace_path, 'checkpoint'),
-                     'args': os.path.join(workspace_path, 'args'),
-                     'logs': os.path.join(workspace_path, 'logs'),
-                     'stats': os.path.join(workspace_path, 'stats'),
-                     'workset': self.workset_path,
-                     'wandb': os.path.join(workspace_path, 'wandb')
-                     }
+        workspace_path = self.pr["workspace_path"]
+        structure = {
+            "workspace": workspace_path,
+            "checkpoint": os.path.join(workspace_path, "checkpoint"),
+            "args": os.path.join(workspace_path, "args"),
+            "logs": os.path.join(workspace_path, "logs"),
+            "stats": os.path.join(workspace_path, "stats"),
+            "workset": self.workset_path,
+            "wandb": os.path.join(workspace_path, "wandb"),
+            "eval": os.path.join(workspace_path, "evaluation"),
+            "analysis": os.path.join(workspace_path, "analysis"),
+        }
         paths = FileHandler.dict_to_nested_namedtuple(structure)
         [os.makedirs(i, exist_ok=True) for i in paths]
         return paths
@@ -201,13 +204,15 @@ class LDMTrain(object):
         return scheduler
 
     def backend_operations(self):
-        cuda = self.tr['cuda']
-        torch.manual_seed(self.tr['torch_seed'])
-        use_cuda = cuda['use'] and torch.cuda.is_available()
-        device = torch.device(cuda['device_type'] if use_cuda else 'cpu')
-        torch.backends.benchmark = self.tr['backend']['use_torch']
+        cuda = self.tr["cuda"]
+        torch.manual_seed(self.tr["torch_seed"])
+        use_cuda = cuda["use"] and torch.cuda.is_available()
+        device = torch.device(cuda["device_type"] if use_cuda else "cpu")
+        torch.backends.benchmark = self.tr["backend"]["use_torch"]
         torch.backends.cudnn.benchmark = True
         torch.set_default_dtype(torch.float32)
+        # torch.backends.cudnn.determinstic = False
+        # torch.backends.cudnn.enabled = True
         return device
 
     def train(self):

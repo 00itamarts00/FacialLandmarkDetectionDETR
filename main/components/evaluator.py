@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+from functools import partial
 
 import torch
 from prettytable import PrettyTable
@@ -46,29 +47,6 @@ class Evaluator(LDMTrain):
     def ex(self):
         return self.pr['experiment']
 
-    def create_workspace(self):
-        workspace_path = self.pr['workspace_path']
-        structure = {'workspace': workspace_path,
-                     'checkpoint': os.path.join(workspace_path, 'checkpoint'),
-                     'args': os.path.join(workspace_path, 'args'),
-                     'logs': os.path.join(workspace_path, 'logs'),
-                     'stats': os.path.join(workspace_path, 'stats'),
-                     'eval': os.path.join(workspace_path, 'evaluation'),
-                     'workset': self.workset_path,
-                     'analysis': os.path.join(workspace_path, 'analysis')
-                     }
-        paths = FileHandler.dict_to_nested_namedtuple(structure)
-        [os.makedirs(i, exist_ok=True) for i in paths]
-        return paths
-
-    def backend_operations(self):
-        cuda = self.tr['cuda']
-        torch.manual_seed(self.tr['torch_seed'])
-        use_cuda = cuda['use'] and torch.cuda.is_available()
-        device = torch.device(cuda['device_type'] if use_cuda else 'cpu')
-        torch.backends.benchmark = self.tr['backend']['use_torch']
-        return device
-
     def create_test_data_loader(self, dataset):
         use_cuda = self.tr['cuda']['use']
         num_workers = self.tr['cuda']['num_workers'] if sys.gettrace() is None else 0
@@ -96,51 +74,43 @@ class Evaluator(LDMTrain):
             kwargs.update({'decoder_head': self.ev['prediction_from_decoder_head']})
             logger.info(f'Evaluating model using decoder head: {self.ev["prediction_from_decoder_head"]}')
             dataset_eval[setnick] = self.evaluate_model(test_loader=test_loader,
-                                                   model=self.model,
-                                                   **kwargs)
+                                                        model=self.model,
+                                                        **kwargs)
             res.update(dataset_eval)
             FileHandler.save_dict_to_pkl(dict_arg=dataset_eval, dict_path=results_file)
-        r300WPub = analyze_results(res, ['helen/testset', 'lfpw/testset', 'ibug'], '300W Public Set',
-                                   output=self.paths.analysis, decoder_head=self.ev['prediction_from_decoder_head'])
-        r300WPri = analyze_results(res, ['300W'], '300W Private Set',
-                                   output=self.paths.analysis, decoder_head=self.ev['prediction_from_decoder_head'])
-        rCOFW68 = analyze_results(res, ['COFW68/COFW_test_color'], 'COFW68',
-                                  output=self.paths.analysis, decoder_head=self.ev['prediction_from_decoder_head'])
-        rWFLW = analyze_results(res, ['WFLW/testset'], 'WFLW',
-                                output=self.paths.analysis, decoder_head=self.ev['prediction_from_decoder_head'])
+        analyze_results_to_analysis_path = partial(analyze_results,
+                                                   output=self.paths.analysis,
+                                                   decoder_head=self.ev["prediction_from_decoder_head"])
 
-        p = PrettyTable()
-        p.field_names = ["SET NAME", "AUC08", "FAIL08", "NLE"]
-        p.add_row([r300WPub['setnick'], r300WPub['auc08'], r300WPub['fail08'], r300WPub['NLE']])
-        p.add_row([r300WPri['setnick'], r300WPri['auc08'], r300WPri['fail08'], r300WPri['NLE']])
-        p.add_row([rCOFW68['setnick'], rCOFW68['auc08'], rCOFW68['fail08'], rCOFW68['NLE']])
-        p.add_row([rWFLW['setnick'], rWFLW['auc08'], rWFLW['fail08'], rWFLW['NLE']])
-        logger.info(p)
+        iterable = dict()
+        iterable.update({"300W Public Set": ["helen/testset", "lfpw/testset", "ibug"]})
+        iterable.update({"300W Private Set": ["300W"]})
+        iterable.update({"COFW68": ["COFW68/COFW_test_color"]})
+        iterable.update({"WFLW": ["WFLW/testset"]})
 
-        for ds in [r300WPub, r300WPri, rCOFW68, rWFLW]:
-            if ds is not None:
-                p = PrettyTable()
-                p.field_names = ["DATASET", "AUC08", "AUC10"]
-                for dsk, dsv in ds['ds_logger'].items():
-                    p.add_row([dsk, dsv['auc08'], dsv['auc10']])
-                logger.info(p)
+        wandb.init(project="detr_landmark_detection", id=g.WANDB_INIT, resume="must")
+        p_main = PrettyTable()
+        ds_analysis = PrettyTable()
+        p_main.field_names = ["SET NAME", "AUC08", "FAIL08", "NLE"]
+        ds_analysis.field_names = ["SET NAME", "DATASET", "AUC08", "AUC10"]
 
-        wandb.init(project="detr_landmark_detection",
-                   id=g.WANDB_INIT,
-                   resume='must')
-        wandb.log({'r300WPub': r300WPub})
-        wandb.log({'r300WPri': r300WPri})
-        wandb.log({'rCOFW68': rCOFW68})
-        wandb.log({'rWFLW': rWFLW})
+        for key, val in iterable.items():
+            analysis_results = analyze_results_to_analysis_path(datastets_inst=res, datasets=val, eval_name=key)
+            p_main.add_row([analysis_results['setnick'], analysis_results['auc08'], analysis_results['fail08'],
+                            analysis_results['NLE']])
+            for dsk, dsv in analysis_results["ds_logger"].items():
+                ds_analysis.add_row([key, dsk, dsv["auc08"], dsv["auc10"]])
+            wandb.log({key: val})
+        logger.info(p_main)
+        logger.info(ds_analysis)
 
-    def evaluate_model(self, test_loader, model, **kwargs):
+    def evaluate_model(self, test_loader, **kwargs):
         epts_batch = dict()
         with torch.no_grad():
             for batch_idx, item in enumerate(test_loader):
                 input_, tpts = item['img'].cuda(), item['tpts'].cuda()
-                scale, hm_factor, heatmaps = item['sfactor'].cuda(), item['hmfactor'], item['heatmaps'].cuda()
 
-                output, preds = inference(model, input_batch=input_, **kwargs)
+                output, preds = inference(self.model, input_batch=input_, **kwargs)
 
                 item['preds'] = [i.cpu().detach() for i in preds]
                 epts_batch[batch_idx] = item
