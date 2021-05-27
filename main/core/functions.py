@@ -19,7 +19,7 @@ from utils.plot_utils import plot_gt_pred_on_img
 logger = logging.getLogger(__name__)
 
 
-def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **kwargs):
+def train_epoch(train_loader, model, criteria, optimizer, scheduler, epoch, writer_dict, **kwargs):
     max_norm = 0
     log_interval = kwargs.get('log_interval', 20)
     debug = kwargs.get('debug', False)
@@ -28,6 +28,7 @@ def train_epoch(train_loader, model, criteria, optimizer, epoch, writer_dict, **
     losses = AverageMeter()
 
     model.train()
+    scheduler.step()
     criteria.train()
 
     nme_vec = list()

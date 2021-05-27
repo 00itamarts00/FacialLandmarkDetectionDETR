@@ -109,26 +109,27 @@ def save_tough_images(dataset, dataset_inst, ds_err, output, decoder_head=-1):
     im.save(os.path.join(output, f'{dataset}_dec_{decoder_head}_analysis_image.png'))
 
 
-def analyze_results(datastets_inst, datasets, setnick, output=None, decoder_head=-1):
-    logger.info(f'Analyzing results on {setnick} Datasets')
-    datasets = [i.replace('/', '_') for i in datasets]
-    tot_err = list()
-    log = dict()
+def analyze_results(datastets_inst, datasets, eval_name, output=None, decoder_head=-1):
+    logger.info(f"Analyzing results on {eval_name} Datasets")
+    datasets = [i.replace("/", "_") for i in datasets]
+    tot_err, log = list(), dict()
     for dataset, dataset_inst in datastets_inst.items():
-        preds, tpts = list(), list()
-        setnick_ = dataset.replace('/', '_')
-        if setnick_ not in datasets:
+        if dataset not in datasets:
             continue
+        logging.info(f"Analysing dataset {dataset} in {eval_name}")
+        preds, tpts = list(), list()
         for b_idx, b_idx_inst in dataset_inst.items():
-            [preds.append(b.numpy()) for b in b_idx_inst['preds']]
-            [tpts.append(b.numpy()) for b in b_idx_inst['tpts']]
-        preds = np.array([np.array(i) for i in preds])
+            [preds.append(b) for b in b_idx_inst["preds"]]
+            [tpts.append(b.numpy()) for b in b_idx_inst["tpts"]]
         nme_ds, auc08_ds, auc10_ds, _ = evaluate_normalized_mean_error(np.array(preds), np.array(tpts))
-        log_ds = {dataset: {'auc08': auc08_ds, 'auc10': auc10_ds}}
+        log_ds = {dataset: {"auc08": auc08_ds, "auc10": auc10_ds}}
         log.update(log_ds)
         [tot_err.append(i) for i in nme_ds]
         if output is not None:
-            save_tough_images(f'{setnick.replace(" ", "_")}-{dataset}', dataset_inst, nme_ds, output,
+            save_tough_images(dataset=f'{eval_name.replace(" ", "_")}-{dataset}',
+                              dataset_inst=dataset_inst,
+                              ds_err=nme_ds,
+                              output=output,
                               decoder_head=decoder_head)
     tot_err = np.array(tot_err)
     fail08 = (tot_err > 0.08).mean() * 100
@@ -137,15 +138,22 @@ def analyze_results(datastets_inst, datasets, setnick, output=None, decoder_head
     auc10 = get_auc(tot_err, thresh=0.10) * 100
     nle = tot_err.mean() * 100
 
-    return {'setnick': setnick, 'auc08': auc08, 'auc10': auc10, 'NLE': nle, 'fail08': fail08, 'fail10': fail10,
-            'ds_logger': log}
+    return {
+        "setnick": eval_name,
+        "auc08": auc08,
+        "auc10": auc10,
+        "NLE": nle,
+        "fail08": fail08,
+        "fail10": fail10,
+        "ds_logger": log,
+    }
 
 
 def evaluate_normalized_mean_error(predictions, groundtruth):
     groundtruth = groundtruth.detach().cpu().numpy() if not isinstance(groundtruth, np.ndarray) else groundtruth
     predictions = predictions.detach().cpu().numpy() if not isinstance(predictions, np.ndarray) else predictions
 
-    ## compute total average normlized mean error
+    # compute total average normalized mean error
     assert len(predictions) == len(groundtruth), \
         'The lengths of predictions and ground-truth are not consistent : {} vs {}'.format(len(predictions),
                                                                                            len(groundtruth))

@@ -29,7 +29,7 @@ torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
 os.environ["WANDB_API_KEY"] = g.WANDB_API_KEY
-os.environ["WANDB_MODE"] = "dryrun"
+# os.environ["WANDB_MODE"] = "dryrun"
 
 
 # TODO: Load tensorboard logs as df/dict
@@ -57,13 +57,12 @@ class LDMTrain(object):
         # Start a new run, tracking hyperparameters in config
         wandb.init(project="detr_landmark_detection",
                    # group='nothing',
-                   config=self.pr
-                   )
+                   config=self.pr)
         wandb.watch(self.model)
-        config = wandb.config
-        id = wandb.util.generate_id()
-        g.WANDB_INIT = id
-        logger.info(f'WandB ID: {id}')
+        # config = wandb.config
+        idx = wandb.util.generate_id()
+        g.WANDB_INIT = idx
+        logger.info(f'WandB ID: {idx}')
         return wandb
 
     def get_last_epoch(self):
@@ -240,6 +239,7 @@ class LDMTrain(object):
                             model=self.model,
                             criteria=self.criteria,
                             optimizer=self.optimizer,
+                            scheduler=self.scheduler,
                             epoch=epoch,
                             writer_dict=self.writer,
                             **kwargs)
@@ -264,11 +264,10 @@ class LDMTrain(object):
                 logger.info(f'=> saving checkpoint to {self.paths.checkpoint}')
                 final_model_state_file = os.path.join(self.paths.checkpoint, 'final_state.pth')
 
-                save_checkpoint(states=
-                                {"state_dict": self.model,
-                                 "epoch": epoch + 1,
-                                 "best_nme": best_nme,
-                                 "optimizer": self.optimizer.state_dict()},
+                save_checkpoint(states={"state_dict": self.model.state_dict(),
+                                        "epoch": epoch + 1,
+                                        "best_nme": best_nme,
+                                        "optimizer": self.optimizer.state_dict()},
                                 is_best=is_best,
                                 output_dir=self.paths.checkpoint,
                                 filename='checkpoint_{}.pth'.format(epoch))
