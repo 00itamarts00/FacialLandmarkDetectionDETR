@@ -63,21 +63,18 @@ def transform_data(transform, im, pts):
 def get_data_list(worksets_path, datasets, nickname, numpts=68):
     csvfile = os.path.join(worksets_path, f'{nickname}.csv')
     print(os.getcwd())
-    if os.path.exists(csvfile):
-        dflist = pd.read_csv(csvfile)
-    else:
-        dflist = pd.DataFrame()
-        for dataset in datasets:
-            df = pd.DataFrame()
-            ptsdir = os.path.join(worksets_path, dataset, f'pts{numpts}')
-            if os.path.exists(ptsdir):
-                ptspath = os.path.join(worksets_path, dataset, f'pts{numpts}')
-                ptsfilelist = fu.get_files_list(ptspath, ('.pts'))
-                imgnames = [os.path.splitext(os.path.relpath(f, ptspath))[0] for f in ptsfilelist]
-                df['imgnames'] = imgnames
-                df['dataset'] = dataset
-                dflist = pd.concat([dflist, df], ignore_index=True)
-        dflist.to_csv(csvfile)
+    dflist = pd.DataFrame()
+    for dataset in datasets:
+        df = pd.DataFrame()
+        ptsdir = os.path.join(worksets_path, dataset, f'pts{numpts}')
+        if os.path.exists(ptsdir):
+            ptspath = os.path.join(worksets_path, dataset, f'pts{numpts}')
+            ptsfilelist = fu.get_files_list(ptspath, ('.pts'))
+            imgnames = [os.path.splitext(os.path.relpath(f, ptspath))[0] for f in ptsfilelist]
+            df['imgnames'] = imgnames
+            df['dataset'] = dataset
+            dflist = pd.concat([dflist, df], ignore_index=True)
+    dflist.to_csv(csvfile)
     return dflist
 
 

@@ -74,7 +74,6 @@ class Evaluator(LDMTrain):
             kwargs.update({'decoder_head': self.ev['prediction_from_decoder_head']})
             logger.info(f'Evaluating model using decoder head: {self.ev["prediction_from_decoder_head"]}')
             dataset_eval[setnick] = self.evaluate_model(test_loader=test_loader,
-                                                        model=self.model,
                                                         **kwargs)
             res.update(dataset_eval)
             FileHandler.save_dict_to_pkl(dict_arg=dataset_eval, dict_path=results_file)
@@ -110,7 +109,7 @@ class Evaluator(LDMTrain):
             for batch_idx, item in enumerate(test_loader):
                 input_, tpts = item['img'].cuda(), item['tpts'].cuda()
 
-                output, preds = inference(self.model, input_batch=input_, **kwargs)
+                output, preds = inference(model=self.model, input_batch=input_, **kwargs)
 
                 item['preds'] = [i.cpu().detach() for i in preds]
                 epts_batch[batch_idx] = item

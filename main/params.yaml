@@ -18,7 +18,8 @@ dataset:
 
 train:
   datasets:
-    to_use: [ 'WFLW/trainset', 'helen/trainset', 'lfpw/trainset', 'menpo/trainset', 'AFW' ]
+#    to_use: [ 'WFLW/trainset', 'helen/trainset', 'lfpw/trainset', 'menpo/trainset', 'AFW' ]
+    to_use: ['helen/trainset','menpo/trainset', 'AFW' ]
     use_augmentations: True
     augmentations:
       scale: 0.25

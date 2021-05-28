@@ -29,7 +29,7 @@ torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
 os.environ["WANDB_API_KEY"] = g.WANDB_API_KEY
-# os.environ["WANDB_MODE"] = "dryrun"
+os.environ["WANDB_MODE"] = "dryrun"
 
 
 # TODO: Load tensorboard logs as df/dict
@@ -172,7 +172,7 @@ class LDMTrain(object):
                 try:
                     model.load_state_dict(model_best_state['state_dict'].state_dict())
                 except:
-                    model = model_best_state['state_dict']
+                    model.load_state_dict(model_best_state['state_dict'])
         if self.tr['model'] == 'HRNET':
             logging.info(f'Loading HRNET Model')
             config_path = self.pr['model']['HRNET']['config']

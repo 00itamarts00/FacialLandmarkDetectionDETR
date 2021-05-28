@@ -119,7 +119,7 @@ def analyze_results(datastets_inst, datasets, eval_name, output=None, decoder_he
         logging.info(f"Analysing dataset {dataset} in {eval_name}")
         preds, tpts = list(), list()
         for b_idx, b_idx_inst in dataset_inst.items():
-            [preds.append(b) for b in b_idx_inst["preds"]]
+            [preds.append(b.numpy()) for b in b_idx_inst["preds"]]
             [tpts.append(b.numpy()) for b in b_idx_inst["tpts"]]
         nme_ds, auc08_ds, auc10_ds, _ = evaluate_normalized_mean_error(np.array(preds), np.array(tpts))
         log_ds = {dataset: {"auc08": auc08_ds, "auc10": auc10_ds}}
