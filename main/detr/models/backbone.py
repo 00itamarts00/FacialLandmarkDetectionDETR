@@ -123,7 +123,7 @@ class BackboneBase(nn.Module):
 
     def forward(self, tensor_list: NestedTensor):
         xs = self.body(tensor_list.tensors)
-        hm = HMExtractor()
+        # hm = HMExtractor()
         out: Dict[str, NestedTensor] = {}
         for name, x in xs.items():
             m = tensor_list.mask
@@ -146,6 +146,7 @@ class Backbone(BackboneBase):
         #     replace_stride_with_dilation=[False, False, dilation],
         #     pretrained=is_main_process(), norm_layer=FrozenBatchNorm2d)
         num_channels = 1024  # if name in ('resnet18', 'resnet34') else 2048
+        num_channels = 512  # if name in ('resnet18', 'resnet34') else 2048
         super().__init__(backbone, train_backbone, num_channels, return_interm_layers)
 
 
@@ -155,7 +156,7 @@ class Joiner(nn.Sequential):
 
     def forward(self, tensor_list: NestedTensor):
         xs = self[0](tensor_list)
-        outxs = {'0': xs.pop('2')} if xs.__len__() != 1 else xs
+        outxs = {'0': xs.pop('1')} if xs.__len__() != 1 else xs
         hmxs = self[2](xs['2'].tensors) if (xs.__len__() != 1) and (self[2] is not None) else None
         out: List[NestedTensor] = []
         pos = []
