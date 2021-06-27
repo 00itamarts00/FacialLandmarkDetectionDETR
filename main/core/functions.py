@@ -224,7 +224,7 @@ def inference(model, input_batch, **kwargs):
         preds = decode_preds_heatmaps(output_).cuda()
     if model_name == 'DETR':
         decoder_head = kwargs.get('decoder_head', -1)
-        preds = output_['pred_coords'][decoder_head]
+        preds = output_['pred_coords'][decoder_head] # +0.5 from HRNET
     return output_, preds
 
 
