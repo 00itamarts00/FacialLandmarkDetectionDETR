@@ -29,7 +29,7 @@ train:
   num_landmarks: 68
   trainset_partition: 0.8
   epochs: 250
-  batch_size: 32
+  batch_size: 48
   torch_seed: 42
   trainable_parameters: null
   hm_amp_factor: 100
