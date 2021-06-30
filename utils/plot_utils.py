@@ -79,12 +79,12 @@ def plot_gt_pred_on_img(item, predictions, index):
     img = np.array(img).astype(np.uint8)
     fig = Figure()
     canvas = FigureCanvas(fig)
-    preds = predictions[index] if predictions[index].device.type == 'cpu' else predictions[index].detach().cpu()
+    preds = predictions[index].detach().cpu() if not isinstance(predictions, np.ndarray) else predictions[index]
     opts = item['tpts'].numpy()[index]
     ax = fig.add_subplot(111)
     ax.set_title(f'debug_image\ndataset: {dataset} name: {img_name}')
     ax.imshow(img)
-    ax.scatter(preds[:, 0].detach().cpu(), preds[:, 1], s=5, c='r', label='pred')
+    ax.scatter(preds[:, 0], preds[:, 1], s=5, c='r', label='pred')
     ax.scatter(opts.T[0], opts.T[1], s=5, c='b', label='gt')
     for ptp, ptgt in zip(preds, opts):
         ax.plot([ptp[0], ptgt[0]], [ptp[1], ptgt[1]], 'g-', linewidth=0.5)

@@ -1,7 +1,7 @@
 import logging
 import math
 import os
-
+from numba import jit
 import numpy as np
 import torch
 from PIL import Image
@@ -223,14 +223,16 @@ def rearrange_prediction_for_min_cos_max_bipartite(prediction, gt):
 
 
 def min_cost_max_bipartite(prediction, gt):
-    gt = gt.detach().cpu().numpy() if not isinstance(gt, np.ndarray) else gt
-    prediction = prediction.detach().cpu().numpy() if not isinstance(prediction, np.ndarray) else prediction
+    init = init_cost_matrix(prediction, gt)
+    tpts_idx, preds_idx = linear_sum_assignment(init, maximize=False)
+    new_preds = np.array([prediction[i] for i in preds_idx])
+    return new_preds
 
+
+def init_cost_matrix(prediction, gt):
     point_nme = lambda pt1, pt2: np.linalg.norm(pt1 - pt2)
     init = np.zeros([gt.shape[0], gt.shape[0]])
     for row_idx, row in enumerate(init):
         for col_idx, ele in enumerate(row):
             init[col_idx][row_idx] = point_nme(prediction[row_idx], gt[col_idx])
-    tpts_idx, preds_idx = linear_sum_assignment(init, maximize=False)
-    new_preds = np.array([prediction[i] for i in preds_idx])
-    return new_preds
+    return init

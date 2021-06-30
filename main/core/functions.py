@@ -50,7 +50,7 @@ def train_epoch(train_loader, model, criteria, optimizer, scheduler, epoch, writ
                        'weighted_loss_mask_awing': weighted_loss_mask_awing}
 
         output, preds = inference(model, input_batch=input_, **kwargs)
-        preds_new = rearrange_prediction_for_min_cos_max_bipartite(preds, tpts).cuda()
+        # preds = rearrange_prediction_for_min_cos_max_bipartite(preds, tpts)
         loss_dict, lossv = get_loss(criteria, output, target_dict=target_dict, **kwargs)
 
         if not math.isfinite(lossv.item()):
@@ -152,10 +152,10 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
                            'weighted_loss_mask_awing': weighted_loss_mask_awing}
 
             output, preds = inference(model, input_batch=input_, **kwargs)
+            preds = rearrange_prediction_for_min_cos_max_bipartite(preds, tpts)
             loss_dict, lossv = get_loss(criteria, output, target_dict=target_dict, **kwargs)
 
             # NME
-
             nme_batch, auc08_batch, auc10_batch, for_pck_curve_batch = evaluate_normalized_mean_error(preds, tpts)
             nme_vec.append(nme_batch)
 
