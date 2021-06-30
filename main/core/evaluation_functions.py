@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from PIL import Image
 from sklearn.metrics import auc
+from scipy.optimize import linear_sum_assignment
 
 logger = logging.getLogger(__name__)
 # import wandb
@@ -212,3 +213,24 @@ def calc_CED(err, x_limit=0.08):
     ced68_o = ced68[0:th_idx]
     return auc, failure, bins_o, ced68_o
 
+
+def rearrange_prediction_for_min_cos_max_bipartite(prediction, gt):
+    gt_np = gt.detach().cpu().numpy() if not isinstance(gt, np.ndarray) else gt
+    prediction_np = prediction.detach().cpu().numpy() if not isinstance(prediction, np.ndarray) else prediction
+    for i, (pred, gtpt) in enumerate(zip(prediction_np, gt_np)):
+        prediction_np[i] = min_cost_max_bipartite(pred, gtpt)
+    return prediction_np
+
+
+def min_cost_max_bipartite(prediction, gt):
+    gt = gt.detach().cpu().numpy() if not isinstance(gt, np.ndarray) else gt
+    prediction = prediction.detach().cpu().numpy() if not isinstance(prediction, np.ndarray) else prediction
+
+    point_nme = lambda pt1, pt2: np.linalg.norm(pt1 - pt2)
+    init = np.zeros([gt.shape[0], gt.shape[0]])
+    for row_idx, row in enumerate(init):
+        for col_idx, ele in enumerate(row):
+            init[col_idx][row_idx] = point_nme(prediction[row_idx], gt[col_idx])
+    tpts_idx, preds_idx = linear_sum_assignment(init, maximize=False)
+    new_preds = np.array([prediction[i] for i in preds_idx])
+    return new_preds

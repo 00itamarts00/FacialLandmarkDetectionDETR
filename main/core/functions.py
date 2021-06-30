@@ -12,10 +12,11 @@ import torch
 import wandb
 
 from main.components.ptsutils import decode_preds_heatmaps
-from main.core.evaluation_functions import evaluate_normalized_mean_error, get_auc
+from main.core.evaluation_functions import evaluate_normalized_mean_error, get_auc, \
+    rearrange_prediction_for_min_cos_max_bipartite
 from utils.data_organizer import AverageMeter
 from utils.plot_utils import plot_gt_pred_on_img
-
+from main.core.evaluation_functions import min_cost_max_bipartite
 logger = logging.getLogger(__name__)
 
 
@@ -49,6 +50,7 @@ def train_epoch(train_loader, model, criteria, optimizer, scheduler, epoch, writ
                        'weighted_loss_mask_awing': weighted_loss_mask_awing}
 
         output, preds = inference(model, input_batch=input_, **kwargs)
+        preds_new = rearrange_prediction_for_min_cos_max_bipartite(preds, tpts).cuda()
         loss_dict, lossv = get_loss(criteria, output, target_dict=target_dict, **kwargs)
 
         if not math.isfinite(lossv.item()):
@@ -153,6 +155,7 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
             loss_dict, lossv = get_loss(criteria, output, target_dict=target_dict, **kwargs)
 
             # NME
+
             nme_batch, auc08_batch, auc10_batch, for_pck_curve_batch = evaluate_normalized_mean_error(preds, tpts)
             nme_vec.append(nme_batch)
 
