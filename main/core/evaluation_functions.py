@@ -7,7 +7,7 @@ import torch
 from PIL import Image
 from sklearn.metrics import auc
 from scipy.optimize import linear_sum_assignment
-
+from tqdm import tqdm
 logger = logging.getLogger(__name__)
 # import wandb
 
@@ -122,6 +122,8 @@ def analyze_results(datastets_inst, datasets, eval_name, output=None, decoder_he
         for b_idx, b_idx_inst in dataset_inst.items():
             [preds.append(b.numpy()) for b in b_idx_inst["preds"]]
             [tpts.append(b.numpy()) for b in b_idx_inst["tpts"]]
+        # for i, (tpt, pred) in tqdm(enumerate(zip(tpts, preds))):
+        #     preds[i] = min_cost_max_bipartite(pred, tpt)
         nme_ds, auc08_ds, auc10_ds, _ = evaluate_normalized_mean_error(np.array(preds), np.array(tpts))
         log_ds = {dataset: {"auc08": auc08_ds, "auc10": auc10_ds}}
         log.update(log_ds)
