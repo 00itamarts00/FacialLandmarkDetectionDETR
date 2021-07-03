@@ -152,7 +152,7 @@ def validate_epoch(val_loader, model, criteria, epoch, writer_dict, **kwargs):
                            'weighted_loss_mask_awing': weighted_loss_mask_awing}
 
             output, preds = inference(model, input_batch=input_, **kwargs)
-            preds = rearrange_prediction_for_min_cos_max_bipartite(preds, tpts)
+            # preds = rearrange_prediction_for_min_cos_max_bipartite(preds, tpts)
             loss_dict, lossv = get_loss(criteria, output, target_dict=target_dict, **kwargs)
 
             # NME
