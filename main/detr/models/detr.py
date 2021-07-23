@@ -205,16 +205,3 @@ def build(args):
         param.requires_grad = True
 
     return model
-
-# class MultiTaskLoss(nn.Module):
-#     def __init__(self, tasks):
-#         super(MultiTaskLoss, self).__init__()
-#         self.tasks = nn.ModuleList(tasks)
-#         self.sigma = nn.Parameter(torch.ones(len(tasks)))
-#         self.mse = nn.MSELoss()
-#
-#     def forward(self, x, targets):
-#        l = [self.mse(f(x), y) for y, f in zip(targets, self.tasks)]
-#        l = 0.5 * torch.Tensor(l) / self.sigma**2
-#        l = l.sum() + torch.log(self.sigma.prod())
-#        return l

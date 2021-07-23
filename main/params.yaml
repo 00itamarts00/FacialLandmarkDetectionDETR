@@ -1,14 +1,11 @@
-experiment:
-  name: detr
-  workspace_path: '/home/itamar/thesis/outputs'
-#  workspace_path: '/media/itamar/Itsayag_500Gb/500GB/Thesis/outputs'
-  log_interval: 20
-  single_image_train: False
-  pretrained:
-    use_pretrained: False
-    timestamp: '230521_021130'
-  save_model: True
-  single_batch_debug: False
+project: DETR
+workspace_path: '/home/itamar/thesis/outputs'
+log_interval: 20
+pretrained:
+  use_pretrained: False
+  task_id: 72f1c231963b47f4bcb4e3a149c3c4e5
+save_model: True
+single_batch_debug: False
 
 dataset:
   dataset_dir: '/home/itamar/thesis/DATASET'
@@ -27,12 +24,12 @@ train:
       flip_lr: True
   partition_seed: 42
   num_landmarks: 68
+  input_size: [256, 256]
   trainset_partition: 0.8
   epochs: 250
   batch_size: 32
   torch_seed: 42
   trainable_parameters: null
-  hm_amp_factor: 100
   run_valid: True
   cuda:
     use: True
@@ -42,67 +39,15 @@ train:
     pin_memory: True
   backend:
     use_torch: True
-  model: 'DETR'  # 'DETR', 'HRNET'
-  optimizer: 'ADAMW'
-  scheduler: 'StepLR'
-  criteria: 'MSELoss'
-
-optimizer:
-  ADAM:
-    lr: 0.0001
-    betas: [0.5, 0.999]
-    eps: 1e-8
-    weight_decay: 0
-    amsgrad: False
-  SGD:
-    lr: 0.1
-    momentum: 0
-    dampening: 0
-    weight_decay: 0
-    nesterov: False
-  RANGER:
-    lr: 1e-05
-    alpha: 0.5
-    K: 6
-    N_sma_threshhold: 5
-    betas: [0.95, 0.999]
-    eps: 1e-05
-    weight_decay: 0
-    use_gc: True
-    gc_conv_only: False
-  ADAMW:
-    lr: 1e-4
-    weight_decay: 0.0001
-
-model:
-  LMDT01:
-    output_branch: 'DPTS'
-    input_size: [ 256, 256 ]
-  HRNET:
-    sigma: 1.5
-    input_size: [ 256, 256 ]
-    heatmap_size: [ 64, 64 ]
-    target_type: 'Gaussian'
-    config: 'models/HRNET/face_alignment_300w_hrnet_w18.yaml'
-  DETR:
-    input_size: [ 256, 256 ]
-    heatmap_size: [ 64, 64 ]
-    backbone: 'resnet50'
-
-scheduler:
-  MultiStepLR:
-    milestones: [50, 150]
-    gamma: 0
-  StepLR:
-    step_size: 50
-    gamma: 0.5
-  CyclicLR:
-    base_lr: 1e-3
-    max_lr: 1e-1
-    step_size_up: 100
-
-loss:
-  MSELoss: null
+  model: DETR
+  optimizer: ADAMW
+  scheduler: StepLR
+  heatmaps:
+    train_with_heatmaps: False
+    hm_amp_factor: 100
+    guassian_std: 1.5
+    heatmap_size: [64, 64]
+  rearrange_prediction_for_min_cos_max_bipartite: False
 
 evaluation:
 #  datasets: [ 'helen/testset']

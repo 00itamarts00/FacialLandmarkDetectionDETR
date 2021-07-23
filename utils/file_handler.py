@@ -8,6 +8,22 @@ import cv2
 import pandas as pd
 import yaml
 
+import yaml
+import json
+import re
+
+loader = yaml.SafeLoader
+loader.add_implicit_resolver(
+    u'tag:yaml.org,2002:float',
+    re.compile(u'''^(?:
+     [-+]?(?:[0-9][0-9_]*)\\.[0-9_]*(?:[eE][-+]?[0-9]+)?
+    |[-+]?(?:[0-9][0-9_]*)(?:[eE][-+]?[0-9]+)
+    |\\.[0-9_]+(?:[eE][-+][0-9]+)?
+    |[-+]?[0-9][0-9_]*(?::[0-5]?[0-9])+\\.[0-9_]*
+    |[-+]?\\.(?:inf|Inf|INF)
+    |\\.(?:nan|NaN|NAN))$''', re.X),
+    list(u'-+0123456789.'))
+
 
 class FileHandler(object):
     def __init__(self):
@@ -16,7 +32,7 @@ class FileHandler(object):
     @staticmethod
     def load_yaml(yml_path):
         with open(yml_path) as file:
-            dct_res = yaml.load(file, Loader=yaml.FullLoader)
+            dct_res = yaml.load(file, Loader=loader)
         return dct_res
 
     @staticmethod

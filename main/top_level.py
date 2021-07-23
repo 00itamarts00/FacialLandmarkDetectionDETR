@@ -1,102 +1,128 @@
-import logging
+import os
 import sys
 
+import clearml
+from clearml import Task
+from dotmap import DotMap
+from pygit2 import Repository
 import main.globals as g
 from main.components.evaluator import Evaluator
 from main.components.trainer import LDMTrain
 from utils.file_handler import FileHandler
 from utils.param_utils import *
+from clearml.logger import Logger
 
 PARAMS = 'main/params.yaml'
+DETR_ARGS = 'main/detr/detr_args.yaml'
+SCHEDULER_PARAMS = 'main/scheduler_params.yaml'
+OPTIMIZER_PARAMS = 'main/optimizer_params.yaml'
 
 
 class TopLevel(object):
-    def __init__(self, override_params=None):
+    def init(self, task_id=None):
         self.params = self.load_params()
+        if self.params.pretrained.use_pretrained or task_id is not None:
+            task_id = task_id if task_id is not None else self.params.pretrained.task_id
+            self.task = Task.get_task(task_id=task_id)
+            g.TASK_ID = self.task.task_id
+            self.params = self.load_params(self.task.task_id)
+            self.logger = self.task.logger
+        else:
+            self.task = self.init_clearml()
+
+    def init_clearml(self):
+        project_name = self.params.project
+        # TODO: change task name to custom value
+        task_name = self.get_current_git_branch_name()
+        task = Task.init(project_name, task_name, task_type='training', reuse_last_task_id=False)
+        self.params.update(task_id=task.task_id)
+        g.TASK_ID = task.task_id
+        task.connect(self.params)
+        tags = [g.TIMESTAMP] if not sys.gettrace() else [g.TIMESTAMP, 'DEBUG']
+        task.set_tags(tags)
+        self.logger = Logger.current_logger()
+        return task
+
+    @staticmethod
+    def get_current_git_branch_name():
+        return Repository('.').head.shorthand
 
     def override_params_dict(self, dict_override):
         if dict_override is None or dict_override == dict():
             return self.params
         else:
-            return update_nested_dict(self.params, dict_override)
-
-    def setup_logger(self, name):
-        fname = os.path.join(self.params['workspace_path'], name)
-        # noinspection PyArgumentList
-        logging.basicConfig(level=logging.INFO,
-                            format="%(asctime)s - %(levelname)s - %(message)s",
-                            handlers=[logging.FileHandler(fname + '.log'),
-                                      logging.StreamHandler(sys.stdout)])
-        logger = logging.getLogger(__name__)
-        logger.info('Initiate Logger')
-        return fname
+            return DotMap(update_nested_dict(self.params.toDict(), dict_override))
 
     def setup_workspace(self):
         self.setup_pretrained()
-        wp = self.params['experiment']['workspace_path']
-        name = self.params['experiment']['name']
+        wp = self.params.workspace_path
+        name = self.params.project
         ex_workspace_path = os.path.join(wp, name, g.TIMESTAMP)
         os.makedirs(ex_workspace_path, exist_ok=True)
-        self.params['workspace_path'] = ex_workspace_path
-        FileHandler.save_dict_as_yaml(self.params, os.path.join(ex_workspace_path, 'params.yaml'))
+        self.params.workspace_path = ex_workspace_path
+        FileHandler.save_dict_as_yaml(self.params.toDict(), os.path.join(ex_workspace_path, 'params.yaml'))
 
     def setup_pretrained(self, force=False):
-        if self.params['experiment']['pretrained']['use_pretrained'] or force:
-            g.TIMESTAMP = self.params['experiment']['pretrained']['timestamp']
+        if self.params.pretrained.use_pretrained or force:
+            g.TIMESTAMP = self.task.get_tags()[0]
 
-    def load_params(self):
-        params = FileHandler.load_yaml(PARAMS)
-        if params["experiment"]["pretrained"]["use_pretrained"]:
-            wp = params["experiment"]["workspace_path"]
-            name = params["experiment"]["name"]
-            timestamp = params["experiment"]["pretrained"]["timestamp"]
-            path = os.path.join(wp, name, timestamp)
-            params = FileHandler.load_yaml(os.path.join(path, "params.yaml"))
-            params["experiment"]["pretrained"]["timestamp"] = timestamp
-            params["experiment"]["pretrained"]["use_pretrained"] = True
-            return params
+    def load_params(self, task_id=None):
+        if task_id is None:
+            params = DotMap(FileHandler.load_yaml(PARAMS))
+            params = self.integrate_optimizer_params(params)
+            params = self.integrate_scheduler_params(params)
+            params = self.integrate_model_params(params)
+        else:
+            params = DotMap(self.task.get_parameters_as_dict()['General'])
+            params.pretrained.use_pretrained = True
+            params.pretrained.task_id = task_id
+            # this is to fix a bug with the dictionary parsing
+            params = DotMap(fix_parsing_values_to_int(params.toDict()))
         return params
 
+    @staticmethod
+    def integrate_optimizer_params(params):
+        optimizer_params = FileHandler.load_yaml(OPTIMIZER_PARAMS)['optimizer']
+        dc_op = {'optimizer': {'name': params.train.optimizer}}
+        dc_op['optimizer'].update(optimizer_params[params.train.optimizer])
+        return DotMap(update_nested_dict(params.toDict(), dc_op))
+
+    @staticmethod
+    def integrate_scheduler_params(params):
+        scheduler_params = FileHandler.load_yaml(SCHEDULER_PARAMS)['scheduler']
+        dc_sc = {'scheduler': {'name': params.train.scheduler}}
+        dc_sc['scheduler'].update(scheduler_params[params.train.scheduler])
+        return DotMap(update_nested_dict(params.toDict(), dc_sc))
+
+    @staticmethod
+    def integrate_model_params(params):
+        if params.train.model == 'DETR':
+            return DotMap(update_nested_dict(params.toDict(), FileHandler.load_yaml(DETR_ARGS)))
+        elif params.train.model == 'HRNET':
+            raise NotImplementedError
+            # TODO: update params with HRNET config params
+
     def single_batch_train(self):
+        self.init()
         self.setup_workspace()
-        self.setup_logger(name='single_batch_train')
         override_params = {'train': {'epochs': 150, 'batch_size': 32,
                                      'cuda': {'use': True}
                                      },
                            'experiment': {'single_batch_debug': True}}
         self.params = self.override_params_dict(dict_override=override_params)
-        lmd_train = LDMTrain(params=self.params)
+        lmd_train = LDMTrain(params=self.params, last_epoch=self.task.get_last_iteration(), logger=self.logger)
         lmd_train.train()
 
-    def train(self):
+    def train(self, task_id):
+        self.init(task_id=task_id)
         self.setup_workspace()
-        self.setup_logger(name='train')
-        lmd_train = LDMTrain(params=self.params, single_image_train=self.params['experiment']['single_image_train'])
+        lmd_train = LDMTrain(params=self.params, last_epoch=self.task.get_last_iteration(), logger=self.logger)
         lmd_train.train()
 
-    def find_learning_rate(self):
-        pass
-
-    def evaluate_model(self):
-        override_params = {'experiment':
-                               {'pretrained':
-                                    {'use_pretrained': True,
-                                     'timestamp': '010721_190049'
-                                     }
-                                }
-                           }
-        self.params = self.override_params_dict(dict_override=override_params)
-        # for dec_head in range(9):
-        #     override_params = {'evaluation': {'prediction_from_decoder_head': dec_head}}
-        #     self.params = self.override_params_dict(dict_override=override_params)
-        #
-        #     self.setup_workspace()
-        #     self.setup_logger(name='evaluate_model')
-        #     lmd_eval = Evaluator(params=self.params)
-        #     lmd_eval.evaluate()
+    def evaluate_model(self, task_id):
+        self.init(task_id=task_id)
         self.setup_workspace()
-        self.setup_logger(name='evaluate_model')
-        lmd_eval = Evaluator(params=self.params)
+        lmd_eval = Evaluator(params=self.params, logger_cml=self.task.logger)
         lmd_eval.evaluate()
 
     def run_experiment(self):
