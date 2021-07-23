@@ -1,94 +1,31 @@
-# ------------------------------------------------------------------------------
-# Copyright (c) Microsoft
-# Licensed under the MIT License.
-# Created by Tianheng Cheng(tianhengcheng@gmail.com), Yang Zhao
-# ------------------------------------------------------------------------------
-
-import copy
-import json
 import os
 import random
-from PIL import Image
 
-from main.components.ptsutils import fliplr_img_pts
-from utils.file_handler import FileHandler
 import imgaug as ia
 import imgaug.augmenters as iaa
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
 import torch.utils.data as data
+from PIL import Image
 from skimage.morphology import dilation, square
-from skimage.color import rgb2gray
-from skimage.transform import resize
+
 # from torchvision.utils.transforms import fliplr_joints, crop, generate_target, transform_pixel
 import common.fileutils as fu
-from common.ptsutils import imshowpts, create_heatmaps2, create_base_gaussian
-
-
-def get_def_transform():
-    ia.seed(random.randint(0, 1000))
-
-    aug_pipeline = iaa.Sequential([
-        # iaa.Sometimes(0.1, iaa.Multiply((0.9, 1.2))), # change brightness, doesn't affect keypoints
-        iaa.Sometimes(0.1, iaa.CropAndPad(percent=(-0.10, 0.10))),
-        iaa.Sometimes(0.1, iaa.Affine(rotate=(-30, 30))),
-        iaa.Sometimes(0.1, iaa.Affine(scale=(0.75, 1.25))),
-        iaa.Sometimes(0.1, iaa.contrast.LinearContrast(alpha=(0.6, 1.4))),
-
-        # apply from 0 to 3 of the augmentations from the list
-        iaa.SomeOf((0, 3), [
-            iaa.Sometimes(0.1, iaa.Sharpen(alpha=(0, 1.0), lightness=(0.75, 1.2))),  # sharpen images
-            iaa.Sometimes(0.1, iaa.Emboss(alpha=(0, 1.0), strength=(0, 1.2))),  # emboss images
-            iaa.Sometimes(0.1, iaa.GaussianBlur((0, 2.0))),
-        ])
-    ],
-        random_order=True  # apply the augmentations in random order
-    )
-    return aug_pipeline
-
-
-def transform_data(transform, im, pts):
-    kps = [ia.Keypoint(x, y) for x, y in pts]
-    image_aug, kps_aug = np.array(transform(image=im, keypoints=kps), dtype=object)
-    ptsa = []
-    for item in kps_aug:
-        ptsa.append([item.coords[0][0], item.coords[0][1]])
-    ptsa = np.float32(np.asarray(ptsa))
-    ima = image_aug
-    return ima, ptsa
-
-
-def get_data_list(worksets_path, datasets, nickname, numpts=68):
-    csvfile = os.path.join(worksets_path, f'{nickname}.csv')
-    print(os.getcwd())
-    dflist = pd.DataFrame()
-    for dataset in datasets:
-        df = pd.DataFrame()
-        ptsdir = os.path.join(worksets_path, dataset, f'pts{numpts}')
-        if os.path.exists(ptsdir):
-            ptspath = os.path.join(worksets_path, dataset, f'pts{numpts}')
-            ptsfilelist = fu.get_files_list(ptspath, ('.pts'))
-            imgnames = [os.path.splitext(os.path.relpath(f, ptspath))[0] for f in ptsfilelist]
-            df['imgnames'] = imgnames
-            df['dataset'] = dataset
-            dflist = pd.concat([dflist, df], ignore_index=True)
-    dflist.to_csv(csvfile)
-    return dflist
+from common.ptsutils import create_heatmaps2
+from main.components.ptsutils import fliplr_img_pts
+from utils.file_handler import FileHandler
 
 
 class CLMDataset(data.Dataset):
     def __init__(self, params, paths, dflist, is_train=True, transform=None):
         self.worksets_path = paths.workset
         self.transform = transform
-        self.num_landmarks = params['train']['num_landmarks']
-        model_args = params['model'][params['train']['model']]
+        self.num_landmarks = params.train.num_landmarks
+        self.input_size = params.train.input_size
         self.dflist = dflist
         self.is_train = is_train
-        self.input_size = model_args['input_size']
-        self.hmsize = model_args['heatmap_size']
-        self.gaustd = 1.5
+        self.heatmaps = params.train.heatmaps if params.train.heatmaps.train_with_heatmaps else None
         # Extracted from trainset_full.csv
         self.mean = np.array([0.5021, 0.3964, 0.3471], dtype=np.float32)
         self.std = np.array([0.2858, 0.2547, 0.2488], dtype=np.float32)
@@ -125,24 +62,29 @@ class CLMDataset(data.Dataset):
                 img, pts = fliplr_img_pts(img, pts)  # dataset=dataset.split('/')[0].upper())
             img, pts = transform_data(self.transform, img, pts)
 
-        heatmaps, hm_pts = create_heatmaps2(pts, np.shape(img), self.hmsize, self.gaustd)
-        heatmaps = np.float32(heatmaps)  # /np.max(hm)
-        hm_sum = np.sum(heatmaps, axis=0)
-
-        heatmaps = torch.Tensor(heatmaps)
-        # see: https://arxiv.org/pdf/1904.07399v3.pdf
-        weighted_loss_mask_awing = dilation(hm_sum, square(3)) >= 0.2
-
         img = (np.float32(img) / 256 - self.mean) / self.std
         img = torch.Tensor(img)
         img = img.permute(2, 0, 1)
 
-        hmfactor = self.input_size[0] / self.hmsize[0]
         pts_ = torch.Tensor(pts_)
 
-        item = {'index': idx, 'img_name': img_name, 'dataset': dataset,
-                'img': img, 'heatmaps': heatmaps, 'hm_pts': hm_pts, 'opts': pts_, 'sfactor': sfactor,
-                'hmfactor': hmfactor, 'tpts': pts, 'weighted_loss_mask_awing': weighted_loss_mask_awing}
+        if self.heatmaps is not None:
+            heatmaps, hm_pts = create_heatmaps2(pts, np.shape(img), self.heatmaps.heatmap_size,
+                                                self.heatmaps.guassian_std)
+            heatmaps = np.float32(heatmaps)
+            hm_sum = np.sum(heatmaps, axis=0)
+
+            heatmaps = torch.Tensor(heatmaps)
+            # see: https://arxiv.org/pdf/1904.07399v3.pdf
+            weighted_loss_mask_awing = dilation(hm_sum, square(3)) >= 0.2
+            hmfactor = self.input_size[0] / self.heatmaps.heatmap_size[0]
+
+        item = {'index': idx, 'img_name': img_name, 'dataset': dataset, 'img': img, 'opts': pts_, 'sfactor': sfactor,
+                'tpts': pts}
+
+        if self.heatmaps is not None:
+            item.update({'heatmaps': heatmaps, 'hm_pts': hm_pts, 'hmfactor': hmfactor,
+                         'weighted_loss_mask_awing': weighted_loss_mask_awing})
         return item
 
     def update_mean_and_std(self):
@@ -177,3 +119,53 @@ class CLMDataset(data.Dataset):
         img_ = np.clip(img_, a_min=0, a_max=255)
 
         return np.ubyte(img_)
+
+
+def get_def_transform():
+    ia.seed(random.randint(0, 1000))
+
+    aug_pipeline = iaa.Sequential([
+        # iaa.Sometimes(0.1, iaa.Multiply((0.9, 1.2))), # change brightness, doesn't affect keypoints
+        iaa.Sometimes(0.1, iaa.CropAndPad(percent=(-0.10, 0.10))),
+        iaa.Sometimes(0.1, iaa.Affine(rotate=(-30, 30))),
+        iaa.Sometimes(0.1, iaa.Affine(scale=(0.75, 1.25))),
+        iaa.Sometimes(0.1, iaa.contrast.LinearContrast(alpha=(0.6, 1.4))),
+
+        # apply from 0 to 3 of the augmentations from the list
+        iaa.SomeOf((0, 3), [
+            iaa.Sometimes(0.1, iaa.Sharpen(alpha=(0, 1.0), lightness=(0.75, 1.2))),  # sharpen images
+            iaa.Sometimes(0.1, iaa.Emboss(alpha=(0, 1.0), strength=(0, 1.2))),  # emboss images
+            iaa.Sometimes(0.1, iaa.GaussianBlur((0, 2.0))),
+        ])
+    ],
+        random_order=True  # apply the augmentations in random order
+    )
+    return aug_pipeline
+
+
+def transform_data(transform, im, pts):
+    kps = [ia.Keypoint(x, y) for x, y in pts]
+    image_aug, kps_aug = np.array(transform(image=im, keypoints=kps), dtype=object)
+    ptsa = []
+    for item in kps_aug:
+        ptsa.append([item.coords[0][0], item.coords[0][1]])
+    ptsa = np.float32(np.asarray(ptsa))
+    ima = image_aug
+    return ima, ptsa
+
+
+def get_data_list(worksets_path, datasets, nickname, numpts=68):
+    csv_file = os.path.join(worksets_path, f'{nickname}.csv')
+    dflist = pd.DataFrame()
+    for dataset in datasets:
+        df = pd.DataFrame()
+        ptsdir = os.path.join(worksets_path, dataset, f'pts{numpts}')
+        if os.path.exists(ptsdir):
+            pts_path = os.path.join(worksets_path, dataset, f'pts{numpts}')
+            ptsfilelist = fu.get_files_list(pts_path, ('.pts'))
+            img_names = [os.path.splitext(os.path.relpath(f, pts_path))[0] for f in ptsfilelist]
+            df['imgnames'] = img_names
+            df['dataset'] = dataset
+            dflist = pd.concat([dflist, df], ignore_index=True)
+    dflist.to_csv(csv_file)
+    return dflist

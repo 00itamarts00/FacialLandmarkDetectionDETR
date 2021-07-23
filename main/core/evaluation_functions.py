@@ -1,15 +1,12 @@
 import logging
 import math
 import os
-from numba import jit
+
 import numpy as np
 import torch
 from PIL import Image
-from sklearn.metrics import auc
 from scipy.optimize import linear_sum_assignment
-from tqdm import tqdm
-logger = logging.getLogger(__name__)
-# import wandb
+from sklearn.metrics import auc
 
 from main.core.transforms import transform_preds
 from utils.plot_utils import plot_grid_of_ldm
@@ -108,48 +105,82 @@ def save_tough_images(dataset, dataset_inst, ds_err, output, decoder_head=-1):
     analyze_pic = plot_grid_of_ldm(dataset, img_plot, preds_plot, tpts_plot)
     im = Image.fromarray(analyze_pic)
     im.save(os.path.join(output, f'{dataset}_dec_{decoder_head}_analysis_image.png'))
+    return im
 
 
-def analyze_results(datastets_inst, datasets, eval_name, output=None, decoder_head=-1):
-    logger.info(f"Analyzing results on {eval_name} Datasets")
+def analyze_results(datastets_inst, datasets, eval_name, output=None, decoder_head=-1, logger=None):
+    from main.components.dataclasses import BatchEval, EpochEval
+    logger.report_text(f"Analyzing {eval_name.upper()}", logging.INFO, print_console=True)
     datasets = [i.replace("/", "_") for i in datasets]
-    tot_err, log = list(), dict()
+    full_analysis = list()
     for dataset, dataset_inst in datastets_inst.items():
         if dataset not in datasets:
             continue
-        logging.info(f"Analysing dataset {dataset} in {eval_name}")
-        preds, tpts = list(), list()
+        logger.report_text(f"Analysing dataset {dataset} in {eval_name}", logging.INFO, print_console=True)
+        # preds, tpts = list(), list()
+        epoch_eval = EpochEval(epoch=dataset)
+        batch_eval_lst = list()
         for b_idx, b_idx_inst in dataset_inst.items():
+            batch_eval = BatchEval(epoch=dataset, batch_idx=b_idx)
+            preds, tpts = list(), list()
             [preds.append(b.numpy()) for b in b_idx_inst["preds"]]
             [tpts.append(b.numpy()) for b in b_idx_inst["tpts"]]
+            batch_eval.nme, batch_eval.auc08, batch_eval.auc10, _ = evaluate_normalized_mean_error(np.array(preds),
+                                                                                                   np.array(tpts))
+            batch_eval.end_time()
+            batch_eval_lst.append(batch_eval)
         # for i, (tpt, pred) in tqdm(enumerate(zip(tpts, preds))):
         #     preds[i] = min_cost_max_bipartite(pred, tpt)
-        nme_ds, auc08_ds, auc10_ds, _ = evaluate_normalized_mean_error(np.array(preds), np.array(tpts))
-        log_ds = {dataset: {"auc08": auc08_ds, "auc10": auc10_ds}}
-        log.update(log_ds)
-        [tot_err.append(i) for i in nme_ds]
-        if output is not None:
-            save_tough_images(dataset=f'{eval_name.replace(" ", "_")}-{dataset}',
-                              dataset_inst=dataset_inst,
-                              ds_err=nme_ds,
-                              output=output,
-                              decoder_head=decoder_head)
-    tot_err = np.array(tot_err)
-    fail08 = (tot_err > 0.08).mean() * 100
-    fail10 = (tot_err > 0.10).mean() * 100
+        epoch_eval.batch_eval_lst = batch_eval_lst
+        epoch_eval.end_time()
+        logger.report_text(f'Dataset: {dataset} '
+                           f'| FR08: {epoch_eval.get_failure_rate(0.08):.3f} '
+                           f'| AUC08: {epoch_eval.get_auc(0.08):.3f} '
+                           f'| FR10: {epoch_eval.get_failure_rate(0.10):.3f} '
+                           f'| AUC10: {epoch_eval.get_auc(0.10):.3f} '
+                           f'| NLE: {epoch_eval.get_nle():.3f} ')
+        logger.report_scalar(title=f'{dataset}/FR08', series='FR08', value=epoch_eval.get_failure_rate(0.08), iteration=0)
+        logger.report_scalar(title=f'{dataset}/AUC08', series='AUC08', value=epoch_eval.get_auc(0.08), iteration=0)
+        logger.report_scalar(title=f'{dataset}/FR10', series='AUC10', value=epoch_eval.get_failure_rate(0.10), iteration=0)
+        logger.report_scalar(title=f'{dataset}/NLE', series='NLE', value=epoch_eval.get_auc(0.10), iteration=0)
+        logger.report_scalar(title=f'{dataset}/FR08', series='FR08', value=epoch_eval.get_nle(), iteration=0)
+
+        full_analysis.append(epoch_eval)
+        img_name = f'{eval_name.replace(" ", "_")}-{epoch_eval.epoch}'
+        if 'lfpw' in dataset.lower():
+            print('here')
+        img = save_tough_images(dataset=img_name,
+                                dataset_inst=dataset_inst,
+                                ds_err=epoch_eval._get_all_values('nme'),
+                                output=output,
+                                decoder_head=decoder_head)
+        logger.report_image(title='Hardest predictions', series=img_name, image=img)
+
+    # TODO: should we check the NME as a weighted sum of the datasets?
+    # np.array([i.get_auc(0.08) * (len(i._get_all_values('nme')) / len(tot_err)) for i in full_analysis]).sum()
+
+    tot_err = list()
+    [[tot_err.append(i.squeeze()) for i in ds_nme._get_all_values('nme')] for ds_nme in full_analysis]
+    tot_err = np.array(tot_err).squeeze()
+
+    failure_rate = lambda nme, rate: (nme > rate).astype(int).mean() * 100
+    fail08 = failure_rate(tot_err, 0.08)
+    fail10 = failure_rate(tot_err, 0.10)
     auc08 = get_auc(tot_err, thresh=0.08) * 100
     auc10 = get_auc(tot_err, thresh=0.10) * 100
     nle = tot_err.mean() * 100
+    logger.report_text(f'Evaluation Set: {eval_name.upper()} '
+                       f'| FR08: {fail08:.3f} '
+                       f'| AUC08: {auc08:.3f} '
+                       f'| FR10: {fail10:.3f} '
+                       f'| AUC10: {auc10:.3f} '
+                       f'| NLE: {nle:.3f}')
 
-    return {
-        "setnick": eval_name,
-        "auc08": auc08,
-        "auc10": auc10,
-        "NLE": nle,
-        "fail08": fail08,
-        "fail10": fail10,
-        "ds_logger": log,
-    }
+    logger.report_scalar(title=f'{eval_name.upper()}/FR08', series='FR08', value=fail08, iteration=0)
+    logger.report_scalar(title=f'{eval_name.upper()}/AUC08', series='AUC08', value=auc08, iteration=0)
+    logger.report_scalar(title=f'{eval_name.upper()}/FR10', series='AUC10', value=fail10, iteration=0)
+    logger.report_scalar(title=f'{eval_name.upper()}/NLE', series='NLE', value=auc10, iteration=0)
+    logger.report_scalar(title=f'{eval_name.upper()}/FR08', series='FR08', value=nle, iteration=0)
 
 
 def evaluate_normalized_mean_error(predictions, groundtruth):

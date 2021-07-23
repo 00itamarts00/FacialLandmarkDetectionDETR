@@ -1,0 +1,11 @@
+scheduler:
+  MultiStepLR:
+    milestones: [50, 150]
+    gamma: 0
+  StepLR:
+    step_size: 50
+    gamma: 0.5
+  CyclicLR:
+    base_lr: 1e-3
+    max_lr: 1e-1
+    step_size_up: 100

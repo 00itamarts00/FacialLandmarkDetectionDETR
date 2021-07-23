@@ -15,8 +15,5 @@ def save_checkpoint(states, is_best, output_dir, filename='checkpoint.pth'):
         os.remove(latest_path)
     os.symlink(os.path.join(output_dir, filename), latest_path)
 
-    if is_best and 'state_dict' in states.keys():
-        try:
-            torch.save(states.module, os.path.join(output_dir, 'model_best.pth'))
-        except:
-            torch.save(states, os.path.join(output_dir, 'model_best.pth'))
+    if is_best:
+        torch.save(states, os.path.join(output_dir, 'model_best.pth'))

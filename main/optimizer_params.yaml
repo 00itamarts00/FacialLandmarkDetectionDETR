@@ -1,0 +1,26 @@
+optimizer:
+  ADAM:
+    lr: 0.0001
+    betas: [0.5, 0.999]
+    eps: 1e-8
+    weight_decay: 0
+    amsgrad: False
+  SGD:
+    lr: 0.1
+    momentum: 0
+    dampening: 0
+    weight_decay: 0
+    nesterov: False
+  RANGER:
+    lr: 1e-05
+    alpha: 0.5
+    K: 6
+    N_sma_threshhold: 5
+    betas: [0.95, 0.999]
+    eps: 1e-05
+    weight_decay: 0
+    use_gc: True
+    gc_conv_only: False
+  ADAMW:
+    lr: 1e-4
+    weight_decay: 0.0001
