@@ -16,7 +16,7 @@ detr_args:
   dim_feedforward: 2048
   hidden_dim: 512
   dropout: 0
-  nheads: 1
+  nheads: 8
   num_queries: 68
   pre_norm: True
   masks: False
