@@ -1,5 +1,5 @@
 import os
-
+import sys
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -22,8 +22,9 @@ class CnnStats(object):
     def get_dataframe(stats_file, model):
         df = pd.read_csv(stats_file) if os.path.isfile(stats_file) else pd.DataFrame(columns=('name', 'size'))
 
-        for name, m in tqdm(list(model.named_parameters()), position=0, leave=True):
-            df.loc[len(df)] = {'name': name, 'size': np.array(m.size())}
+        if not sys.gettrace():
+            for name, m in tqdm(list(model.named_parameters()), position=0, leave=True):
+                df.loc[len(df)] = {'name': name, 'size': np.array(m.size())}
 
         df.to_csv(stats_file)
         return df
