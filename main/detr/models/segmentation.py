@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from torch import Tensor
 from PIL import Image
 
-from utils_misc import NestedTensor, interpolate, nested_tensor_from_tensor_list
+from main.detr.models.utils_misc import NestedTensor, interpolate, nested_tensor_from_tensor_list
 
 
 class DETRsegm(nn.Module):
@@ -25,13 +25,13 @@ class DETRsegm(nn.Module):
                 p.requires_grad_(False)
 
         hidden_dim, nheads = detr.transformer.d_model, detr.transformer.nhead
-        self.bbox_attention = MHAttentionMap(hidden_dim, hidden_dim, nheads, dropout=0.0)
-        self.mask_head = MaskHeadSmallConv(hidden_dim + nheads, [1024, 512, 256], hidden_dim)
+        self.bbox_attention = MHAttentionMap(hidden_dim, hidden_dim, nheads, dropout=0.0).cuda()
+        self.mask_head = MaskHeadSmallConv(hidden_dim + nheads, [1024, 512, 256], hidden_dim).cuda()
 
     def forward(self, samples: NestedTensor):
         if isinstance(samples, (list, torch.Tensor)):
             samples = nested_tensor_from_tensor_list(samples)
-        features, pos = self.detr.backbone(samples)
+        features, pos, _ = self.detr.backbone(samples)
 
         bs = features[-1].tensors.shape[0]
 
@@ -43,13 +43,13 @@ class DETRsegm(nn.Module):
         outputs_class = self.detr.class_embed(hs)
         outputs_coord = self.detr.bbox_embed(hs).sigmoid()
         out = {"pred_logits": outputs_class[-1], "pred_boxes": outputs_coord[-1]}
-        if self.detr.aux_loss:
-            out['aux_outputs'] = self.detr._set_aux_loss(outputs_class, outputs_coord)
+        # if self.detr.aux_loss:
+        #     out['aux_outputs'] = self.detr._set_aux_loss(outputs_class, outputs_coord)
 
         # FIXME h_boxes takes the last one computed, keep this in mind
         bbox_mask = self.bbox_attention(hs[-1], memory, mask=mask)
 
-        seg_masks = self.mask_head(src_proj, bbox_mask, [features[2].tensors, features[1].tensors, features[0].tensors])
+        seg_masks = self.mask_head(src_proj, bbox_mask, [features[-1].tensors, features[-1].tensors, features[-1].tensors])
         outputs_seg_masks = seg_masks.view(bs, self.detr.num_queries, seg_masks.shape[-2], seg_masks.shape[-1])
 
         out["pred_masks"] = outputs_seg_masks
