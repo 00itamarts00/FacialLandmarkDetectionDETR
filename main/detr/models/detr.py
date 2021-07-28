@@ -10,6 +10,7 @@ from main.components.Awing.awing_loss import Loss_weighted
 from main.detr.misc import (NestedTensor, nested_tensor_from_tensor_list, get_world_size,
                             is_dist_avail_and_initialized)
 from main.detr.models.backbone import build_backbone
+from main.detr.models.misc_nets import MLP
 from main.detr.models.transformer import build_transformer
 
 
@@ -31,7 +32,7 @@ class DETR(nn.Module):
         self.transformer = transformer
         hidden_dim = transformer.d_model
         self.class_embed = nn.Linear(hidden_dim, num_classes + 1)
-        self.bbox_embed = MLP(hidden_dim, hidden_dim//2, 2, 3)
+        self.coords_embed = MLP(hidden_dim, hidden_dim // 2, 2, 3)
         self.query_embed = nn.Embedding(num_queries, hidden_dim)
         self.input_proj = nn.Conv2d(backbone.num_channels, hidden_dim, kernel_size=1)
         self.backbone = backbone
@@ -51,15 +52,15 @@ class DETR(nn.Module):
         """
         if isinstance(samples, (list, torch.Tensor)):
             samples = nested_tensor_from_tensor_list(samples)
-        features, pos, hm_reg = self.backbone(samples)
+        features, pos = self.backbone(samples)
 
         src, mask = features[-1].decompose()
         assert mask is not None
-        hs, memory = self.transformer(self.input_proj(src), mask, self.query_embed.weight, pos[-1])
+        outputs_coord, memory = self.transformer(self.input_proj(src), mask, self.query_embed.weight, pos[-1])
 
-        outputs_class = self.class_embed(hs)
-        outputs_coord = self.bbox_embed(hs).sigmoid() * samples.tensors.shape[-1] * 1.2 + 0.5
-        out = {'pred_logits': outputs_class, 'pred_coords': outputs_coord, 'hm_output': hm_reg}
+        # outputs_class = self.class_embed(hs)
+        # outputs_coord = self.coords_embed(hs).sigmoid() * samples.tensors.shape[-1] * 1.2 + 0.5
+        out = {'pred_coords': outputs_coord}
 
         return out
 
@@ -71,28 +72,17 @@ class SetCriterion(nn.Module):
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
 
-    def __init__(self, last_dec_coord_loss=True, multi_dec_loss=False, multi_enc_loss=False,
-                 heatmap_regression_via_backbone=False):
+    def __init__(self, last_dec_coord_loss=True, multi_dec_loss=False):
         """ Create the criterion.
         Parameters:
             l1_coord_loss: flag, L1 loss from the last decoder output
             multi_dec_loss: flag, sum of L1 loss from all decoder outputs
             multi_enc_loss: HM regression from the output of all encoders
-            hm_regression_via_bb: flag, HM regression from the backbone intermediate layer
         """
         super().__init__()
         self.last_dec_coord_loss_flag = last_dec_coord_loss
         self.multi_dec_loss_flag = multi_dec_loss
-        self.multi_enc_loss_flag = multi_enc_loss
-        self.hm_regression_via_bb_flag = heatmap_regression_via_backbone
         self.losses = self.get_loss_map()
-        self.awing_loss = self.load_awing_loss()
-
-    def load_awing_loss(self):
-        if self.hm_regression_via_bb_flag or self.multi_enc_loss_flag:
-            return Loss_weighted()
-        else:
-            return None
 
     @staticmethod
     def l1_coord_loss(outputs, targets, num_coords):
@@ -119,23 +109,12 @@ class SetCriterion(nn.Module):
     def multi_enc_loss(self, outputs, targets, num_coords):
         raise NotImplementedError()
 
-    def hm_regression_via_bb(self, outputs, targets, num_coords):
-        heatmaps_opts = targets['heatmap_bb']
-        heatmaps_pred = outputs['hm_output']
-        weighted_loss_mask_awing = targets['weighted_loss_mask_awing']
-        loss = self.awing_loss(heatmaps_pred, heatmaps_opts, M=weighted_loss_mask_awing)
-        return loss
-
     def get_loss_map(self, **kwargs):
         loss_map = dict()
         if self.last_dec_coord_loss_flag and not self.multi_dec_loss_flag:
             loss_map.update({'last_dec_coord_loss': self.last_dec_coord_loss})
         if self.multi_dec_loss_flag:
             loss_map.update({'multi_dec_loss': self.multi_dec_loss})
-        if self.multi_enc_loss_flag:
-            loss_map.update({'multi_enc_loss': self.multi_enc_loss})
-        if self.hm_regression_via_bb_flag:
-            loss_map.update({'hm_regression_via_bb': self.hm_regression_via_bb})
         return loss_map
 
     def forward(self, outputs, targets):
@@ -161,27 +140,10 @@ class SetCriterion(nn.Module):
         return losses, lossv
 
 
-class MLP(nn.Module):
-    """ Very simple multi-layer perceptron (also called FFN)"""
-
-    def __init__(self, input_dim, hidden_dim, output_dim, num_layers):
-        super().__init__()
-        self.num_layers = num_layers
-        h = [hidden_dim] * (num_layers - 1)
-        self.layers = nn.ModuleList(nn.Linear(n, k) for n, k in zip([input_dim] + h, h + [output_dim]))
-
-    def forward(self, x):
-        for i, layer in enumerate(self.layers):
-            x = F.relu(layer(x)) if i < self.num_layers - 1 else layer(x)
-        return x
-
-
 def load_criteria(args):
     device = torch.device(args.device)
     criterion = SetCriterion(last_dec_coord_loss=args.last_dec_coord_loss,
-                             multi_dec_loss=args.multi_dec_loss,
-                             multi_enc_loss=args.multi_enc_loss,
-                             heatmap_regression_via_backbone=args.heatmap_regression_via_backbone)
+                             multi_dec_loss=args.multi_dec_loss)
     criterion.to(device)
     return criterion
 

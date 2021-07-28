@@ -12,7 +12,11 @@ detr_args:
   dilation: False
   position_embedding: 'learned'
   enc_layers: 1
-  dec_layers: 10
+  encoder_blocks: 1
+  dec_layers: 5
+  decoder_blocks: 3
+  decoder_blocks_weight_sharing: True
+  return_intermediate: True
   dim_feedforward: 2048
   hidden_dim: 512
   dropout: 0
@@ -26,6 +30,5 @@ detr_args:
   seed: 42
   # losses
   multi_dec_loss: True
-  multi_enc_loss: False
-  heatmap_regression_via_backbone: False
   last_dec_coord_loss: True
+
