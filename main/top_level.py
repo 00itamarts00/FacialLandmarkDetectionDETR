@@ -38,7 +38,7 @@ class TopLevel(object):
         self.params.update(task_id=task.task_id)
         g.TASK_ID = task.task_id
         task.connect(self.params)
-        tags = [g.TIMESTAMP] if not sys.gettrace() else [g.TIMESTAMP, 'DEBUG']
+        tags = [str(g.TIMESTAMP)] if not sys.gettrace() else [str(g.TIMESTAMP), 'DEBUG']
         task.set_tags(tags)
         self.logger = Logger.current_logger()
         return task
@@ -57,7 +57,7 @@ class TopLevel(object):
         self.setup_pretrained()
         wp = self.params.workspace_path
         name = self.params.project
-        ex_workspace_path = os.path.join(wp, name, g.TIMESTAMP)
+        ex_workspace_path = os.path.join(wp, name, str(g.TIMESTAMP))
         os.makedirs(ex_workspace_path, exist_ok=True)
         self.params.workspace_path = ex_workspace_path
         FileHandler.save_dict_as_yaml(self.params.toDict(), os.path.join(ex_workspace_path, 'params.yaml'))
@@ -129,6 +129,6 @@ class TopLevel(object):
         self.train()
         override_params = {'experiment':
                                {'pretrained':
-                                    {'timestamp': g.TIMESTAMP}}}
+                                    {'timestamp': str(g.TIMESTAMP)}}}
         self.params = self.override_params_dict(dict_override=override_params)
         self.evaluate_model()

@@ -123,7 +123,6 @@ class BackboneBase(nn.Module):
 
     def forward(self, tensor_list: NestedTensor):
         xs = self.body(tensor_list.tensors)
-        # hm = HMExtractor()
         out: Dict[str, NestedTensor] = {}
         for name, x in xs.items():
             m = tensor_list.mask
@@ -151,28 +150,26 @@ class Backbone(BackboneBase):
 
 
 class Joiner(nn.Sequential):
-    def __init__(self, backbone, position_embedding, hm_extractor=None):
-        super().__init__(backbone, position_embedding, hm_extractor)
+    def __init__(self, backbone, position_embedding):
+        super().__init__(backbone, position_embedding)
 
     def forward(self, tensor_list: NestedTensor):
         xs = self[0](tensor_list)
         outxs = {'0': xs.pop('2')} if xs.__len__() != 1 else xs
-        hmxs = self[2](xs['2'].tensors) if (xs.__len__() != 1) and (self[2] is not None) else None
         out: List[NestedTensor] = []
         pos = []
         for name, x in outxs.items():
             out.append(x)
             # position encoding
             pos.append(self[1](x).to(x.tensors.dtype))
-        return out, pos, hmxs
+        return out, pos
 
 
 def build_backbone(args):
     position_embedding = build_position_encoding(args)
     train_backbone = args.lr_backbone > 0
     return_interm_layers = args.return_interm_layers
-    hm_extractor = HMExtractor() if args.heatmap_regression_via_backbone else None
     backbone = Backbone(args.backbone, train_backbone, return_interm_layers, args.dilation, args.backbone_pretrained)
-    model = Joiner(backbone, position_embedding, hm_extractor=hm_extractor)
+    model = Joiner(backbone, position_embedding)
     model.num_channels = backbone.num_channels
     return model
