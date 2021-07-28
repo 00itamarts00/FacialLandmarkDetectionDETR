@@ -26,7 +26,7 @@ class DETRsegm(nn.Module):
 
         hidden_dim, nheads = detr.transformer.d_model, detr.transformer.nhead
         self.bbox_attention = MHAttentionMap(hidden_dim, hidden_dim, nheads, dropout=0.0).cuda()
-        self.mask_head = MaskHeadSmallConv(hidden_dim + nheads, [1024, 512, 256], hidden_dim).cuda()
+        self.mask_head = MaskHeadSmallConv(hidden_dim + nheads, [1024, 1024, 1024], hidden_dim).cuda()
 
     def forward(self, samples: NestedTensor):
         if isinstance(samples, (list, torch.Tensor)):
