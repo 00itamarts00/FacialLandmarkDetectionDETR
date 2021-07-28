@@ -151,6 +151,7 @@ class LDMTrain(object):
 
     def backend_operations(self):
         cuda = self.tr.cuda
+        torch.version.debug = True if sys.gettrace() else False
         torch.manual_seed(self.tr.torch_seed)
         use_cuda = cuda.use and torch.cuda.is_available()
         device = torch.device(cuda.device_type if use_cuda else "cpu")

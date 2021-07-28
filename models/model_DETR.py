@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from models.transformer import TransformerDecoder, TransformerDecoderLayer, \
+from main.detr.models.transformer import TransformerDecoder, TransformerDecoderLayer, \
     TransformerEncoder, TransformerEncoderLayer
 
 

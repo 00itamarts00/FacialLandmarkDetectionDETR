@@ -9,8 +9,8 @@ from torch import nn
 from main.components.Awing.awing_loss import Loss_weighted
 from main.detr.misc import (NestedTensor, nested_tensor_from_tensor_list, get_world_size,
                             is_dist_avail_and_initialized)
-from .backbone import build_backbone
-from .transformer import build_transformer
+from main.detr.models.backbone import build_backbone
+from main.detr.models.transformer import build_transformer
 
 
 class DETR(nn.Module):
