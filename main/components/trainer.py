@@ -5,6 +5,7 @@ import math
 import os
 import sys
 
+import pandas as pd
 import torch.backends.cudnn
 import torch.optim as optim
 from clearml.logger import Logger
@@ -70,8 +71,8 @@ class LDMTrain(object):
                            numpts=68)
         dftrain = df.sample(frac=self.tr.trainset_partition, random_state=self.tr.partition_seed)
         # random state is a seed value
-        dfvalid = df.drop(dftrain.index)
-
+        # dfvalid = df.drop(dftrain.index)
+        dfvalid = pd.read_csv('/home/itamar/thesis/DATASET/WS02/300W.csv')
         transform = get_def_transform() if self.tr.datasets.use_augmentations else None
 
         trainset = CLMDataset(self.pr, self.paths, dftrain, transform=transform)
