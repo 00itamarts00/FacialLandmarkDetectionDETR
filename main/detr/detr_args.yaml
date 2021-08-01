@@ -31,4 +31,5 @@ detr_args:
   # losses
   multi_dec_loss: True
   last_dec_coord_loss: True
+  init_query: 'mean'
 

@@ -6,7 +6,9 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from main.components.Awing.awing_loss import Loss_weighted
+MEAN_FACE = 'models/mean_face.npy'
+import numpy as np
+
 from main.detr.misc import (NestedTensor, nested_tensor_from_tensor_list, get_world_size,
                             is_dist_avail_and_initialized)
 from main.detr.models.backbone import build_backbone
@@ -17,7 +19,7 @@ from main.detr.models.transformer import build_transformer
 class DETR(nn.Module):
     """ This is the DETR module that performs object detection """
 
-    def __init__(self, backbone, transformer, num_classes, num_queries):
+    def __init__(self, backbone, transformer, num_classes, num_queries, init_query=None):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -33,7 +35,9 @@ class DETR(nn.Module):
         hidden_dim = transformer.d_model
         self.class_embed = nn.Linear(hidden_dim, num_classes + 1)
         self.coords_embed = MLP(hidden_dim, hidden_dim // 2, 2, 3)
+        self.init_query = init_query
         self.query_embed = nn.Embedding(num_queries, hidden_dim)
+        self.query_embed_init = self.load_query_embed(hidden_dim, num_queries)
         self.input_proj = nn.Conv2d(backbone.num_channels, hidden_dim, kernel_size=1)
         self.backbone = backbone
 
@@ -56,13 +60,18 @@ class DETR(nn.Module):
 
         src, mask = features[-1].decompose()
         assert mask is not None
-        outputs_coord, memory = self.transformer(self.input_proj(src), mask, self.query_embed.weight, pos[-1])
+        outputs_coord, memory = self.transformer(self.input_proj(src), mask, self.query_embed_init, pos[-1])
 
-        # outputs_class = self.class_embed(hs)
-        # outputs_coord = self.coords_embed(hs).sigmoid() * samples.tensors.shape[-1] * 1.2 + 0.5
         out = {'pred_coords': outputs_coord}
 
         return out
+
+    def load_query_embed(self, hidden_dim, num_queries):
+        if self.init_query == 'mean':
+            mean_pts = torch.tensor(np.load(MEAN_FACE)) / 256
+            embeder = MLP(2, hidden_dim // 2, hidden_dim, 1)
+            self.query_embed.weight.data = embeder(mean_pts).data
+        return self.query_embed.weight
 
 
 class SetCriterion(nn.Module):
@@ -162,6 +171,7 @@ def build(args):
         transformer=transformer,
         num_classes=num_classes,
         num_queries=args.num_queries,
+        init_query=args.init_query
     )
     for param in model.parameters():
         param.requires_grad = True
