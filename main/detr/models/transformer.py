@@ -73,8 +73,7 @@ class Transformer(nn.Module):
 
 # TODO change name with MultipleDecoder
 class MultipleDecoder(nn.Module):
-    def __init__(self, decoder_layer, hidden_dim, num_decoder_layers, num_blocks, weight_sharing, return_intermediate,
-                 sfactor=256):
+    def __init__(self, decoder_layer, hidden_dim, num_decoder_layers, num_blocks, weight_sharing, return_intermediate):
         super().__init__()
         self.decoder_layer = decoder_layer
         self.num_decoder_layers = num_decoder_layers
@@ -82,7 +81,6 @@ class MultipleDecoder(nn.Module):
         self.num_blocks = num_blocks
         self.weight_sharing = weight_sharing
         self.return_intermediate = return_intermediate
-        self.sfactor = sfactor
         self.nn_list = nn.ModuleList()
         self.pre_decoder = self.gen_pre_decoder()  # input: bs x n_lndmk x 2 / output : n_lndmk x bs x hidden_dim
         self.decoder_block = self.gen_decoder_block()  # input: n_lndmk x bs x hidden_dim, memory, memory_key_padding_mask, pos, query_pos
@@ -93,7 +91,7 @@ class MultipleDecoder(nn.Module):
         return PreDecoderBlock(input_dim=[68, 2], hidden_dim=self.hidden_dim)
 
     def gen_post_decoder(self):
-        return PostDecoderBlock(hidden_dim=self.hidden_dim, sfactor=self.sfactor)
+        return PostDecoderBlock(hidden_dim=self.hidden_dim)
 
     def gen_decoder_block(self):
         decoder_norm = nn.LayerNorm(self.hidden_dim)
@@ -158,13 +156,12 @@ class PreDecoderBlock(nn.Module):
 
 class PostDecoderBlock(nn.Module):
     # turns output of decoder/encoder block to num_landmarks x 2
-    def __init__(self, hidden_dim, sfactor):
+    def __init__(self, hidden_dim):
         super().__init__()
-        self.sfactor = sfactor
         self.coord_embed = MLP(hidden_dim, hidden_dim // 2, 2, 3)
 
     def forward(self, hs):
-        return self.coord_embed(hs).sigmoid() * self.sfactor * 1.2 + 0.5
+        return self.coord_embed(hs)
 
 
 class TransformerEncoder(nn.Module):
