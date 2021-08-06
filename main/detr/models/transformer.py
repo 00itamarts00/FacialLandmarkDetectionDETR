@@ -66,9 +66,9 @@ class Transformer(nn.Module):
 
         tgt = torch.zeros_like(query_embed)
         memory = self.encoder(src, src_key_padding_mask=mask, pos=pos_embed)
-        hs = self.decoder(tgt, memory, memory_key_padding_mask=mask,
+        coords = self.decoder(tgt, memory, memory_key_padding_mask=mask,
                           pos=pos_embed, query_pos=query_embed)
-        return hs.permute(0, 2, 1, 3), memory.permute(1, 2, 0).view(bs, c, h, w)
+        return coords.permute(0, 2, 1, 3), memory.permute(1, 2, 0).view(bs, c, h, w)
 
 
 # TODO change name with MultipleDecoder
@@ -164,7 +164,7 @@ class PostDecoderBlock(nn.Module):
         self.coord_embed = MLP(hidden_dim, hidden_dim // 2, 2, 3)
 
     def forward(self, hs):
-        return self.coord_embed(hs).sigmoid() * self.sfactor * 1.2 + 0.5
+        return self.coord_embed(hs).sigmoid()
 
 
 class TransformerEncoder(nn.Module):

@@ -59,7 +59,7 @@ class DETR(nn.Module):
         outputs_coord, memory = self.transformer(self.input_proj(src), mask, self.query_embed.weight, pos[-1])
 
         # outputs_class = self.class_embed(hs)
-        # outputs_coord = self.coords_embed(hs).sigmoid() * samples.tensors.shape[-1] * 1.2 + 0.5
+        outputs_coord = outputs_coord * samples.tensors.shape[-1] + 0.5
         out = {'pred_coords': outputs_coord}
 
         return out
