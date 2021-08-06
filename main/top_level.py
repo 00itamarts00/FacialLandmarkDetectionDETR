@@ -8,6 +8,7 @@ from pygit2 import Repository
 import main.globals as g
 from main.components.evaluator import Evaluator
 from main.components.trainer import LDMTrain
+from common.s3_interface import upload_file_to_s3
 from utils.file_handler import FileHandler
 from utils.param_utils import *
 from clearml.logger import Logger
@@ -116,13 +117,16 @@ class TopLevel(object):
     def train(self, task_id):
         self.init(task_id=task_id)
         self.setup_workspace()
-        lmd_train = LDMTrain(params=self.params, last_epoch=self.task.get_last_iteration(), logger=self.logger)
+        lmd_train = LDMTrain(params=self.params, last_epoch=self.task.get_last_iteration(), logger=self.logger,
+                             task_id=self.task.task_id)
         lmd_train.train()
+        upload_file_to_s3(file_name=lmd_train.model_best_pth)
 
     def evaluate_model(self, task_id):
         self.init(task_id=task_id)
         self.setup_workspace()
-        lmd_eval = Evaluator(params=self.params, logger_cml=self.task.logger)
+        lmd_eval = Evaluator(params=self.params, logger_cml=self.task.logger,
+                             task_id=self.task.task_id)
         lmd_eval.evaluate()
 
     def run_experiment(self):

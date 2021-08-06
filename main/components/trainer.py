@@ -12,6 +12,7 @@ from dotmap import DotMap
 from torch.optim.lr_scheduler import StepLR, MultiStepLR
 from torch.utils import data
 import main.globals as g
+from common.s3_interface import download_file_from_s3
 from main.components.CLMDataset import CLMDataset, get_def_transform, get_data_list
 from main.core.functions import train_epoch, validate_epoch
 from main.core.nnstats import CnnStats
@@ -29,13 +30,15 @@ torch.cuda.empty_cache()
 
 
 class LDMTrain(object):
-    def __init__(self, params, single_image_train=False, last_epoch=0, logger=None):
+    def __init__(self, params, single_image_train=False, last_epoch=0, logger=None, task_id=None):
         self.params = params
         self.logger_cml = logger
+        self.task_id = task_id
         self.single_image_train = single_image_train
         self.workset_path = os.path.join(self.ds.dataset_dir, self.ds.workset_name)
         self.paths = self.create_workspace()
         self.last_epoch = last_epoch
+        self.model_best_pth = os.path.join(self.paths.checkpoint, f'{self.task_id}_model_best.pth')
         self.device = self.backend_operations()
         self.train_loader, self.valid_loader = self.create_dataloaders()
         self.model = self.load_model()
@@ -111,8 +114,7 @@ class LDMTrain(object):
         if self.tr.model == 'HRNET':
             optimizer = get_optimizer(hrnet_config._C, self.model)
         if self.pr.pretrained.use_pretrained:
-            model_best_pth = os.path.join(self.paths.checkpoint, 'model_best.pth')
-            optimizer.load_state_dict(torch.load(model_best_pth)['optimizer'])
+            optimizer.load_state_dict(torch.load(self.model_best_pth)['optimizer'])
         return optimizer
 
     def load_model(self):
@@ -120,18 +122,20 @@ class LDMTrain(object):
             self.logger_cml.report_text(f'Loading DETR Model', level=logging.INFO, print_console=True)
             model = build_model(args=self.pr.detr_args)
             if self.pr.pretrained.use_pretrained:
-                model_best_pth = os.path.join(self.paths.checkpoint, 'model_best.pth')
-                model_best_state = torch.load(model_best_pth)
-                self.logger_cml.report_text(f'Loading model: {model_best_pth}', level=logging.INFO, print_console=True)
+                if not os.path.exists(self.model_best_pth):
+                    os.makedirs(os.path.dirname(self.model_best_pth), exist_ok=True)
+                    download_file_from_s3(s3_object_key=os.path.basename(self.model_best_pth),
+                                          local_file_name=self.model_best_pth)
+                model_best_state = torch.load(self.model_best_pth)
+                self.logger_cml.report_text(f'Loading model: {self.model_best_pth}', level=logging.INFO, print_console=True)
                 model.load_state_dict(model_best_state['state_dict'], strict=True)
         if self.tr.model == 'HRNET':
             self.logger_cml.report_text(f'Loading HRNET Model', level=logging.INFO, print_console=True)
             config_path = self.pr['model']['HRNET']['config']
             update_config(hrnet_config._C, config_path)
             if self.pr.pretrained.use_pretrained:
-                model_best_pth = os.path.join(self.paths.checkpoint, 'model_best.pth')
-                model_best_state = torch.load(model_best_pth)
-                self.logger_cml.report_text(f'Loading model: {model_best_pth}', level=logging.INFO, print_console=True)
+                model_best_state = torch.load(self.model_best_pth)
+                self.logger_cml.report_text(f'Loading model: {self.model_best_pth}', level=logging.INFO, print_console=True)
                 try:
                     model.load_state_dict(model_best_state['state_dict'].state_dict())
                 except:
@@ -216,7 +220,8 @@ class LDMTrain(object):
                                         "optimizer": self.optimizer.state_dict()},
                                 is_best=is_best,
                                 output_dir=self.paths.checkpoint,
-                                filename='checkpoint_{}.pth'.format(epoch))
+                                filename='checkpoint_{}.pth'.format(epoch),
+                                task_id=self.task_id)
                 self.logger_cml.report_text(f'saving final model state to {final_model_state_file}',
                                             level=logging.INFO, print_console=True)
 

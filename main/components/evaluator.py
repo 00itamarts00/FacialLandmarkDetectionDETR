@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 
 class Evaluator(LDMTrain):
-    def __init__(self, params, logger_cml):
-        super().__init__(params, logger=logger_cml)
+    def __init__(self, params, logger_cml, task_id=None):
+        super().__init__(params, logger=logger_cml, task_id=task_id)
 
     @property
     def ev(self):
@@ -73,6 +73,9 @@ class Evaluator(LDMTrain):
 
         for key, val in iterable.items():
             analyze_results_to_analysis_path(datastets_inst=res, datasets=val, eval_name=key)
+
+        print(f'SOTA on 300W Private: NME:3.73\tAUC08:53.94%\tFR08:2.33'
+              f'\n see: https://arxiv.org/pdf/1902.01831v2.pdf')
 
     def evaluate_model(self, test_loader, **kwargs):
         epts_batch = dict()
