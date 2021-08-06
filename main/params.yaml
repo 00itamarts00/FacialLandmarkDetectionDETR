@@ -26,7 +26,7 @@ train:
   num_landmarks: 68
   input_size: [256, 256]
   trainset_partition: 0.8
-  epochs: 250
+  epochs: 1
   batch_size: 32
   torch_seed: 42
   trainable_parameters: null

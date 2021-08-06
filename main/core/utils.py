@@ -7,7 +7,7 @@ import os
 import torch
 
 
-def save_checkpoint(states, is_best, output_dir, filename='checkpoint.pth'):
+def save_checkpoint(states, is_best, output_dir, filename='checkpoint.pth', task_id=None):
     torch.save(states, os.path.join(output_dir, filename))
 
     latest_path = os.path.join(output_dir, 'latest.pth')
@@ -16,4 +16,5 @@ def save_checkpoint(states, is_best, output_dir, filename='checkpoint.pth'):
     os.symlink(os.path.join(output_dir, filename), latest_path)
 
     if is_best:
-        torch.save(states, os.path.join(output_dir, 'model_best.pth'))
+        model_best_name = f'{task_id}_model_best.pth' if task_id is not None else 'model_best.pth'
+        torch.save(states, os.path.join(output_dir, model_best_name))
