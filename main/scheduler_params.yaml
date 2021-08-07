@@ -3,7 +3,7 @@ scheduler:
     milestones: [50, 150]
     gamma: 0
   StepLR:
-    step_size: 50
+    step_size: 100
     gamma: 0.5
   CyclicLR:
     base_lr: 1e-3
