@@ -52,7 +52,7 @@ class FrozenBatchNorm2d(torch.nn.Module):
 
     def forward(self, x):
         # move reshapes to the beginning
-        # to make it fuser-friendly
+        # to make it user-friendly
         w = self.weight.reshape(1, -1, 1, 1)
         b = self.bias.reshape(1, -1, 1, 1)
         rv = self.running_var.reshape(1, -1, 1, 1)
@@ -138,24 +138,21 @@ class Backbone(BackboneBase):
     def __init__(self, name: str,
                  train_backbone: bool,
                  return_interm_layers: bool,
-                 dilation: bool, pretrained: bool):
+                 dilation: bool, pretrained: bool, backbone_layer:int = 3):
         backbone = resnet50(pretrained=pretrained, progress=True,
                             replace_stride_with_dilation=[False, False, dilation], norm_layer=FrozenBatchNorm2d)
-        # backbone = getattr(torchvision.models, name)(
-        #     replace_stride_with_dilation=[False, False, dilation],
-        #     pretrained=is_main_process(), norm_layer=FrozenBatchNorm2d)
-        num_channels = 1024  # if name in ('resnet18', 'resnet34') else 2048
-        # num_channels = 512  # if name in ('resnet18', 'resnet34') else 2048
+        num_channels = 256 * (2 ** backbone_layer)  # if name in ('resnet18', 'resnet34') else 2048
         super().__init__(backbone, train_backbone, num_channels, return_interm_layers)
 
 
 class Joiner(nn.Sequential):
-    def __init__(self, backbone, position_embedding):
+    def __init__(self, backbone, position_embedding, backbone_layer):
+        self.backbone_layer = backbone_layer
         super().__init__(backbone, position_embedding)
 
     def forward(self, tensor_list: NestedTensor):
         xs = self[0](tensor_list)
-        outxs = {'0': xs.pop('2')} if xs.__len__() != 1 else xs
+        outxs = {'0': xs.pop(str(self.backbone_layer))} if xs.__len__() != 1 else xs
         out: List[NestedTensor] = []
         pos = []
         for name, x in outxs.items():
@@ -169,7 +166,8 @@ def build_backbone(args):
     position_embedding = build_position_encoding(args)
     train_backbone = args.lr_backbone > 0
     return_interm_layers = args.return_interm_layers
-    backbone = Backbone(args.backbone, train_backbone, return_interm_layers, args.dilation, args.backbone_pretrained)
-    model = Joiner(backbone, position_embedding)
+    backbone = Backbone(args.backbone, train_backbone, return_interm_layers, args.dilation, args.backbone_pretrained,\
+                        backbone_layer=args.backbone_layer)
+    model = Joiner(backbone, position_embedding, args.backbone_layer)
     model.num_channels = backbone.num_channels
     return model

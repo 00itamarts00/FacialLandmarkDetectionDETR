@@ -27,7 +27,7 @@ train:
   input_size: [256, 256]
   trainset_partition: 0.8
   epochs: 250
-  batch_size: 16
+  batch_size: 32
   torch_seed: 42
   trainable_parameters: null
   run_valid: True
@@ -39,7 +39,7 @@ train:
     pin_memory: True
   backend:
     use_torch: True
-  model: PERC
+  model: DETR
   optimizer: ADAMW
   scheduler: StepLR
   heatmaps:
