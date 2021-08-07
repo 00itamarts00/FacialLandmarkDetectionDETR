@@ -1,4 +1,4 @@
-project: DETR
+project: FacialLandmarkDetection
 workspace_path: '/home/itamar/thesis/outputs'
 log_interval: 20
 pretrained:
@@ -26,8 +26,8 @@ train:
   num_landmarks: 68
   input_size: [256, 256]
   trainset_partition: 0.8
-  epochs: 1
-  batch_size: 32
+  epochs: 250
+  batch_size: 16
   torch_seed: 42
   trainable_parameters: null
   run_valid: True
@@ -39,7 +39,7 @@ train:
     pin_memory: True
   backend:
     use_torch: True
-  model: DETR
+  model: PERC
   optimizer: ADAMW
   scheduler: StepLR
   heatmaps:

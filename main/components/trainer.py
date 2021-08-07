@@ -22,7 +22,7 @@ from main.detr.models.detr import load_criteria as load_criteria_detr
 from models.HRNET import hrnet_config, update_config
 from models.HRNET.HRNET import get_face_alignment_net
 from models.HRNET.hrnet_utils import get_optimizer
-
+from models.PERCIEVER import Perceiver
 torch.cuda.empty_cache()
 
 
@@ -52,6 +52,8 @@ class LDMTrain(object):
         if self.tr.model == 'DETR':
             return load_criteria_detr(args=self.pr.detr_args)
         if self.tr.model == 'HRNET':
+            return torch.nn.MSELoss(size_average=True).cuda()
+        if self.tr.model == 'PERC':
             return torch.nn.MSELoss(size_average=True).cuda()
 
     @property
@@ -118,6 +120,9 @@ class LDMTrain(object):
         return optimizer
 
     def load_model(self):
+        if self.tr.model == 'PERC':
+            self.logger_cml.report_text(f'Loading Perceiver Model', level=logging.INFO, print_console=True)
+            model = Perceiver(args=self.pr.perciever_args)
         if self.tr.model == 'DETR':
             self.logger_cml.report_text(f'Loading DETR Model', level=logging.INFO, print_console=True)
             model = build_model(args=self.pr.detr_args)

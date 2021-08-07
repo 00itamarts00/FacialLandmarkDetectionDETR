@@ -15,6 +15,7 @@ from clearml.logger import Logger
 
 PARAMS = 'main/params.yaml'
 DETR_ARGS = 'main/detr/detr_args.yaml'
+PERC_ARGS = 'models/PERCIEVER/perciever_args.yaml'
 SCHEDULER_PARAMS = 'main/scheduler_params.yaml'
 OPTIMIZER_PARAMS = 'main/optimizer_params.yaml'
 
@@ -101,7 +102,9 @@ class TopLevel(object):
             return DotMap(update_nested_dict(params.toDict(), FileHandler.load_yaml(DETR_ARGS)))
         elif params.train.model == 'HRNET':
             raise NotImplementedError
-            # TODO: update params with HRNET config params
+        # TODO: update params with HRNET config params
+        elif params.train.model == 'PERC':
+            return DotMap(update_nested_dict(params.toDict(), FileHandler.load_yaml(PERC_ARGS)))
 
     def single_batch_train(self):
         self.init()

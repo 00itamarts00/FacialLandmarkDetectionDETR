@@ -167,6 +167,8 @@ def inference(model, input_batch, **kwargs):
     model_name = kwargs.get('model_name', None)
     output_ = model(input_batch)
 
+    if model_name == 'PERC':
+        preds = output_
     if model_name == 'HRNET':
         preds = decode_preds_heatmaps(output_).cuda()
     if model_name == 'DETR':
@@ -183,6 +185,9 @@ def get_loss(criteria, output, target_dict, **kwargs):
         heatmaps = target_dict['heatmap_bb']
         lossv = criteria(output, heatmaps * hm_amp_factor)
         loss_dict = {'MSE_loss': lossv.item()}
-    if model_name == 'DETR':
+    elif model_name == 'DETR':
         loss_dict, lossv = criteria(output, target_dict)
+    elif model_name == 'PERC':
+        lossv = criteria(output, target_dict['coords'])
+        loss_dict = None
     return loss_dict, lossv
