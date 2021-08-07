@@ -40,7 +40,7 @@ train:
   backend:
     use_torch: True
   model: PERC
-  optimizer: ADAMW
+  optimizer: RANGER
   scheduler: StepLR
   heatmaps:
     train_with_heatmaps: False

@@ -14,6 +14,7 @@ from torch.utils import data
 import main.globals as g
 from common.s3_interface import download_file_from_s3
 from main.components.CLMDataset import CLMDataset, get_def_transform, get_data_list
+from main.components.Ranger_Deep_Learning_Optimizer_master.ranger.ranger2020 import Ranger
 from main.core.functions import train_epoch, validate_epoch
 from main.core.nnstats import CnnStats
 from main.core.utils import save_checkpoint
@@ -111,12 +112,15 @@ class LDMTrain(object):
     def load_optimizer(self):
         args_op = self.pr.optimizer.toDict().copy()
         optimizer_type = args_op.pop('name')
+        if optimizer_type == 'RANGER':
+            optimizer = Ranger(params=filter(lambda p: p.requires_grad, self.model.parameters()), **args_op)
         if optimizer_type == 'ADAMW':
             optimizer = optim.AdamW(params=filter(lambda p: p.requires_grad, self.model.parameters()), **args_op)
         if self.tr.model == 'HRNET':
             optimizer = get_optimizer(hrnet_config._C, self.model)
         if self.pr.pretrained.use_pretrained:
             optimizer.load_state_dict(torch.load(self.model_best_pth)['optimizer'])
+
         return optimizer
 
     def load_model(self):
