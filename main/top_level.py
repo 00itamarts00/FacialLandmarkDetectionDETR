@@ -58,7 +58,7 @@ class TopLevel(object):
     def setup_workspace(self):
         self.setup_pretrained()
         wp = self.params.workspace_path
-        name = self.params.project
+        name = self.params.train.model
         ex_workspace_path = os.path.join(wp, name, str(g.TIMESTAMP))
         os.makedirs(ex_workspace_path, exist_ok=True)
         self.params.workspace_path = ex_workspace_path

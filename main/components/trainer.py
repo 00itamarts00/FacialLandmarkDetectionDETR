@@ -14,6 +14,7 @@ from torch.utils import data
 import main.globals as g
 from common.s3_interface import download_file_from_s3
 from main.components.CLMDataset import CLMDataset, get_def_transform, get_data_list
+from main.components.Ranger_Deep_Learning_Optimizer_master.ranger.ranger2020 import Ranger
 from main.core.functions import train_epoch, validate_epoch
 from main.core.nnstats import CnnStats
 from main.core.utils import save_checkpoint
@@ -111,6 +112,8 @@ class LDMTrain(object):
     def load_optimizer(self):
         args_op = self.pr.optimizer.toDict().copy()
         optimizer_type = args_op.pop('name')
+        if optimizer_type == 'RANGER':
+            optimizer = Ranger(params=filter(lambda p: p.requires_grad, self.model.parameters()), **args_op)
         if optimizer_type == 'ADAMW':
             optimizer = optim.AdamW(params=filter(lambda p: p.requires_grad, self.model.parameters()), **args_op)
         if self.tr.model == 'HRNET':
@@ -215,19 +218,18 @@ class LDMTrain(object):
             self.logger_cml.report_text(f'is best nme: {is_best}', level=logging.INFO, print_console=True)
             if is_best or epoch % 20 == 0:
                 best_nme = min(nme, best_nme)
-                self.logger_cml.report_text(f'=> saving checkpoint to {self.paths.checkpoint}',
-                                            level=logging.INFO, print_console=True)
                 final_model_state_file = os.path.join(self.paths.checkpoint, 'final_state.pth')
-
-                save_checkpoint(states={"state_dict": self.model.state_dict(),
-                                        "epoch": epoch + 1,
-                                        "best_nme": best_nme,
-                                        "optimizer": self.optimizer.state_dict()},
-                                is_best=is_best,
-                                output_dir=self.paths.checkpoint,
-                                filename='checkpoint_{}.pth'.format(epoch),
-                                task_id=self.task_id)
+                torch.save(self.model.state_dict(), final_model_state_file)
                 self.logger_cml.report_text(f'saving final model state to {final_model_state_file}',
                                             level=logging.INFO, print_console=True)
 
-                torch.save(self.model.state_dict(), final_model_state_file)
+                if is_best:
+                    self.logger_cml.report_text(f'=> saving best model to {self.paths.checkpoint}',
+                                                level=logging.INFO, print_console=True)
+                    save_checkpoint(states={"state_dict": self.model.state_dict(),
+                                            "epoch": epoch + 1,
+                                            "best_nme": best_nme,
+                                            "optimizer": self.optimizer.state_dict()},
+                                    output_dir=self.paths.checkpoint,
+                                    task_id=self.task_id)
+
