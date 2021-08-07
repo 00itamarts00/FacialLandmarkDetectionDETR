@@ -33,7 +33,7 @@ class TopLevel(object):
             self.task = self.init_clearml()
 
     def init_clearml(self):
-        project_name = self.params.project
+        project_name = self.params.project if not sys.gettrace() else 'DEBUG'
         # TODO: change task name to custom value
         task_name = self.get_current_git_branch_name()
         task = Task.init(project_name, task_name, task_type='training', reuse_last_task_id=False)
@@ -58,7 +58,7 @@ class TopLevel(object):
     def setup_workspace(self):
         self.setup_pretrained()
         wp = self.params.workspace_path
-        name = self.params.project
+        name = self.params.train.model
         ex_workspace_path = os.path.join(wp, name, str(g.TIMESTAMP))
         os.makedirs(ex_workspace_path, exist_ok=True)
         self.params.workspace_path = ex_workspace_path
