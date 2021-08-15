@@ -109,7 +109,7 @@ def save_tough_images(dataset, dataset_inst, ds_err, output, decoder_head=-1):
 
 
 def analyze_results(datastets_inst, datasets, eval_name, output=None, decoder_head=-1, logger=None):
-    from main.components.dataclasses import BatchEval, EpochEval
+    from main.components.misc_dataclasses import BatchEval, EpochEval
     logger.report_text(f"Analyzing {eval_name.upper()}", logging.INFO, print_console=True)
     datasets = [i.replace("/", "_") for i in datasets]
     full_analysis = list()

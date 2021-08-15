@@ -7,9 +7,8 @@ import math
 import sys
 
 import torch
-from clearml.logger import Logger
 
-from main.components.dataclasses import EpochEval, BatchEval
+from main.components.misc_dataclasses import EpochEval, BatchEval
 from main.components.ptsutils import decode_preds_heatmaps
 from main.core.evaluation_functions import evaluate_normalized_mean_error
 from utils.plot_utils import plot_gt_pred_on_img
