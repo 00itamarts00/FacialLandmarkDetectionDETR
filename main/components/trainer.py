@@ -1,10 +1,15 @@
 from __future__ import print_function
 
+import glob
 import logging
 import math
 import os
+import random
 import sys
 
+import menpo
+import menpo.io as mio
+import numpy as np
 import torch.backends.cudnn
 import torch.optim as optim
 from clearml.logger import Logger
@@ -72,15 +77,13 @@ class LDMTrain(object):
     def create_dataloaders(self):
         nickname = 'trainset_full'
 
-        df = get_data_list(worksets_path=self.workset_path, datasets=self.tr.datasets.to_use, nickname=nickname,
-                           numpts=68)
+        df = get_data_list(worksets_path=self.workset_path, datasets=self.tr.datasets.to_use, nickname=nickname)
         dftrain = df.sample(frac=self.tr.trainset_partition, random_state=self.tr.partition_seed)
-        # random state is a seed value
         dfvalid = df.drop(dftrain.index)
 
         transform = get_def_transform() if self.tr.datasets.use_augmentations else None
 
-        trainset = CLMDataset(self.pr, self.paths, dftrain, transform=transform)
+        trainset = CLMDataset(self.pr, self.paths, dftrain, transform=transform, is_train=True)
         validset = CLMDataset(self.pr, self.paths, dfvalid)
 
         num_workers = self.tr.cuda.num_workers if sys.gettrace() is None else 0

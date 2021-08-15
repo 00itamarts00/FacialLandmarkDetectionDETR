@@ -2,9 +2,12 @@ import math
 import warnings
 
 import matplotlib.pyplot as plt
+import menpo
 import numpy as np
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
+from menpo.image import Image
 from mpl_toolkits.axes_grid1 import ImageGrid
 
 warnings.filterwarnings('ignore')
@@ -74,24 +77,31 @@ def scatter_prediction_gt(pred, gt):
 def plot_gt_pred_on_img(item, predictions, index):
     dataset = item['dataset'][index]
     img_name = item['img_name'][index]
-    img = item['img'].numpy()[index]
-    img = renorm_image(img)
-    img = np.array(img).astype(np.uint8)
-    fig = Figure()
-    canvas = FigureCanvas(fig)
-    preds = predictions[index].detach().cpu() if not isinstance(predictions, np.ndarray) else predictions[index]
-    opts = item['tpts'].numpy()[index]
-    ax = fig.add_subplot(111)
+    img = item['imgo'].numpy()[index]
+    preds = predictions[index].detach().cpu().numpy() if not isinstance(predictions, np.ndarray) else predictions[index]
+    tpts = item['tpts'].numpy()[index]
+
+    fig = plt.figure()
+    imga = np.moveaxis(img, img.shape.index(3), 0) / 256
+    a = Image(imga)
+    a.landmarks.update({'gt': menpo.shape.PointCloud(tpts[:, ::-1])})
+    a.view_landmarks(group='gt', render_axes=True, render_numbering=True, marker_style='.', marker_edge_colour='b')
+    a.landmarks.update({'pred': menpo.shape.PointCloud(preds[:, ::-1])})
+    a._view_landmarks_2d(group='pred', render_axes=True, render_numbering=True, marker_style='.', marker_edge_colour='r')
+
+    ax = fig.axes[0]
+
     ax.set_title(f'debug_image\ndataset: {dataset} name: {img_name}')
-    ax.imshow(img)
-    ax.scatter(preds[:, 0], preds[:, 1], s=5, c='r', label='pred')
-    ax.scatter(opts.T[0], opts.T[1], s=5, c='b', label='gt')
-    for ptp, ptgt in zip(preds, opts):
+    for ptp, ptgt in zip(preds, tpts):
         ax.plot([ptp[0], ptgt[0]], [ptp[1], ptgt[1]], 'g-', linewidth=0.5)
-    ax.legend()
-    canvas.draw()
-    width, height = fig.get_size_inches() * fig.get_dpi()
-    image = np.fromstring(canvas.tostring_rgb(), dtype='uint8').reshape(int(height), int(width), 3)
+    legend_elements = [Line2D([0], [0], marker='o', color='w', markerfacecolor='r', markersize=4, label='pred'),
+                       Line2D([0], [0], marker='o', color='w', markerfacecolor='b', markersize=4, label='gt')]
+    ax.legend(handles=legend_elements, loc='lower left')
+
+    canvas = FigureCanvas(fig)
+    canvas.draw()  # draw the canvas, cache the renderer
+    width, height = (fig.get_size_inches() * fig.get_dpi()).astype(int)
+    image = np.fromstring(canvas.tostring_rgb(), dtype='uint8').reshape(width, height, 3)
     return image
 
 

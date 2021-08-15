@@ -1,10 +1,8 @@
 import copy
-import math
 
 import numpy as np
-import skimage
 import torch
-from skimage import color
+from skimage.color import gray2rgb
 
 MATCHED_PARTS = {
     "300W": ([1, 17], [2, 16], [3, 15], [4, 14], [5, 13], [6, 12], [7, 11], [8, 10],
@@ -59,14 +57,17 @@ def get_face68_flip():
 
 
 def fliplr_img_pts(im, pts):
+    fliplr_ch_first = lambda x: np.array([np.fliplr(ch) for ch in x])
+    is_ch_first = lambda x: x.shape[0] == 3
+    fliplr_func = fliplr_ch_first if is_ch_first(im) else np.fliplr
+
     ptsa = copy.deepcopy(pts)
-    ima = np.fliplr(im)
+    ima = fliplr_func(im)
     sidx, didx = get_face68_flip()
 
     ptsa[didx, 0] = pts[sidx, 0]
     ptsa[didx, 1] = pts[sidx, 1]
     ptsa[didx, 0] = ima.shape[1] - ptsa[didx, 0]
-
     return ima, ptsa
 
 
@@ -141,85 +142,31 @@ def decode_preds_heatmaps(output, hm_size=None):
     return preds * (256 / hm_size[0])
 
 
-def crop_image_by_pts(im, pts, ppad=20):
-    min_x = np.min(pts[:, 0])
-    max_x = np.max(pts[:, 0])
-    min_y = np.min(pts[:, 1])
-    max_y = np.max(pts[:, 1])
-
-    fw = max_x - min_x
-    fh = max_y - min_y
-
-    wpad = fw * ppad / 100
-    hpad = fh * ppad / 100
-
-    if len(np.shape(im)) > 2:
-        [imh, imw, ch] = np.shape(im)
-    else:
-        [imh, imw] = np.shape(im)
-        ch = 1
-
-    min_xp = int(round(np.max([min_x - wpad, 0])))
-    max_xp = int(round(np.min([max_x + wpad, imw])))
-
-    min_yp = int(round(np.max([min_y - hpad, 0])))
-    max_yp = int(round(np.min([max_y + hpad, imh])))
-
-    nw = max_xp - min_xp
-    nh = max_yp - min_yp
-
-    if nw > nh:
-        hnpad = (nw - nh) / 2
-        min_yp = int(round(np.max([min_yp - hnpad, 0])))
-        max_yp = int(round(np.min([max_yp + hnpad, imh])))
-    else:
-        wnpad = (nh - nw) / 2
-        min_xp = int(round(np.max([min_xp - wnpad, 0])))
-        max_xp = int(round(np.min([max_xp + wnpad, imw])))
-
-    nw = max_xp - min_xp
-    nh = max_yp - min_yp
-
-    nw = math.floor(min(nw, imw) / 2) * 2
-    nh = math.floor(min(nh, imh) / 2) * 2
-
-    imc = np.copy(im[min_yp:min_yp + nh, min_xp:min_xp + nw])
-
-    pts_ = np.copy(pts)
-    pts_[:, 0] = pts_[:, 0] - min_xp
-    pts_[:, 1] = pts_[:, 1] - min_yp
-
-    dim = max(nh, nw)
-
-    if ch == 1:
-        im_ = np.full((dim, dim), 0, dtype=np.uint8)
-    else:
-        im_ = np.full((dim, dim, ch), 0, dtype=np.uint8)
-
-    xx = (dim - nw) // 2
-    yy = (dim - nh) // 2
-
-    # copy img image into center of result image
-    im_[yy:yy + nh, xx:xx + nw] = imc
-
-    pts_[:, 0] = pts_[:, 0] + xx
-    pts_[:, 1] = pts_[:, 1] + yy
-    return im_, pts_
-
-
 def gray2rgb_(image):
-    try:
-        h, w, c = image.shape
-        return image
-    except:
-        h, w = image.shape
-        return skimage.color.gray2rgb(image)
+    c, w, h = image.shape
+    if c == 1:
+        return gray2rgb(image[0])
+    return image
 
 
-def get_bbox(pts):
-    minx = min(pts[:, 0])
-    maxx = max(pts[:, 0])
+def ch_last(img):
+    # input: img of 3 axes
+    img.shape.index(3)
+    if img.shape.index(3) != 2:
+        return np.moveaxis(img, img.shape.index(3), -1)
+    return img
 
-    miny = min(pts[:, 1])
-    maxy = max(pts[:, 1])
-    return minx, maxx, miny, maxy
+
+def ch_first(img):
+    # input: img of 3 axes
+    img.shape.index(3)
+    if img.shape.index(3) != 0:
+        return np.moveaxis(img, img.shape.index(3), 0)
+    return img
+
+
+def normalize_meanstd(a, axis=None):
+    # axis param denotes axes along which mean & std reductions are to be performed
+    mean = np.mean(a, axis=axis, keepdims=True)
+    std = np.sqrt(((a - mean) ** 2).mean(axis=axis, keepdims=True))
+    return (a - mean) / std

@@ -59,7 +59,7 @@ class DETR(nn.Module):
         outputs_coord, memory = self.transformer(self.input_proj(src), mask, self.query_embed.weight, pos[-1])
 
         # outputs_class = self.class_embed(hs)
-        outputs_coord = outputs_coord * samples.tensors.shape[-1] + 0.5
+        outputs_coord = outputs_coord * samples.tensors.shape[-1]
         out = {'pred_coords': outputs_coord}
 
         return out
@@ -128,9 +128,7 @@ class SetCriterion(nn.Module):
         # Compute the average number of target coords across all nodes, for normalization purposes
         num_coords = sum([len(t) for t in targets['labels']])
         num_coords = torch.as_tensor([num_coords], dtype=torch.float, device=next(iter(outputs.values())).device)
-        if is_dist_avail_and_initialized():
-            torch.distributed.all_reduce(num_coords)
-        num_coords = torch.clamp(num_coords / get_world_size(), min=1).item()
+        num_coords = torch.clamp(num_coords, min=1).item()
 
         # Compute all the requested losses
         losses = {}

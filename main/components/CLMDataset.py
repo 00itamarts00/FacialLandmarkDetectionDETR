@@ -1,20 +1,23 @@
 import os
 import random
+from copy import copy
 
 import imgaug as ia
 import imgaug.augmenters as iaa
+import menpo.io as mio
 import numpy as np
 import pandas as pd
 import torch
 import torch.utils.data as data
-from PIL import Image
 from skimage.morphology import dilation, square
+from tqdm import tqdm
 
 # from torchvision.utils.transforms import fliplr_joints, crop, generate_target, transform_pixel
 import common.fileutils as fu
 from common.ptsutils import create_heatmaps2
-from main.components.ptsutils import fliplr_img_pts
-from utils.file_handler import FileHandler
+from create_dataset_utils.txt_parser import get_pts_from_txt
+from main.components.ptsutils import fliplr_img_pts, gray2rgb_, normalize_meanstd, ch_last, ch_first
+from main.globals import IMG_SUFFIX, BBS_DB
 
 
 class CLMDataset(data.Dataset):
@@ -27,46 +30,62 @@ class CLMDataset(data.Dataset):
         self.is_train = is_train
         self.heatmaps = params.train.heatmaps if params.train.heatmaps.train_with_heatmaps else None
         # Extracted from trainset_full.csv
-        self.mean = np.array([0.5021, 0.3964, 0.3471], dtype=np.float32)
-        self.std = np.array([0.2858, 0.2547, 0.2488], dtype=np.float32)
+        # self.mean = np.array([0.52907253, 0.40422649, 0.34813007], dtype=np.float32)
+        # self.std = np.array([0.2799659, 0.24529966, 0.24069724], dtype=np.float32)
 
     def __len__(self):
         return len(self.dflist)
 
-    def get_pairdata(self, idx):
-        df = self.dflist
-        imgname = df.iloc[idx]['imgnames']
-        dataset = df.iloc[idx]['dataset']
+    @staticmethod
+    def get_img_path(basename_path):
+        for suffix in IMG_SUFFIX:
+            fname = f'{basename_path}.{suffix}'
+            if os.path.exists(fname):
+                return fname
+        return None
 
-        pts_path = os.path.join(self.worksets_path, dataset, f'pts{self.num_landmarks}', f'{imgname}.pts')
-        img_path = os.path.join(self.worksets_path, dataset, 'img', f'{imgname}.jpg')
-
-        im_ = np.array(Image.open(img_path), dtype=np.float32)
-        pts_ = np.array(FileHandler.load_json(pts_path)['pts'])
-        return im_, pts_
-
-    def get_infodata(self, idx):
-        imgname = self.dflist.iloc[idx]['imgnames']
+    def get_img_name(self, idx):
+        basename_path = self.dflist.iloc[idx]['basename_path']
+        img_path = self.get_img_path(basename_path)
         dataset = self.dflist.iloc[idx]['dataset']
-        return dataset, imgname
+        return dataset, img_path
+
+    @staticmethod
+    def get_bbs_of_face(img_path, dataset):
+        bb_pts_fname = os.path.join(BBS_DB, dataset, f'{os.path.splitext(os.path.basename(img_path))[0]}.pts')
+        return get_pts_from_txt(bb_pts_fname)
+
+    @staticmethod
+    def crop_image_from_center_bb_mdm(mio_item, bb_pts, boundary_margin=1.3):
+        center_crop = np.array(bb_pts).mean(0)
+        range_crop = np.array(bb_pts).max(0) - np.array(bb_pts).min(0)
+        min_indices = np.round(center_crop - range_crop.max() * boundary_margin / 2).astype(int)
+        max_indices = np.round(center_crop + range_crop.max() * boundary_margin / 2).astype(int)
+        mio_item, transform = mio_item.crop(min_indices=min_indices[::-1], max_indices=max_indices[::-1],
+                                            constrain_to_boundary=True, return_transform=True)
+        return mio_item, transform
 
     def __getitem__(self, idx):
-        dataset, img_name = self.get_infodata(idx)
-        im_, pts_ = self.get_pairdata(idx)
+        dataset, img_path = self.get_img_name(idx)
+        mio_item = mio.import_image(filepath=img_path)
+        opts = mio_item.landmarks.get('PTS').points
+        bb_pts = self.get_bbs_of_face(img_path=img_path, dataset=dataset)
+        mio_item, transform = self.crop_image_from_center_bb_mdm(mio_item, bb_pts)
+        mio_item = mio_item.resize(self.input_size)
+        # mio_item.view_landmarks(render_numbering=True, render_lines=True, render_axes=True, marker_style='.')
+        imgo = ch_last(gray2rgb_(mio_item.pixels) * 256).astype(np.uint8)
 
-        img = ia.imresize_single_image(im_, self.input_size)
-        sfactor = img.shape[0] / im_.shape[0]
-        pts = pts_ * sfactor
+        pts = mio_item.landmarks.get('PTS').points[:, ::-1]
+        img = ch_first(gray2rgb_(normalize_meanstd(mio_item.pixels)))
+        # img = (np.float32(imgo) - self.mean.reshape(-1, 1, 1)) / self.std.reshape(-1, 1, 1)
+
         if self.transform is not None and self.is_train:
             if random.random() > 0.5:
-                img, pts = fliplr_img_pts(img, pts)  # dataset=dataset.split('/')[0].upper())
+                img, pts = fliplr_img_pts(img, pts)
             img, pts = transform_data(self.transform, img, pts)
 
-        img = (np.float32(img) / 256 - self.mean) / self.std
         img = torch.Tensor(img)
-        img = img.permute(2, 0, 1)
-
-        pts_ = torch.Tensor(pts_)
+        pts = torch.Tensor(copy(pts))
 
         if self.heatmaps is not None:
             heatmaps, hm_pts = create_heatmaps2(pts, np.shape(img), self.heatmaps.heatmap_size,
@@ -79,8 +98,8 @@ class CLMDataset(data.Dataset):
             weighted_loss_mask_awing = dilation(hm_sum, square(3)) >= 0.2
             hmfactor = self.input_size[0] / self.heatmaps.heatmap_size[0]
 
-        item = {'index': idx, 'img_name': img_name, 'dataset': dataset, 'img': img, 'opts': pts_, 'sfactor': sfactor,
-                'tpts': pts}
+        item = {'index': idx, 'img_name': mio_item.path.name, 'imgo': imgo,
+                'dataset': dataset, 'img': img, 'opts': opts, 'tpts': pts}
 
         if self.heatmaps is not None:
             item.update({'heatmaps': heatmaps, 'hm_pts': hm_pts, 'hmfactor': hmfactor,
@@ -89,35 +108,24 @@ class CLMDataset(data.Dataset):
 
     def update_mean_and_std(self):
         n = self.__len__()
-        dims = np.array(self.__getitem__(0)['img']).shape
+        dims = self.__getitem__(0)['img'].shape
 
-        x = 0
-        x2 = 0
-        for i in range(n):
+        x = x2 = 0
+        for i in tqdm(range(n)):
             item = self.__getitem__(i)
-            im = item['img']
-            x = x + torch.sum(im, [1, 2])
-            x2 = x2 + torch.sum(torch.pow(im, 2), [1, 2])
-
-            if not i % 100:
-                print(f'{i} out of {n}')
-
+            x += np.sum(item['imgo'], axis=(1, 2))
+            x2 += np.sum(np.power(item['imgo'], 2), axis=(1, 2))
         meanx = x / (n * dims[1] * dims[2])
         stdx = ((x2 - (n * dims[1] * dims[2]) * meanx ** 2) / (n * dims[1] * dims[2])) ** 0.5
 
-        self.mean = meanx
-        self.std = stdx
+        self.mean, self.std = meanx, stdx
 
         return meanx, stdx
 
     def renorm_image(self, img):
-        mean = np.array([0.5021, 0.3964, 0.3471], dtype=np.float32)
-        std = np.array([0.2858, 0.2547, 0.2488], dtype=np.float32)
-
         img_ = np.array(img).transpose([1, 2, 0])
-        img_ = 256 * (img_ * std + mean)
+        img_ = 256 * (img_ * self.std + self.mean)
         img_ = np.clip(img_, a_min=0, a_max=255)
-
         return np.ubyte(img_)
 
 
@@ -145,7 +153,10 @@ def get_def_transform():
 
 def transform_data(transform, im, pts):
     kps = [ia.Keypoint(x, y) for x, y in pts]
-    image_aug, kps_aug = np.array(transform(image=im, keypoints=kps), dtype=object)
+    try:
+        image_aug, kps_aug = np.array(transform(image=im, keypoints=kps), dtype=object)
+    except AssertionError:
+        print('here')
     ptsa = []
     for item in kps_aug:
         ptsa.append([item.coords[0][0], item.coords[0][1]])
@@ -154,18 +165,16 @@ def transform_data(transform, im, pts):
     return ima, ptsa
 
 
-def get_data_list(worksets_path, datasets, nickname, numpts=68):
+def get_data_list(worksets_path, datasets, nickname):
     csv_file = os.path.join(worksets_path, f'{nickname}.csv')
     dflist = pd.DataFrame()
     for dataset in datasets:
         df = pd.DataFrame()
-        ptsdir = os.path.join(worksets_path, dataset, f'pts{numpts}')
-        if os.path.exists(ptsdir):
-            pts_path = os.path.join(worksets_path, dataset, f'pts{numpts}')
-            ptsfilelist = fu.get_files_list(pts_path, ('.pts'))
-            img_names = [os.path.splitext(os.path.relpath(f, pts_path))[0] for f in ptsfilelist]
-            df['imgnames'] = img_names
-            df['dataset'] = dataset
-            dflist = pd.concat([dflist, df], ignore_index=True)
+        ds_path = os.path.join(worksets_path, dataset)
+        ptsfilelist = fu.get_files_list(ds_path, ('.pts'))
+        base_names = [os.path.splitext(f)[0] for f in ptsfilelist]
+        df['basename_path'] = base_names
+        df['dataset'] = dataset
+        dflist = pd.concat([dflist, df], ignore_index=True)
     dflist.to_csv(csv_file)
     return dflist

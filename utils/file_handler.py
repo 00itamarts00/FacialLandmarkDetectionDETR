@@ -105,3 +105,8 @@ class FileHandler(object):
     def save_dict_as_yaml(data, dict_path):
         with open(dict_path, 'w') as outfile:
             yaml.dump(data, outfile, default_flow_style=False)
+
+    @staticmethod
+    def read_general_txt_file(fname):
+        return open(fname).read()
+

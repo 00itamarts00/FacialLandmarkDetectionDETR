@@ -3,9 +3,7 @@ detr_args:
   lr: 1e-04
   lr_backbone: 1e-05
   weight_decay: 0.0001
-  lr_drop: 50
   clip_max_norm: 0.1
-  frozen_weights: None
   backbone: 'resnet50'
   backbone_pretrained: True
   return_interm_layers: True
@@ -13,7 +11,7 @@ detr_args:
   position_embedding: 'learned'
   enc_layers: 1
   encoder_blocks: 1
-  dec_layers: 10
+  dec_layers: 4
   decoder_blocks: 1
   decoder_blocks_weight_sharing: True
   return_intermediate: True
@@ -24,7 +22,6 @@ detr_args:
   num_queries: 68
   pre_norm: True
   masks: False
-  dataset_file: 'WS02'
   output_dir: '/home/itamar/thesis/outputs/detr'
   device: 'cuda'
   seed: 42

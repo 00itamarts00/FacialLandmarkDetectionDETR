@@ -4,4 +4,5 @@ LOGS_PROFS = '/home/itamar/thesis/outputs/logs_profiles'
 WANDB_INIT = 0
 WANDB_API_KEY = '2a9957f6b5c14246c56ec83ca7097d151bb758d6'
 TASK_ID = 0
-
+IMG_SUFFIX = ['jpg', 'jpeg', 'png', 'bmp']
+BBS_DB = '/home/itamar/thesis/DATASET/WS03/bbs/'

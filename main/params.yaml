@@ -9,13 +9,11 @@ single_batch_debug: False
 
 dataset:
   dataset_dir: '/home/itamar/thesis/DATASET'
-  workset_name: 'WS02'
-  to_use: ['300W', 'AFW', 'COFW68', 'helen/trainset', 'helen/testset',
-           'ibug', 'lfpw/trainset', 'lfpw/testset', 'menpo/trainset', 'WFLW/trainset', 'WFLW/testset']
+  workset_name: 'WS03'
 
 train:
   datasets:
-    to_use: [ 'helen/trainset', 'lfpw/trainset', 'menpo/trainset', 'AFW' ]
+    to_use: [ 'helen/trainset', 'afw' , 'lfpw/trainset'] # 'WFLW/trainset']
 #    to_use: ['helen/trainset', 'lfpw/trainset', 'AFW' ]
     use_augmentations: True
     augmentations:
@@ -30,7 +28,6 @@ train:
   batch_size: 32
   torch_seed: 42
   trainable_parameters: null
-  run_valid: True
   cuda:
     use: True
     device: 'cuda:0'

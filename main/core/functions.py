@@ -7,11 +7,13 @@ import math
 import sys
 
 import torch
-
 from main.components.misc_dataclasses import EpochEval, BatchEval
 from main.components.ptsutils import decode_preds_heatmaps
 from main.core.evaluation_functions import evaluate_normalized_mean_error
 from utils.plot_utils import plot_gt_pred_on_img
+
+if sys.gettrace():
+    exec('import matplotlib.pyplot as plt')
 
 
 def train_epoch(train_loader, model, criteria, optimizer, scheduler, epoch, logger_cml, **kwargs):
@@ -30,7 +32,7 @@ def train_epoch(train_loader, model, criteria, optimizer, scheduler, epoch, logg
     for batch_idx, item in enumerate(train_loader):
         # measure data time
         batch_eval = BatchEval(epoch=epoch, batch_idx=batch_idx)
-        input_, tpts, scale = item['img'].cuda(), item['tpts'].cuda(), item['sfactor'].cuda()
+        input_, tpts = item['img'].cuda(), item['tpts'].cuda()
         # compute the output
         bs = tpts.shape[0]
         target_dict = {'labels': [torch.range(start=0, end=tpts.shape[1] - 1) for i in range(bs)], 'coords': tpts, }
@@ -111,7 +113,7 @@ def validate_epoch(val_loader, model, criteria, epoch, logger_cml, **kwargs):
         for batch_idx, item in enumerate(val_loader):
             # measure data time
             batch_eval = BatchEval(epoch=epoch, batch_idx=batch_idx)
-            input_, tpts, scale = item['img'].cuda(), item['tpts'].cuda(), item['sfactor'].cuda()
+            input_, tpts = item['img'].cuda(), item['tpts'].cuda()
             # compute the output
             bs = tpts.shape[0]
             target_dict = {'labels': [torch.range(start=0, end=tpts.shape[1] - 1) for i in range(bs)], 'coords': tpts, }
@@ -126,8 +128,8 @@ def validate_epoch(val_loader, model, criteria, epoch, logger_cml, **kwargs):
             loss_dict, lossv = get_loss(criteria, output, target_dict=target_dict, **kwargs)
 
             # NME
-            batch_eval.nme, batch_eval.auc08, batch_eval.auc10, for_pck_curve_batch = evaluate_normalized_mean_error(
-                preds, tpts)
+            batch_eval.nme, batch_eval.auc08, batch_eval.auc10, for_pck_curve_batch =\
+                evaluate_normalized_mean_error(preds, tpts)
 
             batch_eval.loss = lossv.item()
             batch_eval.end_time()
@@ -155,8 +157,8 @@ def validate_epoch(val_loader, model, criteria, epoch, logger_cml, **kwargs):
           f'| FR08: {epoch_eval.get_failure_rate(0.08):.3f}'
     logger_cml.report_text(msg, level=logging.INFO, print_console=True)
 
-    dbg_img = plot_gt_pred_on_img(item=item, predictions=preds, index=0)
-    logger_cml.report_image('debug_image', 'converging landmarks', iteration=epoch, image=dbg_img)
+    image = plot_gt_pred_on_img(item=item, predictions=preds, index=0)
+    logger_cml.report_image('debug_image', 'converging landmarks', iteration=epoch, image=image)
 
     return epoch_eval.nme_avg()
 
