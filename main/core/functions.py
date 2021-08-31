@@ -157,7 +157,7 @@ def validate_epoch(val_loader, model, criteria, epoch, logger_cml, **kwargs):
           f'| FR08: {epoch_eval.get_failure_rate(0.08):.3f}'
     logger_cml.report_text(msg, level=logging.INFO, print_console=True)
 
-    image = plot_gt_pred_on_img(item=item, predictions=preds, index=0)
+    image = plot_gt_pred_on_img(item=item, predictions=preds, index=-1)
     logger_cml.report_image('debug_image', 'converging landmarks', iteration=epoch, image=image)
 
     return epoch_eval.nme_avg()

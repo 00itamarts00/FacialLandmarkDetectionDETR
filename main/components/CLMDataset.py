@@ -92,7 +92,6 @@ class CLMDataset(data.Dataset):
                                                 self.heatmaps.guassian_std)
             heatmaps = np.float32(heatmaps)
             hm_sum = np.sum(heatmaps, axis=0)
-
             heatmaps = torch.Tensor(heatmaps)
             # see: https://arxiv.org/pdf/1904.07399v3.pdf
             weighted_loss_mask_awing = dilation(hm_sum, square(3)) >= 0.2

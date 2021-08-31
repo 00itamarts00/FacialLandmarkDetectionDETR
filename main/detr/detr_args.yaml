@@ -11,7 +11,7 @@ detr_args:
   position_embedding: 'learned'
   enc_layers: 1
   encoder_blocks: 1
-  dec_layers: 4
+  dec_layers: 10
   decoder_blocks: 1
   decoder_blocks_weight_sharing: True
   return_intermediate: True
