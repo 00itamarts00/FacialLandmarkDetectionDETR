@@ -9,6 +9,7 @@ import main.globals as g
 from main.components.evaluator import Evaluator
 from main.components.trainer import LDMTrain
 from common.s3_interface import upload_file_to_s3
+from models.TRANSPOSE.utils import get_transpose_params
 from utils.file_handler import FileHandler
 from utils.param_utils import *
 from clearml.logger import Logger
@@ -16,6 +17,7 @@ from clearml.logger import Logger
 PARAMS = 'main/params.yaml'
 DETR_ARGS = 'main/detr/detr_args.yaml'
 PERC_ARGS = 'models/PERCIEVER/perciever_args.yaml'
+TRANSPOSE_ARGS = 'models/TRANSPOSE/transpose_args.yaml'
 SCHEDULER_PARAMS = 'main/scheduler_params.yaml'
 OPTIMIZER_PARAMS = 'main/optimizer_params.yaml'
 
@@ -105,6 +107,9 @@ class TopLevel(object):
         # TODO: update params with HRNET config params
         elif params.train.model == 'PERC':
             return DotMap(update_nested_dict(params.toDict(), FileHandler.load_yaml(PERC_ARGS)))
+        elif params.train.model == 'TRANSPOSE':
+            transpose_params = get_transpose_params(FileHandler.load_yaml(TRANSPOSE_ARGS))
+            return DotMap(update_nested_dict(params.toDict(), transpose_params))
 
     def single_batch_train(self):
         self.init()

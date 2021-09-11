@@ -27,7 +27,7 @@ train:
   input_size: [256, 256]
   trainset_partition: 0.8
   epochs: 250
-  batch_size: 32
+  batch_size: 2
   torch_seed: 42
   trainable_parameters: null
   run_valid: True
@@ -38,14 +38,18 @@ train:
     num_workers: 4
     pin_memory: True
   backend:
+    benchmark: True
     use_torch: True
-  model: DETR
-  optimizer: ADAMW
+    cudnn_enabled: True
+    cudnn_deterministic: False
+    cudnn_benchmark: True
+  model: TRANSPOSE
+  optimizer: ADAM
   scheduler: StepLR
   heatmaps:
-    train_with_heatmaps: False
+    train_with_heatmaps: True
     hm_amp_factor: 100
-    guassian_std: 1.5
+    guassian_std: 2
     heatmap_size: [64, 64]
   rearrange_prediction_for_min_cos_max_bipartite: False
 

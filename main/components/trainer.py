@@ -7,23 +7,21 @@ import sys
 
 import torch.backends.cudnn
 import torch.optim as optim
-from clearml.logger import Logger
 from dotmap import DotMap
 from torch.optim.lr_scheduler import StepLR, MultiStepLR
 from torch.utils import data
-import main.globals as g
-from common.s3_interface import download_file_from_s3
+
 from main.components.CLMDataset import CLMDataset, get_def_transform, get_data_list
 from main.components.Ranger_Deep_Learning_Optimizer_master.ranger.ranger2020 import Ranger
+from main.components.model_loader import load_model
 from main.core.functions import train_epoch, validate_epoch
 from main.core.nnstats import CnnStats
 from main.core.utils import save_checkpoint
-from main.detr.models.detr import build as build_model
 from main.detr.models.detr import load_criteria as load_criteria_detr
-from models.HRNET import hrnet_config, update_config
-from models.HRNET.HRNET import get_face_alignment_net
+from models.HRNET import hrnet_config
 from models.HRNET.hrnet_utils import get_optimizer
-from models.PERCIEVER import Perceiver
+from models.TRANSPOSE.loss import JointsMSELoss
+
 torch.cuda.empty_cache()
 
 
@@ -56,6 +54,8 @@ class LDMTrain(object):
             return torch.nn.MSELoss(size_average=True).cuda()
         if self.tr.model == 'PERC':
             return torch.nn.MSELoss(size_average=True).cuda()
+        if self.tr.model == 'TRANSPOSE':
+            return JointsMSELoss(use_target_weight=True).cuda()
 
     @property
     def pr(self):
@@ -116,41 +116,17 @@ class LDMTrain(object):
             optimizer = Ranger(params=filter(lambda p: p.requires_grad, self.model.parameters()), **args_op)
         if optimizer_type == 'ADAMW':
             optimizer = optim.AdamW(params=filter(lambda p: p.requires_grad, self.model.parameters()), **args_op)
-        if self.tr.model == 'HRNET':
-            optimizer = get_optimizer(hrnet_config._C, self.model)
+        if self.tr.model == 'TRANSPOSE':
+            optimizer = optim.Adam(params=filter(lambda p: p.requires_grad, self.model.parameters()), **args_op)
+
         if self.pr.pretrained.use_pretrained:
             optimizer.load_state_dict(torch.load(self.model_best_pth)['optimizer'])
+
         return optimizer
 
     def load_model(self):
-        if self.tr.model == 'PERC':
-            self.logger_cml.report_text(f'Loading Perceiver Model', level=logging.INFO, print_console=True)
-            model = Perceiver(args=self.pr.perciever_args)
-        if self.tr.model == 'DETR':
-            self.logger_cml.report_text(f'Loading DETR Model', level=logging.INFO, print_console=True)
-            model = build_model(args=self.pr.detr_args)
-            if self.pr.pretrained.use_pretrained:
-                if not os.path.exists(self.model_best_pth):
-                    os.makedirs(os.path.dirname(self.model_best_pth), exist_ok=True)
-                    download_file_from_s3(s3_object_key=os.path.basename(self.model_best_pth),
-                                          local_file_name=self.model_best_pth)
-                model_best_state = torch.load(self.model_best_pth)
-                self.logger_cml.report_text(f'Loading model: {self.model_best_pth}', level=logging.INFO, print_console=True)
-                model.load_state_dict(model_best_state['state_dict'], strict=True)
-        if self.tr.model == 'HRNET':
-            self.logger_cml.report_text(f'Loading HRNET Model', level=logging.INFO, print_console=True)
-            config_path = self.pr['model']['HRNET']['config']
-            update_config(hrnet_config._C, config_path)
-            if self.pr.pretrained.use_pretrained:
-                model_best_state = torch.load(self.model_best_pth)
-                self.logger_cml.report_text(f'Loading model: {self.model_best_pth}', level=logging.INFO, print_console=True)
-                try:
-                    model.load_state_dict(model_best_state['state_dict'].state_dict())
-                except:
-                    model = model_best_state['state_dict']
-            else:
-                kwargs = {}
-                model = get_face_alignment_net(hrnet_config._C, **kwargs)
+        self.logger_cml.report_text(f'Loading {self.tr.model} Model', level=logging.INFO, print_console=True)
+        model = load_model(model_name=self.tr.model, params=self.pr)
         return model.cuda()
 
     def load_scheduler(self):
@@ -168,7 +144,9 @@ class LDMTrain(object):
         use_cuda = cuda.use and torch.cuda.is_available()
         device = torch.device(cuda.device_type if use_cuda else "cpu")
         torch.backends.benchmark = self.tr.backend.use_torch
-        torch.backends.cudnn.benchmark = True
+        torch.backends.cudnn.benchmark = self.tr.backend.cudnn_benchmark
+        torch.backends.cudnn.deterministic = self.tr.backend.cudnn_deterministic
+        torch.backends.cudnn.enabled = self.tr.backend.cudnn_enabled
         torch.set_default_dtype(torch.float32)
         return device
 
@@ -232,4 +210,3 @@ class LDMTrain(object):
                                             "optimizer": self.optimizer.state_dict()},
                                     output_dir=self.paths.checkpoint,
                                     task_id=self.task_id)
-
