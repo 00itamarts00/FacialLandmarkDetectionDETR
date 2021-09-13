@@ -24,10 +24,10 @@ train:
       flip_lr: True
   partition_seed: 42
   num_landmarks: 68
-  input_size: [256, 256]
+  input_size: [128, 128]
   trainset_partition: 0.8
   epochs: 250
-  batch_size: 2
+  batch_size: 32
   torch_seed: 42
   trainable_parameters: null
   run_valid: True

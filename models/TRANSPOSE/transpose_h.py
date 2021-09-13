@@ -427,7 +427,7 @@ class TransPoseH(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.layer1 = self._make_layer(Bottleneck, 64, 4)
 
-        self.stage2_cfg = cfg.pose_hrnet.stage2
+        self.stage2_cfg = cfg.backbone_params.stage2
 
         num_channels = self.stage2_cfg.num_channels
         block = blocks_dict[self.stage2_cfg.block.upper()]
@@ -436,7 +436,7 @@ class TransPoseH(nn.Module):
         self.transition1 = self._make_transition_layer([256], num_channels)
         self.stage2, pre_stage_channels = self._make_stage(self.stage2_cfg, num_channels)
 
-        self.stage3_cfg = cfg.pose_hrnet.stage3
+        self.stage3_cfg = cfg.backbone_params.stage3
         num_channels = self.stage3_cfg.num_channels
         block = blocks_dict[self.stage3_cfg.block.upper()]
         num_channels = [num_channels[i] * block.expansion for i in range(len(num_channels))]
@@ -462,12 +462,12 @@ class TransPoseH(nn.Module):
         self.final_layer = nn.Conv2d(
             in_channels=d_model,
             out_channels=cfg.num_landmarks,
-            kernel_size=cfg.pose_hrnet.final_conv_kernel,
+            kernel_size=cfg.backbone_params.final_conv_kernel,
             stride=1,
-            padding=1 if cfg.pose_hrnet.final_conv_kernel == 3 else 0
+            padding=1 if cfg.backbone_params.final_conv_kernel == 3 else 0
         )
 
-        self.pretrained_layers = cfg.pose_hrnet.pretrained_layers
+        self.pretrained_layers = cfg.backbone_params.pretrained_layers
 
     def _make_position_embedding(self, w, h, d_model, pe_type='sine'):
         assert pe_type in ['none', 'learnable', 'sine']

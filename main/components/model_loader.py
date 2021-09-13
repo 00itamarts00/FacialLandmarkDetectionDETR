@@ -5,6 +5,7 @@ import torch
 
 from common.s3_interface import download_file_from_s3
 from main.detr.models.detr import build as build_model
+from main.globals import *
 from models.PERCIEVER import Perceiver
 from models.TRANSPOSE.transpose_h import get_pose_net as get_pose_hrnet
 from models.TRANSPOSE.transpose_r import get_pose_net as get_pose_resnet
@@ -12,13 +13,13 @@ from models.TRANSPOSE.transpose_r import get_pose_net as get_pose_resnet
 
 def load_model(model_name, params, use_pretrained=False, pretrained_path=None):
     model = None
-    if model_name == 'PERC':
+    if model_name == PERC:
         model_args = params.perciever_args
         model = Perceiver(args=model_args)
         if use_pretrained:
             load_pretrained_model(model, pretrained_path)
 
-    if model_name == 'DETR':
+    if model_name == DETR:
         model_args = params.detr_args
         model = build_model(args=model_args)
         if use_pretrained:
@@ -27,9 +28,9 @@ def load_model(model_name, params, use_pretrained=False, pretrained_path=None):
                 download_file_from_s3(s3_object_key=os.path.basename(pretrained_path), local_file_name=pretrained_path)
             load_pretrained_model(model, pretrained_path)
 
-    if model_name == 'TRANSPOSE':
+    if model_name == TRANSPOSE:
         model_args = params.transpose_args
-        get_pose_net = get_pose_hrnet if model_args.backbone == 'hrnet' else get_pose_resnet
+        get_pose_net = get_pose_hrnet if model_args.backbone == HRNET.lower() else get_pose_resnet
         model = get_pose_net(cfg=model_args)
         if use_pretrained:
             if not os.path.exists(pretrained_path):

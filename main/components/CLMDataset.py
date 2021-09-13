@@ -69,8 +69,10 @@ class CLMDataset(data.Dataset):
         pts_ = torch.Tensor(pts_)
 
         if self.heatmaps is not None:
-            heatmaps, hm_pts = create_heatmaps2(pts, np.shape(img), self.heatmaps.heatmap_size,
-                                                self.heatmaps.guassian_std)
+            heatmaps = generate_target_heatmaps(landmarks=pts / 4, hm_size=self.heatmaps.heatmap_size,
+                                                sigma=self.heatmaps.guassian_std)
+            # heatmaps, hm_pts = create_heatmaps2(pts, np.shape(img), self.heatmaps.heatmap_size,
+            #                                     self.heatmaps.guassian_std)
             heatmaps = np.float32(heatmaps)
             hm_sum = np.sum(heatmaps, axis=0)
 
@@ -79,11 +81,17 @@ class CLMDataset(data.Dataset):
             weighted_loss_mask_awing = dilation(hm_sum, square(3)) >= 0.2
             hmfactor = self.input_size[0] / self.heatmaps.heatmap_size[0]
 
-        item = {'index': idx, 'img_name': img_name, 'dataset': dataset, 'img': img, 'opts': pts_, 'sfactor': sfactor,
+        item = {'index': idx,
+                'img_name': img_name,
+                'dataset': dataset,
+                'img': img,
+                'opts': pts_,
+                'sfactor': sfactor,
                 'tpts': pts}
 
         if self.heatmaps is not None:
-            item.update({'heatmaps': heatmaps, 'hm_pts': hm_pts, 'hmfactor': hmfactor,
+            item.update({'heatmaps': heatmaps,
+                         'hmfactor': hmfactor,
                          'weighted_loss_mask_awing': weighted_loss_mask_awing})
         return item
 
@@ -169,3 +177,25 @@ def get_data_list(worksets_path, datasets, nickname, numpts=68):
             dflist = pd.concat([dflist, df], ignore_index=True)
     dflist.to_csv(csv_file)
     return dflist
+
+
+def generate_target_heatmaps(landmarks, hm_size, sigma, target_type='gaussian'):
+    """
+    :param landmarks:  [num_landmarks, 2] in 256x256 image
+    :param hm_size: heatmap size
+    :param sigma: sigma of heatmap
+    :return: target [num_landmarks, hm_size[0], hm_size[1]
+    """
+    num_landmarks = len(landmarks)
+    assert target_type == 'gaussian', 'Only support gaussian map now!'
+    target = np.zeros((num_landmarks, hm_size[1], hm_size[0]), dtype=np.float32)
+
+    for landmark_id, landmark in enumerate(landmarks):
+        mu_x, mu_y = landmark
+
+        x = np.arange(0, hm_size[0], 1, np.float32)
+        y = np.arange(0, hm_size[1], 1, np.float32)
+        y = y[:, np.newaxis]
+        target[landmark_id] = np.exp(- ((x - mu_x) ** 2 + (y - mu_y) ** 2) / (2 * sigma ** 2))
+        target[(target < 1e-5)] = 0
+    return target

@@ -238,13 +238,13 @@ class TransformerEncoderLayer(nn.Module):
 
 class TransPoseR(nn.Module):
 
-    def __init__(self, block, layers, cfg, **kwargs):
+    def __init__(self, block, layers, cfg, output_size, **kwargs):
         self.inplanes = 64
+        self.output_size = output_size
         self.deconv_with_bias = cfg.backbone_params.deconv_with_bias
 
         super(TransPoseR, self).__init__()
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,
-                               bias=False)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = nn.BatchNorm2d(64, momentum=BN_MOMENTUM)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
@@ -410,6 +410,7 @@ class TransPoseR(nn.Module):
         x = x.permute(1, 2, 0).contiguous().view(bs, c, h, w)
         x = self.deconv_layers(x)
         x = self.final_layer(x)
+        x = F.interpolate(x, size=self.output_size)
 
         return x
 
@@ -458,7 +459,8 @@ resnet_spec = {18: (BasicBlock, [2, 2, 2, 2]),
 def get_pose_net(cfg, **kwargs):
     num_layers = cfg.backbone_params.num_layers
     block_class, layers = resnet_spec[num_layers]
-    model = TransPoseR(block_class, layers, cfg, **kwargs)
+    output_size = cfg.backbone_params.output_size
+    model = TransPoseR(block_class, layers, cfg, output_size, **kwargs)
     if cfg.init_weights_path is not None:
         model.init_weights(cfg.init_weights_path)
 

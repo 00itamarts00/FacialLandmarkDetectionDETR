@@ -7,11 +7,11 @@ import math
 import sys
 
 import torch
-from clearml.logger import Logger
 
 from main.components.dataclasses import EpochEval, BatchEval
-from main.components.ptsutils import decode_preds_heatmaps
+from main.components.ptsutils import get_max_preds
 from main.core.evaluation_functions import evaluate_normalized_mean_error
+from main.globals import *
 from utils.plot_utils import plot_gt_pred_on_img
 
 
@@ -73,8 +73,8 @@ def train_epoch(train_loader, model, criteria, optimizer, scheduler, epoch, logg
                   f'| AUC08: {batch_eval.auc08:.2f}\t'
             logger_cml.report_text(msg, level=logging.INFO, print_console=True)
 
-        if debug:
-            break
+        # if batch_idx == 3:
+        #     break
 
     epoch_eval.batch_eval_lst = batch_eval_lst
     epoch_eval.end_time()
@@ -134,8 +134,8 @@ def validate_epoch(val_loader, model, criteria, epoch, logger_cml, **kwargs):
             batch_eval.end_time()
             batch_eval_lst.append(batch_eval)
 
-            if debug:
-                break
+            # if batch_idx == 3:
+            #     break
 
     epoch_eval.batch_eval_lst = batch_eval_lst
     epoch_eval.end_time()
@@ -167,27 +167,31 @@ def inference(model, input_batch, **kwargs):
     model_name = kwargs.get('model_name', None)
     output_ = model(input_batch)
 
-    if model_name == 'PERC':
+    if model_name == PERC:
         preds = output_
-    if model_name == 'DETR':
+    if model_name == DETR:
         decoder_head = kwargs.get('decoder_head', -1)
         preds = output_['pred_coords'][decoder_head]  # +0.5 from HRNET
-    if model_name == 'TRANSPOSE':
-        pass
+    if model_name == TRANSPOSE:
+        preds, _ = get_max_preds(output_.detach().cpu().numpy())
+        preds *= 4
     return output_, preds
 
 
 def get_loss(criteria, output, target_dict, **kwargs):
     model_name = kwargs.get('model_name', None)
     # Loss
-    if model_name == 'HRNET':
+    if model_name == HRNET:
         hm_amp_factor = kwargs.get('hm_amp_factor', 1)
         heatmaps = target_dict['heatmap_bb']
         lossv = criteria(output, heatmaps * hm_amp_factor)
         loss_dict = {'MSE_loss': lossv.item()}
-    elif model_name == 'DETR':
+    elif model_name == DETR:
         loss_dict, lossv = criteria(output, target_dict)
-    elif model_name == 'PERC':
+    elif model_name == PERC:
         lossv = criteria(output, target_dict['coords'])
+        loss_dict = None
+    elif model_name == TRANSPOSE:
+        lossv = criteria(output, target_dict['heatmap_bb'])
         loss_dict = None
     return loss_dict, lossv

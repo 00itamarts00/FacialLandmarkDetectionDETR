@@ -1,6 +1,6 @@
 transpose_args:
   num_landmarks: 68
-  image_size: [ 256, 256 ]
+  image_size: [ 128, 128 ]
   #  init_weights_path: '/home/itamar/thesis/MODELS/TRANSPOSE/hrnet_w48-8ef0771d.pth'
   init_weights_path: null
   backbone: resnet
@@ -9,8 +9,8 @@ transpose_args:
     bottleneck_num: 0
     dim_model: 256
     dim_feedforward: 512
-    encoder_layers: 3
-    n_head: 4
+    encoder_layers: 6
+    n_head: 8
     attention_activation: 'relu'
     pos_embedding: 'learnable'
     intermediate_sup: False
@@ -51,4 +51,5 @@ transpose_args:
       num_deconv_kernels: [ 4, 4, 4 ]
       final_conv_kernel: 1
       pretrained_layers: [ '*' ]
+      output_size: 64
 

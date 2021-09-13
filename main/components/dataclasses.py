@@ -1,9 +1,10 @@
-from dataclasses import dataclass, field
 import time
 from typing import List
-import numpy as np
 from typing import Optional
 
+import numpy as np
+
+from dataclasses import dataclass, field
 from main.core.evaluation_functions import get_auc
 
 
@@ -83,5 +84,3 @@ class EpochEval:
 
     def __len__(self):
         return len(self._get_all_values('nme'))
-
-

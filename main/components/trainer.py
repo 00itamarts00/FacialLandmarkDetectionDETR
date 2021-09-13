@@ -17,9 +17,8 @@ from main.components.model_loader import load_model
 from main.core.functions import train_epoch, validate_epoch
 from main.core.nnstats import CnnStats
 from main.core.utils import save_checkpoint
-from main.detr.models.detr import load_criteria as load_criteria_detr
-from models.HRNET import hrnet_config
-from models.HRNET.hrnet_utils import get_optimizer
+from main.detr.models.detr import load_criteria as load_criteria_detr, DETR
+from main.globals import *
 from models.TRANSPOSE.loss import JointsMSELoss
 
 torch.cuda.empty_cache()
@@ -48,14 +47,14 @@ class LDMTrain(object):
         self.trn_loss = 0
 
     def load_criteria(self):
-        if self.tr.model == 'DETR':
+        if self.tr.model == DETR:
             return load_criteria_detr(args=self.pr.detr_args)
-        if self.tr.model == 'HRNET':
+        if self.tr.model == HRNET:
             return torch.nn.MSELoss(size_average=True).cuda()
-        if self.tr.model == 'PERC':
+        if self.tr.model == PERC:
             return torch.nn.MSELoss(size_average=True).cuda()
-        if self.tr.model == 'TRANSPOSE':
-            return JointsMSELoss(use_target_weight=True).cuda()
+        if self.tr.model == TRANSPOSE:
+            return JointsMSELoss().cuda()
 
     @property
     def pr(self):
@@ -112,11 +111,11 @@ class LDMTrain(object):
     def load_optimizer(self):
         args_op = self.pr.optimizer.toDict().copy()
         optimizer_type = args_op.pop('name')
-        if optimizer_type == 'RANGER':
+        if optimizer_type == RANGER:
             optimizer = Ranger(params=filter(lambda p: p.requires_grad, self.model.parameters()), **args_op)
-        if optimizer_type == 'ADAMW':
+        if optimizer_type == ADAMW:
             optimizer = optim.AdamW(params=filter(lambda p: p.requires_grad, self.model.parameters()), **args_op)
-        if self.tr.model == 'TRANSPOSE':
+        if self.tr.model == TRANSPOSE:
             optimizer = optim.Adam(params=filter(lambda p: p.requires_grad, self.model.parameters()), **args_op)
 
         if self.pr.pretrained.use_pretrained:
@@ -164,7 +163,7 @@ class LDMTrain(object):
         kwargs.update({'model_name': self.tr.model})
         kwargs.update({'decoder_head': -1})
         kwargs.update({'train_with_heatmaps': self.tr.heatmaps.train_with_heatmaps})
-        if self.tr.model == 'HRNET':
+        if self.tr.model == HRNET:
             kwargs.update({'hm_amp_factor': self.tr['hm_amp_factor']})
 
         for epoch in range(self.last_epoch + 1, epochs):
