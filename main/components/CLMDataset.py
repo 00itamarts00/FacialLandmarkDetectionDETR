@@ -72,10 +72,9 @@ class CLMDataset(data.Dataset):
         pts_ = torch.Tensor(pts_)
 
         if self.heatmaps is not None:
-            heatmaps = generate_target_heatmaps(landmarks=pts / 4, hm_size=self.heatmaps.heatmap_size,
+            hm_pts_factor = self.input_size[-1] / self.heatmaps.heatmap_size[-1]
+            heatmaps = generate_target_heatmaps(landmarks=pts / hm_pts_factor, hm_size=self.heatmaps.heatmap_size,
                                                 sigma=self.heatmaps.guassian_std)
-            # heatmaps, hm_pts = create_heatmaps2(pts, np.shape(img), self.heatmaps.heatmap_size,
-            #                                     self.heatmaps.guassian_std)
             heatmaps = np.float32(heatmaps)
             hm_sum = np.sum(heatmaps, axis=0)
 

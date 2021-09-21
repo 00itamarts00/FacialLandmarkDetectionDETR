@@ -12,6 +12,21 @@ import torch
 import torch.nn as nn
 
 
+class IMGJoints_MSELoss(nn.Module):
+    def __init__(self):
+        super(IMGJoints_MSELoss, self).__init__()
+        self.criterion = nn.MSELoss(reduction='mean')
+
+    def forward(self, output, target):
+        batch_size = output.size(0)
+        num_joints = output.size(1)
+        loss = 0
+        for idx in range(batch_size):
+            for joint in range(num_joints):
+                loss += self.criterion(output[idx][joint], target[idx][joint])
+        return loss
+
+
 class JointsMSELoss(nn.Module):
     def __init__(self):
         super(JointsMSELoss, self).__init__()

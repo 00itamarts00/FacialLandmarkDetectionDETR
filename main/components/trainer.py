@@ -19,7 +19,7 @@ from main.core.nnstats import CnnStats
 from main.core.utils import save_checkpoint
 from main.detr.models.detr import load_criteria as load_criteria_detr, DETR
 from main.globals import *
-from models.TRANSPOSE.loss import JointsMSELoss
+from models.TRANSPOSE.loss import IMGJoints_MSELoss, JointsMSELoss
 
 torch.cuda.empty_cache()
 
@@ -125,7 +125,8 @@ class LDMTrain(object):
 
     def load_model(self):
         self.logger_cml.report_text(f'Loading {self.tr.model} Model', level=logging.INFO, print_console=True)
-        model = load_model(model_name=self.tr.model, params=self.pr)
+        pretrained_path = self.model_best_pth if self.pr.pretrained.use_pretrained else None
+        model = load_model(model_name=self.tr.model, params=self.pr, pretrained_path=pretrained_path)
         return model.cuda()
 
     def load_scheduler(self):

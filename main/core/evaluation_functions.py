@@ -109,6 +109,7 @@ def save_tough_images(dataset, dataset_inst, ds_err, output, decoder_head=-1):
 
 
 def analyze_results(datastets_inst, datasets, eval_name, output=None, decoder_head=-1, logger=None):
+    to_numpy = lambda x: np.array(x) if not isinstance(x, np.ndarray) else x
     from main.components.dataclasses import BatchEval, EpochEval
     logger.report_text(f"Analyzing {eval_name.upper()}", logging.INFO, print_console=True)
     datasets = [i.replace("/", "_") for i in datasets]
@@ -123,8 +124,8 @@ def analyze_results(datastets_inst, datasets, eval_name, output=None, decoder_he
         for b_idx, b_idx_inst in dataset_inst.items():
             batch_eval = BatchEval(epoch=dataset, batch_idx=b_idx)
             preds, tpts = list(), list()
-            [preds.append(b.numpy()) for b in b_idx_inst["preds"]]
-            [tpts.append(b.numpy()) for b in b_idx_inst["tpts"]]
+            [preds.append(to_numpy(b)) for b in b_idx_inst["preds"]]
+            [tpts.append(to_numpy(b)) for b in b_idx_inst["tpts"]]
             batch_eval.nme, batch_eval.auc08, batch_eval.auc10, _ = evaluate_normalized_mean_error(np.array(preds),
                                                                                                    np.array(tpts))
             batch_eval.end_time()
@@ -139,16 +140,16 @@ def analyze_results(datastets_inst, datasets, eval_name, output=None, decoder_he
                            f'| FR10: {epoch_eval.get_failure_rate(0.10):.3f} '
                            f'| AUC10: {epoch_eval.get_auc(0.10):.3f} '
                            f'| NLE: {epoch_eval.get_nle():.3f} ')
-        logger.report_scalar(title=f'{dataset}/FR08', series='FR08', value=epoch_eval.get_failure_rate(0.08), iteration=0)
+        logger.report_scalar(title=f'{dataset}/FR08', series='FR08', value=epoch_eval.get_failure_rate(0.08),
+                             iteration=0)
         logger.report_scalar(title=f'{dataset}/AUC08', series='AUC08', value=epoch_eval.get_auc(0.08), iteration=0)
-        logger.report_scalar(title=f'{dataset}/FR10', series='AUC10', value=epoch_eval.get_failure_rate(0.10), iteration=0)
+        logger.report_scalar(title=f'{dataset}/FR10', series='AUC10', value=epoch_eval.get_failure_rate(0.10),
+                             iteration=0)
         logger.report_scalar(title=f'{dataset}/NLE', series='NLE', value=epoch_eval.get_auc(0.10), iteration=0)
         logger.report_scalar(title=f'{dataset}/FR08', series='FR08', value=epoch_eval.get_nle(), iteration=0)
 
         full_analysis.append(epoch_eval)
         img_name = f'{eval_name.replace(" ", "_")}-{epoch_eval.epoch}'
-        if 'lfpw' in dataset.lower():
-            print('here')
         img = save_tough_images(dataset=img_name,
                                 dataset_inst=dataset_inst,
                                 ds_err=epoch_eval._get_all_values('nme'),

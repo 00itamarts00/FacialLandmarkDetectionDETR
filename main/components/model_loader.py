@@ -11,7 +11,8 @@ from models.TRANSPOSE.transpose_h import get_pose_net as get_pose_hrnet
 from models.TRANSPOSE.transpose_r import get_pose_net as get_pose_resnet
 
 
-def load_model(model_name, params, use_pretrained=False, pretrained_path=None):
+def load_model(model_name, params, pretrained_path=None):
+    use_pretrained = True if pretrained_path is not None else False
     model = None
     if model_name == PERC:
         model_args = params.perciever_args

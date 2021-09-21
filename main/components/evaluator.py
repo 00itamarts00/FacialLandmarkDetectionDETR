@@ -3,6 +3,7 @@ import os
 import sys
 from functools import partial
 
+import numpy as np
 import torch
 from torch.utils import data
 from tqdm import tqdm
@@ -78,13 +79,14 @@ class Evaluator(LDMTrain):
               f'\n see: https://arxiv.org/pdf/1902.01831v2.pdf')
 
     def evaluate_model(self, test_loader, **kwargs):
+        np_detached = lambda x: x.cpu().detach() if not isinstance(x, np.ndarray) else x
         epts_batch = dict()
         with torch.no_grad():
             for batch_idx, item in enumerate(tqdm(test_loader, position=0, leave=True)):
                 input_, tpts = item['img'].cuda(), item['tpts'].cuda()
 
                 output, preds = inference(model=self.model, input_batch=input_, **kwargs)
+                item['preds'] = [np_detached(i) for i in preds]
 
-                item['preds'] = [i.cpu().detach() for i in preds]
                 epts_batch[batch_idx] = item
         return epts_batch

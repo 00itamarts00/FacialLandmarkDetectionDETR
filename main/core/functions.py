@@ -74,7 +74,7 @@ def train_epoch(train_loader, model, criteria, optimizer, scheduler, epoch, logg
                   f'| AUC08: {batch_eval.auc08:.2f}\t'
             logger_cml.report_text(msg, level=logging.INFO, print_console=True)
 
-        # if batch_idx == 3:
+        # if batch_idx == 1:
         #     break
 
     epoch_eval.batch_eval_lst = batch_eval_lst
@@ -135,7 +135,7 @@ def validate_epoch(val_loader, model, criteria, epoch, logger_cml, **kwargs):
             batch_eval.end_time()
             batch_eval_lst.append(batch_eval)
 
-            # if batch_idx == 3:
+            # if batch_idx == 2:
             #     break
 
     epoch_eval.batch_eval_lst = batch_eval_lst

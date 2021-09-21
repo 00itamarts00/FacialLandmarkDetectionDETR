@@ -30,6 +30,7 @@ class TopLevel(object):
             self.task = Task.get_task(task_id=task_id)
             g.TASK_ID = self.task.task_id
             self.params = self.load_params(self.task.task_id)
+            self.params.pretrained.use_pretrained = True
             self.logger = self.task.logger
         else:
             self.task = self.init_clearml()

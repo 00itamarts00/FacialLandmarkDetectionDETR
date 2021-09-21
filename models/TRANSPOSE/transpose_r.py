@@ -461,7 +461,7 @@ def get_pose_net(cfg, **kwargs):
     block_class, layers = resnet_spec[num_layers]
     output_size = cfg.backbone_params.output_size
     model = TransPoseR(block_class, layers, cfg, output_size, **kwargs)
-    if cfg.init_weights_path is not None:
-        model.init_weights(cfg.init_weights_path)
+    if cfg.init_weights:
+        model.init_weights(cfg.backbone_params.pretrained)
 
     return model

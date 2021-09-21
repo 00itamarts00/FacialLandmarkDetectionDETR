@@ -3,7 +3,7 @@ workspace_path: '/home/itamar/thesis/outputs'
 log_interval: 20
 pretrained:
   use_pretrained: False
-  task_id: 72f1c231963b47f4bcb4e3a149c3c4e5
+  task_id: ed6f81cfc9f94533941b8e1801e5e4de
 save_model: True
 single_batch_debug: False
 
