@@ -45,7 +45,7 @@ train:
     cudnn_benchmark: True
   model: TRANSPOSE
   optimizer: ADAM
-  scheduler: StepLR
+  scheduler: CosineAnnealingLR
   heatmaps:
     train_with_heatmaps: True
     hm_amp_factor: 100

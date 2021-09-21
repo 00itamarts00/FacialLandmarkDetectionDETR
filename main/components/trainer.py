@@ -8,7 +8,7 @@ import sys
 import torch.backends.cudnn
 import torch.optim as optim
 from dotmap import DotMap
-from torch.optim.lr_scheduler import StepLR, MultiStepLR
+from torch.optim.lr_scheduler import StepLR, MultiStepLR, CosineAnnealingLR
 from torch.utils import data
 
 from main.components.CLMDataset import CLMDataset, get_def_transform, get_data_list
@@ -135,6 +135,8 @@ class LDMTrain(object):
             return StepLR(optimizer=self.optimizer, **args_sc)
         elif scheduler_type == 'MultiStepLR':
             return MultiStepLR(optimizer=self.optimizer, **args_sc)
+        elif scheduler_type == 'CosineAnnealingLR':
+            return CosineAnnealingLR(optimizer=self.optimizer, **args_sc)
 
     def backend_operations(self):
         cuda = self.tr.cuda
