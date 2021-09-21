@@ -17,7 +17,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn, Tensor
 
-BN_MOMENTUM = 0.1
+BN_MOMENTUM: float = 0.1
 logger = logging.getLogger(__name__)
 
 
@@ -131,7 +131,7 @@ class TransformerEncoder(nn.Module):
                 output = layer(output, src_mask=mask, pos=pos,
                                src_key_padding_mask=src_key_padding_mask)
 
-            # only add position embedding to the first atttention layer
+            # only add position embedding to the first attention layer
             pos = None if self.pe_only_at_begin else pos
 
         if self.norm is not None:

@@ -11,6 +11,8 @@ from PIL import Image
 from skimage.morphology import dilation, square
 
 # from torchvision.utils.transforms import fliplr_joints, crop, generate_target, transform_pixel
+from torchvision.transforms import Normalize
+
 import common.fileutils as fu
 from common.ptsutils import create_heatmaps2
 from main.components.ptsutils import fliplr_img_pts
@@ -29,6 +31,8 @@ class CLMDataset(data.Dataset):
         # Extracted from trainset_full.csv
         self.mean = np.array([0.5021, 0.3964, 0.3471], dtype=np.float32)
         self.std = np.array([0.2858, 0.2547, 0.2488], dtype=np.float32)
+        # Data loading code
+        self.normalize_img = Normalize(mean=self.mean, std=self.std)
 
     def __len__(self):
         return len(self.dflist)
@@ -62,9 +66,8 @@ class CLMDataset(data.Dataset):
                 img, pts = fliplr_img_pts(img, pts)  # dataset=dataset.split('/')[0].upper())
             img, pts = transform_data(self.transform, img, pts)
 
-        img = (np.float32(img) / 256 - self.mean) / self.std
-        img = torch.Tensor(img)
-        img = img.permute(2, 0, 1)
+        img = torch.Tensor(img / 256).permute(2, 0, 1)
+        img = self.normalize_img(img)
 
         pts_ = torch.Tensor(pts_)
 
@@ -119,11 +122,9 @@ class CLMDataset(data.Dataset):
         return meanx, stdx
 
     def renorm_image(self, img):
-        mean = np.array([0.5021, 0.3964, 0.3471], dtype=np.float32)
-        std = np.array([0.2858, 0.2547, 0.2488], dtype=np.float32)
 
         img_ = np.array(img).transpose([1, 2, 0])
-        img_ = 256 * (img_ * std + mean)
+        img_ = 256 * (img_ * self.std + self.mean)
         img_ = np.clip(img_, a_min=0, a_max=255)
 
         return np.ubyte(img_)

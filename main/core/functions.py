@@ -7,6 +7,7 @@ import math
 import sys
 
 import torch
+from torch import reshape
 
 from main.components.dataclasses import EpochEval, BatchEval
 from main.components.ptsutils import get_max_preds
@@ -174,7 +175,7 @@ def inference(model, input_batch, **kwargs):
         preds = output_['pred_coords'][decoder_head]  # +0.5 from HRNET
     if model_name == TRANSPOSE:
         preds, _ = get_max_preds(output_.detach().cpu().numpy())
-        preds *= 4
+        preds *= input_batch.shape[-1] / output_.shape[-1]
     return output_, preds
 
 

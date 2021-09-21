@@ -17,14 +17,6 @@ def closest_divisors(n):
     return a, n // a
 
 
-def plot_ldm_on_image(image, pts, channels_last=False):
-    plt.figure()
-    pts = np.array(pts)
-    if not channels_last:
-        plt.imshow(image)
-        plt.scatter(pts.T[0], pts.T[1], s=2)
-
-
 def plot_score_maps(item, index, score_map, predictions):
     dataset = item['dataset'][index]
     img_name = item['img_name'][index]
@@ -80,13 +72,13 @@ def plot_gt_pred_on_img(item, predictions, index):
     fig = Figure()
     canvas = FigureCanvas(fig)
     preds = predictions[index].detach().cpu() if not isinstance(predictions, np.ndarray) else predictions[index]
-    opts = item['tpts'].numpy()[index]
+    tpts = item['tpts'].numpy()[index]
     ax = fig.add_subplot(111)
     ax.set_title(f'debug_image\ndataset: {dataset} name: {img_name}')
     ax.imshow(img)
     ax.scatter(preds[:, 0], preds[:, 1], s=5, c='r', label='pred')
-    ax.scatter(opts.T[0], opts.T[1], s=5, c='b', label='gt')
-    for ptp, ptgt in zip(preds, opts):
+    ax.scatter(tpts.T[0], tpts.T[1], s=5, c='b', label='gt')
+    for ptp, ptgt in zip(preds, tpts):
         ax.plot([ptp[0], ptgt[0]], [ptp[1], ptgt[1]], 'g-', linewidth=0.5)
     ax.legend()
     canvas.draw()

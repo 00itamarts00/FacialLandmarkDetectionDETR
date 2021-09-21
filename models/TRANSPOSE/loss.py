@@ -18,15 +18,10 @@ class JointsMSELoss(nn.Module):
         self.criterion = nn.MSELoss(reduction='mean')
 
     def forward(self, output, target):
-        batch_size = output.size(0)
         num_joints = output.size(1)
-        heatmaps_pred = output.reshape((batch_size, num_joints, -1)).split(1, 1)
-        heatmaps_gt = target.reshape((batch_size, num_joints, -1)).split(1, 1)
         loss = 0
-        for idx in range(num_joints):
-            heatmap_pred = heatmaps_pred[idx].squeeze()
-            heatmap_gt = heatmaps_gt[idx].squeeze()
-            loss += self.criterion(heatmap_pred, heatmap_gt)
+        for joint in range(num_joints):
+            loss += self.criterion(output[:, joint], target[:, joint])
         return loss
 
 
