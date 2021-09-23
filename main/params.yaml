@@ -58,3 +58,4 @@ evaluation:
   datasets: ['helen/testset', 'lfpw/testset', 'WFLW/testset', '300W', 'ibug', 'COFW68/COFW_test_color']
   exp_name: 'itsayag'
   prediction_from_decoder_head: -1
+  usa_tta: True

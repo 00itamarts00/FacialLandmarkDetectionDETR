@@ -59,15 +59,24 @@ def get_face68_flip():
 
 
 def fliplr_img_pts(im, pts):
+    ima = fliplr_img(im)
+    ptsa = fliplr_ldmk(pts, img_width=im.shape[-1])
+    return ima, ptsa
+
+
+def fliplr_img(im):
+    return np.fliplr(im)
+
+
+def fliplr_ldmk(pts, img_width):
     ptsa = copy.deepcopy(pts)
-    ima = np.fliplr(im)
+
     sidx, didx = get_face68_flip()
 
     ptsa[didx, 0] = pts[sidx, 0]
     ptsa[didx, 1] = pts[sidx, 1]
-    ptsa[didx, 0] = ima.shape[1] - ptsa[didx, 0]
-
-    return ima, ptsa
+    ptsa[didx, 0] = img_width - ptsa[didx, 0]
+    return ptsa
 
 
 def fliplr_img_pts_ver2(img, pts, dataset):
@@ -77,7 +86,7 @@ def fliplr_img_pts_ver2(img, pts, dataset):
     return img_, pts_
 
 
-def fliplr_joints(x, width, dataset='menpo'):
+def fliplr_joints(x, width, dataset='300W'):
     """
     flip coords
     """
