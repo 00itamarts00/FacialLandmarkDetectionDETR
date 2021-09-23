@@ -63,7 +63,7 @@ class CLMDataset(data.Dataset):
         pts = pts_ * sfactor
         if self.transform is not None and self.is_train:
             if random.random() > 0.5:
-                img, pts = fliplr_img_pts(img, pts)  # dataset=dataset.split('/')[0].upper())
+                img, pts = fliplr_img_pts(img, pts, width=img.shape[0])  # dataset=dataset.split('/')[0].upper())
             img, pts = transform_data(self.transform, img, pts)
 
         img = torch.Tensor(img / 256).permute(2, 0, 1)

@@ -3,7 +3,7 @@ transpose_args:
   image_size: [ 128, 128 ]
   #  init_weights_path: '/home/itamar/thesis/MODELS/TRANSPOSE/hrnet_w48-8ef0771d.pth'
   init_weights: True
-  backbone: resnet
+  backbone: hrnet
   transformer:
     # transformer
     bottleneck_num: 0
@@ -47,7 +47,7 @@ transpose_args:
       num_layers: 50
       deconv_with_bias: False
       num_deconv_layers: 3
-      num_deconv_filters: [ 128, 256, 256 ]
+      num_deconv_filters: [ 256, 256, 256 ]
       num_deconv_kernels: [ 4, 4, 4 ]
       final_conv_kernel: 1
       pretrained_layers: [ '*' ]

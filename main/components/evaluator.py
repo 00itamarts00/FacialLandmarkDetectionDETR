@@ -9,6 +9,7 @@ from torch.utils import data
 from tqdm import tqdm
 
 from main.components.CLMDataset import CLMDataset, get_data_list
+from main.components.ptsutils import fliplr_ldmk, fliplr_joints
 from main.components.trainer import LDMTrain
 from main.core.evaluation_functions import analyze_results
 from main.core.functions import inference
@@ -86,6 +87,12 @@ class Evaluator(LDMTrain):
                 input_, tpts = item['img'].cuda(), item['tpts'].cuda()
 
                 output, preds = inference(model=self.model, input_batch=input_, **kwargs)
+                self.ev.usa_tta = True
+                if self.ev.usa_tta:
+                    input_tta = torch.flip(input_, [3])
+                    output, preds_tta = inference(model=self.model, input_batch=input_tta, **kwargs)
+                    preds_tta = [fliplr_joints(np_detached(i), width=input_.shape[-1]) for i in preds_tta]
+                    preds = (preds + preds_tta) * 0.5
                 item['preds'] = [np_detached(i) for i in preds]
 
                 epts_batch[batch_idx] = item
