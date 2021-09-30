@@ -58,9 +58,10 @@ def get_face68_flip():
     return np.asarray(sidx) - 1, np.asarray(didx) - 1
 
 
-def fliplr_img_pts(im, pts):
+def fliplr_img_pts(im, pts, width=None):
+    width = im.shape[0] if width is None else width
     ima = fliplr_img(im)
-    ptsa = fliplr_ldmk(pts, img_width=im.shape[-1])
+    ptsa = fliplr_joints(pts, width=width)
     return ima, ptsa
 
 
