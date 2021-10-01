@@ -10,13 +10,13 @@ single_batch_debug: False
 dataset:
   dataset_dir: '/home/itamar/thesis/DATASET'
   workset_name: 'WS02'
-  to_use: ['300W', 'AFW', 'COFW68', 'helen/trainset', 'helen/testset',
-           'ibug', 'lfpw/trainset', 'lfpw/testset', 'menpo/trainset', 'WFLW/trainset', 'WFLW/testset']
+  to_use: [ '300W', 'AFW', 'COFW68', 'helen/trainset', 'helen/testset',
+            'ibug', 'lfpw/trainset', 'lfpw/testset', 'menpo/trainset', 'WFLW/trainset', 'WFLW/testset' ]
 
 train:
   datasets:
     to_use: [ 'helen/trainset', 'lfpw/trainset', 'menpo/trainset', 'AFW' ]
-#    to_use: ['helen/trainset', 'lfpw/trainset', 'AFW' ]
+    #    to_use: ['helen/trainset', 'lfpw/trainset', 'AFW' ]
     use_augmentations: True
     augmentations:
       scale: 0.25
@@ -24,10 +24,10 @@ train:
       flip_lr: True
   partition_seed: 42
   num_landmarks: 68
-  input_size: [128, 128]
+  input_size: [ 128, 128 ]
   trainset_partition: 0.8
   epochs: 250
-  batch_size: 32
+  batch_size: 16
   torch_seed: 42
   trainable_parameters: null
   run_valid: True
@@ -50,12 +50,12 @@ train:
     train_with_heatmaps: True
     hm_amp_factor: 100
     guassian_std: 2
-    heatmap_size: [64, 64]
+    heatmap_size: [ 64, 64 ]
   rearrange_prediction_for_min_cos_max_bipartite: False
 
 evaluation:
-#  datasets: [ 'helen/testset']
-  datasets: ['helen/testset', 'lfpw/testset', 'WFLW/testset', '300W', 'ibug', 'COFW68/COFW_test_color']
+  #  datasets: [ 'helen/testset']
+  datasets: [ 'helen/testset', 'lfpw/testset', 'WFLW/testset', '300W', 'ibug', 'COFW68/COFW_test_color' ]
   exp_name: 'itsayag'
   prediction_from_decoder_head: -1
   usa_tta: True
