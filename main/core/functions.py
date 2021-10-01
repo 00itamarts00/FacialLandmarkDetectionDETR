@@ -7,7 +7,6 @@ import math
 import sys
 
 import torch
-from torch import reshape
 
 from main.components.dataclasses import EpochEval, BatchEval
 from main.components.ptsutils import get_max_preds
@@ -165,6 +164,7 @@ def validate_epoch(val_loader, model, criteria, epoch, logger_cml, **kwargs):
 
 def inference(model, input_batch, **kwargs):
     # inference
+    preds = None
     model_name = kwargs.get('model_name', None)
     output_ = model(input_batch)
 

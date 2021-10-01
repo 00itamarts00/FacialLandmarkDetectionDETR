@@ -96,7 +96,7 @@ def renorm_image(img):
     return np.ubyte(img_)
 
 
-def plot_grid_of_ldm(dataset, imgs, preds, tpts):
+def plot_grid_of_ldm(dataset, imgs, preds, tpts, s=1):
     fig = plt.figure(figsize=(10., 6.))
     canvas = FigureCanvas(fig)
     w, h = closest_divisors(imgs.__len__())
@@ -109,8 +109,8 @@ def plot_grid_of_ldm(dataset, imgs, preds, tpts):
         ax.imshow(img)
         ax.axis('off')
 
-        a = ax.scatter(pred.T[0], pred.T[1], s=1, c='r', label='pred')
-        b = ax.scatter(tpt.T[0], tpt.T[1], s=1, c='b', label='gt')
+        a = ax.scatter(pred.T[0], pred.T[1], s=s, c='r', label='pred')
+        b = ax.scatter(tpt.T[0], tpt.T[1], s=s, c='b', label='gt')
         for ptp, ptgt in zip(pred, tpt):
             ax.plot([ptp[0], ptgt[0]], [ptp[1], ptgt[1]], 'g-', linewidth=0.5)
 

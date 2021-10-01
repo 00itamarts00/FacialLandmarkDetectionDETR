@@ -11,16 +11,16 @@ detr_args:
   return_interm_layers: True
   dilation: False
   position_embedding: 'learned'
-  enc_layers: 1
+  enc_layers: 2
   encoder_blocks: 1
-  dec_layers: 10
+  dec_layers: 6
   decoder_blocks: 1
   decoder_blocks_weight_sharing: True
   return_intermediate: True
-  dim_feedforward: 1024
+  dim_feedforward: 2048
   hidden_dim: 512
   dropout: 0
-  nheads: 1
+  nheads: 8
   num_queries: 68
   pre_norm: True
   masks: False

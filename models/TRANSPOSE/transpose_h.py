@@ -126,14 +126,12 @@ class TransformerEncoder(nn.Module):
         atten_maps_list = []
         for layer in self.layers:
             if self.return_atten_map:
-                output, att_map = layer(output, src_mask=mask, pos=pos,
-                                        src_key_padding_mask=src_key_padding_mask)
+                output, att_map = layer(output, src_mask=mask, pos=pos, src_key_padding_mask=src_key_padding_mask)
                 atten_maps_list.append(att_map)
             else:
-                output = layer(output, src_mask=mask, pos=pos,
-                               src_key_padding_mask=src_key_padding_mask)
+                output = layer(output, src_mask=mask, pos=pos, src_key_padding_mask=src_key_padding_mask)
 
-            # only add position embedding to the first atttention layer
+            # only add position embedding to the first attention layer
             pos = None if self.pe_only_at_begin else pos
 
         if self.norm is not None:
@@ -414,15 +412,13 @@ blocks_dict = {
 class TransPoseH(nn.Module):
 
     def __init__(self, cfg, **kwargs):
-        self.inplanes = 64
+        self.inplanes = cfg.backbone_params.stem_inplanes
         super(TransPoseH, self).__init__()
 
         # stem net
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=2, padding=1,
-                               bias=False)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=2, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(64, momentum=BN_MOMENTUM)
-        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1,
-                               bias=False)
+        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(64, momentum=BN_MOMENTUM)
         self.relu = nn.ReLU(inplace=True)
         self.layer1 = self._make_layer(Bottleneck, 64, 4)
@@ -441,7 +437,14 @@ class TransPoseH(nn.Module):
         block = blocks_dict[self.stage3_cfg.block.upper()]
         num_channels = [num_channels[i] * block.expansion for i in range(len(num_channels))]
         self.transition2 = self._make_transition_layer(pre_stage_channels, num_channels)
-        self.stage3, pre_stage_channels = self._make_stage(self.stage3_cfg, num_channels, multi_scale_output=False)
+        self.stage3, pre_stage_channels = self._make_stage(self.stage3_cfg, num_channels)
+
+        self.stage4_cfg = cfg.backbone_params.stage4
+        num_channels = self.stage4_cfg.num_channels
+        block = blocks_dict[self.stage4_cfg.block.upper()]
+        num_channels = [num_channels[i] * block.expansion for i in range(len(num_channels))]
+        self.transition3 = self._make_transition_layer(pre_stage_channels, num_channels)
+        self.stage4, pre_stage_channels = self._make_stage(self.stage4_cfg, num_channels, multi_scale_output=True)
 
         d_model = cfg.transformer.dim_model
         dim_feedforward = cfg.transformer.dim_feedforward
@@ -450,14 +453,13 @@ class TransPoseH(nn.Module):
         pos_embedding_type = cfg.transformer.pos_embedding
         w, h = cfg.image_size
 
-        self.reduce = nn.Conv2d(pre_stage_channels[0], d_model, 1, bias=False)
+        self.reduce = nn.Conv2d(sum(pre_stage_channels), d_model, 1, bias=False)
         self._make_position_embedding(w, h, d_model, pos_embedding_type)
 
         encoder_layer = TransformerEncoderLayer(
             d_model=d_model, nhead=n_head, dim_feedforward=dim_feedforward,
             activation='relu')
-        self.global_encoder = TransformerEncoder(
-            encoder_layer, encoder_layers_num)
+        self.global_encoder = TransformerEncoder(encoder_layer, encoder_layers_num)
 
         self.final_layer = nn.Conv2d(
             in_channels=d_model,
@@ -468,6 +470,23 @@ class TransPoseH(nn.Module):
         )
 
         self.pretrained_layers = cfg.backbone_params.pretrained_layers
+
+        # final_inp_channels = sum(pre_stage_channels)
+        #
+        # self.head = nn.Sequential(
+        #     nn.Conv2d(in_channels=final_inp_channels,
+        #               out_channels=final_inp_channels,
+        #               kernel_size=1,
+        #               stride=1,
+        #               padding=1 if cfg.backbone_params.final_conv_kernel == 3 else 0),
+        #     nn.BatchNorm2d(final_inp_channels, momentum=BN_MOMENTUM),
+        #     nn.ReLU(inplace=True),
+        #     nn.Conv2d(in_channels=final_inp_channels,
+        #               out_channels=cfg.num_landmarks,
+        #               kernel_size=cfg.backbone_params.final_conv_kernel,
+        #               stride=1,
+        #               padding=1 if cfg.backbone_params.final_conv_kernel == 3 else 0)
+        # )
 
     def _make_position_embedding(self, w, h, d_model, pe_type='sine'):
         assert pe_type in ['none', 'learnable', 'sine']
@@ -480,17 +499,13 @@ class TransPoseH(nn.Module):
                 self.pe_w = w // 4
                 length = self.pe_h * self.pe_w
             if pe_type == 'learnable':
-                self.pos_embedding = nn.Parameter(
-                    torch.randn(length, 1, d_model))
+                self.pos_embedding = nn.Parameter(torch.randn(length, 1, d_model))
                 logger.info("==> Add Learnable PositionEmbedding~")
             else:
-                self.pos_embedding = nn.Parameter(
-                    self._make_sine_position_embedding(d_model),
-                    requires_grad=False)
+                self.pos_embedding = nn.Parameter(self._make_sine_position_embedding(d_model), requires_grad=False)
                 logger.info("==> Add Sine PositionEmbedding~")
 
-    def _make_sine_position_embedding(self, d_model, temperature=10000,
-                                      scale=2 * math.pi):
+    def _make_sine_position_embedding(self, d_model, temperature=10000, scale=2 * math.pi):
         h, w = self.pe_h, self.pe_w
         area = torch.ones(1, h, w)  # [b, h, w]
         y_embed = area.cumsum(1, dtype=torch.float32)
@@ -507,12 +522,10 @@ class TransPoseH(nn.Module):
 
         pos_x = x_embed[:, :, :, None] / dim_t
         pos_y = y_embed[:, :, :, None] / dim_t
-        pos_x = torch.stack(
-            (pos_x[:, :, :, 0::2].sin(), pos_x[:, :, :, 1::2].cos()), dim=4).flatten(3)
-        pos_y = torch.stack(
-            (pos_y[:, :, :, 0::2].sin(), pos_y[:, :, :, 1::2].cos()), dim=4).flatten(3)
+        pos_x = torch.stack((pos_x[:, :, :, 0::2].sin(), pos_x[:, :, :, 1::2].cos()), dim=4).flatten(3)
+        pos_y = torch.stack((pos_y[:, :, :, 0::2].sin(), pos_y[:, :, :, 1::2].cos()), dim=4).flatten(3)
         pos = torch.cat((pos_y, pos_x), dim=3).permute(0, 3, 1, 2)
-        pos = pos.flatten(2).permute(2, 0, 1)
+        pos = F.interpolate(pos.flatten(2), 4096).permute(2, 0, 1)
         return pos  # [h*w, 1, d_model]
 
     def _make_transition_layer(
@@ -631,7 +644,22 @@ class TransPoseH(nn.Module):
                 x_list.append(y_list[i])
         y_list = self.stage3(x_list)
 
-        x = self.reduce(y_list[0])
+        x_list = []
+        for i in range(self.stage4_cfg.num_branches):
+            if self.transition3[i] is not None:
+                x_list.append(self.transition3[i](y_list[-1]))
+            else:
+                x_list.append(y_list[i])
+        x = self.stage4(x_list)
+
+        # Head Part
+        height, width = x[0].shape[2], x[0].shape[3]
+        x1 = F.interpolate(x[1], size=(height, width), mode='bilinear', align_corners=False)
+        x2 = F.interpolate(x[2], size=(height, width), mode='bilinear', align_corners=False)
+        x3 = F.interpolate(x[3], size=(height, width), mode='bilinear', align_corners=False)
+        x = torch.cat([x[0], x1, x2, x3], 1)
+
+        x = self.reduce(x)
         bs, c, h, w = x.shape
         x = x.flatten(2).permute(2, 0, 1)
         x = self.global_encoder(x, pos=self.pos_embedding)
@@ -640,22 +668,24 @@ class TransPoseH(nn.Module):
 
         return x
 
-    def init_weights(self, pretrained='', print_load_info=False):
-        logger.info('=> init weights from normal distribution')
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.normal_(m.weight, std=0.001)
-                for name, _ in m.named_parameters():
-                    if name in ['bias']:
-                        nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.ConvTranspose2d):
-                nn.init.normal_(m.weight, std=0.001)
-                for name, _ in m.named_parameters():
-                    if name in ['bias']:
-                        nn.init.constant_(m.bias, 0)
+    def init_weights(self, pretrained=''):
+        if pretrained is None:
+            logger.info('=> init weights from normal distribution')
+            for m in self.modules():
+                if isinstance(m, nn.Conv2d):
+                    nn.init.normal_(m.weight, std=0.001)
+                    for name, _ in m.named_parameters():
+                        if name in ['bias']:
+                            nn.init.constant_(m.bias, 0)
+                elif isinstance(m, nn.BatchNorm2d):
+                    nn.init.constant_(m.weight, 1)
+                    nn.init.constant_(m.bias, 0)
+                elif isinstance(m, nn.ConvTranspose2d):
+                    nn.init.normal_(m.weight, std=0.001)
+                    for name, _ in m.named_parameters():
+                        if name in ['bias']:
+                            nn.init.constant_(m.bias, 0)
+            return
 
         if os.path.isfile(pretrained):
             pretrained_state_dict = torch.load(pretrained)
@@ -666,8 +696,7 @@ class TransPoseH(nn.Module):
                 if name.split('.')[0] in self.pretrained_layers and name in self.state_dict() \
                         or self.pretrained_layers[0] == '*':
                     existing_state_dict[name] = m
-                    if print_load_info:
-                        print(":: {} is loaded from {}".format(name, pretrained))
+                    print(":: {} is loaded from {}".format(name, pretrained))
             self.load_state_dict(existing_state_dict, strict=False)
         elif pretrained:
             logger.error('=> please download pre-trained models first!')
@@ -676,7 +705,7 @@ class TransPoseH(nn.Module):
 
 def get_pose_net(cfg, **kwargs):
     model = TransPoseH(cfg, **kwargs)
-    if cfg.init_weights_path is not None:
-        model.init_weights(cfg.init_weights_path, print_load_info=True)
+    if cfg.init_weights:
+        model.init_weights(cfg.backbone_params.pretrained)
 
     return model

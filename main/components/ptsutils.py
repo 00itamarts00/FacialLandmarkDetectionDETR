@@ -91,6 +91,9 @@ def fliplr_joints(x, width, dataset='300W'):
     """
     flip coords
     """
+    np_detached = lambda t: t.cpu().detach().numpy() if not isinstance(t, np.ndarray) else t
+    np.array([np_detached(i) for i in x])
+
     matched_parts = MATCHED_PARTS[dataset]
     # Flip horizontal
     x[:, 0] = width - x[:, 0]
@@ -102,8 +105,8 @@ def fliplr_joints(x, width, dataset='300W'):
             x[pair[1], :] = tmp
     else:
         for pair in matched_parts:
-            tmp = x[pair[0] - 1, :].copy()
-            x[pair[0] - 1, :] = x[pair[1] - 1, :]
+            tmp = np_detached(x[pair[0] - 1, :]).copy()
+            x[pair[0] - 1, :] = np_detached(x[pair[1] - 1, :])
             x[pair[1] - 1, :] = tmp
     return x
 

@@ -1,14 +1,18 @@
 scheduler:
   MultiStepLR:
-    milestones: [50, 150]
-    gamma: 0
+    milestones: [50, 100, 150]
+    gamma: 0.25
+    verbose: True
   StepLR:
     step_size: 100
     gamma: 0.5
+    verbose: True
   CyclicLR:
     base_lr: 1e-3
     max_lr: 1e-1
     step_size_up: 100
+    verbose: True
   CosineAnnealingLR:
     T_max: 250
     eta_min: 1e-5
+    verbose: True

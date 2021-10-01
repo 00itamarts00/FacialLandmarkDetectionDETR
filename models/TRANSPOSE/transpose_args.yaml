@@ -1,7 +1,7 @@
 transpose_args:
   num_landmarks: 68
-  image_size: [ 128, 128 ]
-  #  init_weights_path: '/home/itamar/thesis/MODELS/TRANSPOSE/hrnet_w48-8ef0771d.pth'
+  image_size: [ 128 , 128 ]
+  heatmap_size: [ 64, 64 ]
   init_weights: True
   backbone: hrnet
   transformer:
@@ -10,7 +10,7 @@ transpose_args:
     dim_model: 256
     dim_feedforward: 1024
     encoder_layers: 4
-    n_head: 8
+    n_head: 1
     attention_activation: relu
     pos_embedding: sine
     intermediate_sup: False
@@ -18,28 +18,41 @@ transpose_args:
   backbone_params:
     hrnet:
       # pose_multi_resolution_net related params
-      pretrained_layers: [ '*' ]
+      pretrained_layers:
+        - 'conv1'
+        - 'bn1'
+        - 'conv2'
+        - 'bn2'
+        - 'layer1'
+        - 'transition1'
+        - 'stage2'
+        - 'transition2'
+        - 'stage3'
+        - 'transition3'
+        - 'stage4'
       stem_inplanes: 64
       final_conv_kernel: 1
+#      pretrained: null
+      pretrained: '/home/itamar/thesis/MODELS/HRNET/hrnetv2_w18_imagenet_pretrained.pth'
       stage2:
         num_modules: 1
         num_branches: 2
         num_blocks: [ 4, 4 ]
-        num_channels: [ 32, 64 ]
+        num_channels: [ 18, 36 ]
         block: 'basic'
         fuse_method: 'sum'
       stage3:
-        num_modules: 1
+        num_modules: 4
         num_branches: 3
         num_blocks: [ 4, 4, 4 ]
-        num_channels: [ 32, 64, 128 ]
+        num_channels: [ 18, 36, 72 ]
         block: 'basic'
         fuse_method: 'sum'
       stage4:
-        num_modules: 1
+        num_modules: 3
         num_branches: 4
         num_blocks: [ 4, 4, 4, 4 ]
-        num_channels: [ 32, 64, 128, 256 ]
+        num_channels: [ 18, 36, 72, 144 ]
         block: 'basic'
         fuse_method: 'sum'
     resnet:

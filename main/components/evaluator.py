@@ -9,7 +9,7 @@ from torch.utils import data
 from tqdm import tqdm
 
 from main.components.CLMDataset import CLMDataset, get_data_list
-from main.components.ptsutils import fliplr_ldmk, fliplr_joints
+from main.components.ptsutils import fliplr_joints
 from main.components.trainer import LDMTrain
 from main.core.evaluation_functions import analyze_results
 from main.core.functions import inference
@@ -41,6 +41,28 @@ class Evaluator(LDMTrain):
         testset = CLMDataset(self.pr, self.paths, dflist)
         test_loader = data.DataLoader(testset, batch_size=batch_size, shuffle=False, **kwargs)
         return test_loader
+
+    def evaluate_model(self, test_loader, **kwargs):
+        np_detached = lambda x: x.cpu().detach() if not isinstance(x, np.ndarray) else x
+        epts_batch = dict()
+        with torch.no_grad():
+            for batch_idx, item in enumerate(tqdm(test_loader, position=0, leave=True)):
+                input_, tpts = item['img'].cuda(), item['tpts'].cuda()
+
+                output, preds = inference(model=self.model, input_batch=input_, **kwargs)
+                # from models.TRANSPOSE.visualize import inspect_atten_map_by_locations
+                # inspect_atten_map_by_locations(item['img'], self.model, preds, index=0, model_name="transpose",
+                #                                mode='dependency', save_img=True, threshold=0.0)
+                # self.ev.usa_tta = True
+                if self.ev.usa_tta:
+                    input_tta = torch.flip(input_, [3])
+                    output, preds_tta = inference(model=self.model, input_batch=input_tta, **kwargs)
+                    preds_tta = [fliplr_joints(np_detached(i), width=input_.shape[-1]) for i in preds_tta]
+                    preds = (preds + preds_tta) * 0.5
+                item['preds'] = [np_detached(i) for i in preds]
+
+                epts_batch[batch_idx] = item
+        return epts_batch
 
     def evaluate(self):
         res, dataset_eval = dict(), dict()
@@ -78,22 +100,3 @@ class Evaluator(LDMTrain):
 
         print(f'SOTA on 300W Private: NME:3.73\tAUC08:53.94%\tFR08:2.33'
               f'\n see: https://arxiv.org/pdf/1902.01831v2.pdf')
-
-    def evaluate_model(self, test_loader, **kwargs):
-        np_detached = lambda x: x.cpu().detach() if not isinstance(x, np.ndarray) else x
-        epts_batch = dict()
-        with torch.no_grad():
-            for batch_idx, item in enumerate(tqdm(test_loader, position=0, leave=True)):
-                input_, tpts = item['img'].cuda(), item['tpts'].cuda()
-
-                output, preds = inference(model=self.model, input_batch=input_, **kwargs)
-                self.ev.usa_tta = True
-                if self.ev.usa_tta:
-                    input_tta = torch.flip(input_, [3])
-                    output, preds_tta = inference(model=self.model, input_batch=input_tta, **kwargs)
-                    preds_tta = [fliplr_joints(np_detached(i), width=input_.shape[-1]) for i in preds_tta]
-                    preds = (preds + preds_tta) * 0.5
-                item['preds'] = [np_detached(i) for i in preds]
-
-                epts_batch[batch_idx] = item
-        return epts_batch
