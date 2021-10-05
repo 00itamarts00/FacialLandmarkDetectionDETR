@@ -646,10 +646,10 @@ class TransPoseH(nn.Module):
         x = torch.cat([x[0], x1, x2, x3], 1)
 
         x = self.reduce(x)
-        bs, c, h, w = x.shape
-        x = x.flatten(2).permute(2, 0, 1)
-        x = self.global_encoder(x, pos=self.pos_embedding)
-        x = x.permute(1, 2, 0).contiguous().view(bs, c, h, w)
+        # bs, c, h, w = x.shape
+        # x = x.flatten(2).permute(2, 0, 1)
+        # x = self.global_encoder(x, pos=self.pos_embedding)
+        # x = x.permute(1, 2, 0).contiguous().view(bs, c, h, w)
         x = self.final_layer(x)
 
         x = F.interpolate(x, size=(64, 64), mode='bilinear', align_corners=False)
