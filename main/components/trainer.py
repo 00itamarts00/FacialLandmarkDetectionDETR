@@ -19,7 +19,7 @@ from main.core.nnstats import CnnStats
 from main.core.utils import save_checkpoint
 from main.detr.models.detr import load_criteria as load_criteria_detr, DETR
 from main.globals import *
-from models.TRANSPOSE.loss import IMGJoints_MSELoss, JointsMSELoss
+from models.TRANSPOSE.loss import JointsMSELoss
 
 torch.cuda.empty_cache()
 
@@ -91,6 +91,10 @@ class LDMTrain(object):
         self.logger_cml.report_text(f'Number of train images : {len(trainset)}', level=logging.INFO, print_console=True)
         self.logger_cml.report_text(f'Number of valid images : {len(validset)}', level=logging.INFO, print_console=True)
         return train_loader, valid_loader
+
+    @staticmethod
+    def get_max_memory_allocated():
+        return torch.cuda.max_memory_allocated() / 1e9
 
     def create_workspace(self):
         workspace_path = self.pr.workspace_path
@@ -170,6 +174,8 @@ class LDMTrain(object):
             kwargs.update({'hm_amp_factor': self.tr['hm_amp_factor']})
 
         for epoch in range(self.last_epoch + 1, epochs):
+            self.logger_cml.report_scalar('train/max_memory_allocated_gpu', 'Gb', value=self.get_max_memory_allocated(),
+                                          iteration=epoch)
             if math.isnan(self.trn_loss) or math.isinf(self.trn_loss):
                 break
             if self.train_loader is not None:
