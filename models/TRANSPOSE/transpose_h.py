@@ -423,6 +423,14 @@ class TransPoseH(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.layer1 = self._make_layer(Bottleneck, 64, 4)
 
+        # pre-encoder net
+        self.convx1 = nn.Sequential(nn.Conv2d(18, 148, kernel_size=3, stride=4, padding=1, bias=False),
+                                    nn.BatchNorm2d(148, momentum=BN_MOMENTUM),
+                                    nn.ReLU(inplace=True))
+        self.convx2 = nn.Sequential(nn.Conv2d(36, 148, kernel_size=3, stride=2, padding=1, bias=False),
+                                    nn.BatchNorm2d(148, momentum=BN_MOMENTUM),
+                                    nn.ReLU(inplace=True))
+
         self.stage2_cfg = cfg.backbone_params.stage2
 
         num_channels = self.stage2_cfg.num_channels
@@ -453,7 +461,7 @@ class TransPoseH(nn.Module):
         pos_embedding_type = cfg.transformer.pos_embedding
         w, h = cfg.image_size
 
-        self.reduce = nn.Conv2d(sum(pre_stage_channels), d_model, 1, bias=False)
+        self.reduce = nn.Conv2d(512, d_model, 1, bias=False)
         self._make_position_embedding(w, h, d_model, pos_embedding_type)
 
         encoder_layer = TransformerEncoderLayer(
@@ -470,23 +478,6 @@ class TransPoseH(nn.Module):
         )
 
         self.pretrained_layers = cfg.backbone_params.pretrained_layers
-
-        # final_inp_channels = sum(pre_stage_channels)
-        #
-        # self.head = nn.Sequential(
-        #     nn.Conv2d(in_channels=final_inp_channels,
-        #               out_channels=final_inp_channels,
-        #               kernel_size=1,
-        #               stride=1,
-        #               padding=1 if cfg.backbone_params.final_conv_kernel == 3 else 0),
-        #     nn.BatchNorm2d(final_inp_channels, momentum=BN_MOMENTUM),
-        #     nn.ReLU(inplace=True),
-        #     nn.Conv2d(in_channels=final_inp_channels,
-        #               out_channels=cfg.num_landmarks,
-        #               kernel_size=cfg.backbone_params.final_conv_kernel,
-        #               stride=1,
-        #               padding=1 if cfg.backbone_params.final_conv_kernel == 3 else 0)
-        # )
 
     def _make_position_embedding(self, w, h, d_model, pe_type='sine'):
         assert pe_type in ['none', 'learnable', 'sine']
@@ -525,7 +516,7 @@ class TransPoseH(nn.Module):
         pos_x = torch.stack((pos_x[:, :, :, 0::2].sin(), pos_x[:, :, :, 1::2].cos()), dim=4).flatten(3)
         pos_y = torch.stack((pos_y[:, :, :, 0::2].sin(), pos_y[:, :, :, 1::2].cos()), dim=4).flatten(3)
         pos = torch.cat((pos_y, pos_x), dim=3).permute(0, 3, 1, 2)
-        pos = F.interpolate(pos.flatten(2), 4096).permute(2, 0, 1)
+        pos = F.interpolate(pos.flatten(2), 256).permute(2, 0, 1)
         return pos  # [h*w, 1, d_model]
 
     def _make_transition_layer(
@@ -652,18 +643,26 @@ class TransPoseH(nn.Module):
                 x_list.append(y_list[i])
         x = self.stage4(x_list)
 
-        # Head Part
-        height, width = x[0].shape[2], x[0].shape[3]
-        x1 = F.interpolate(x[1], size=(height, width), mode='bilinear', align_corners=False)
-        x2 = F.interpolate(x[2], size=(height, width), mode='bilinear', align_corners=False)
+        x0 = self.convx1(x[0])
+        x1 = self.convx2(x[1])
+        x2 = x[2]
+        height, width = x[2].shape[2], x[2].shape[3]
         x3 = F.interpolate(x[3], size=(height, width), mode='bilinear', align_corners=False)
-        x = torch.cat([x[0], x1, x2, x3], 1)
+        x = torch.cat([x0, x1, x2, x3], 1)
+
+        # # Head Part
+        # height, width = x[0].shape[2], x[0].shape[3]
+        # x1 = F.interpolate(x[1], size=(height, width), mode='bilinear', align_corners=False)
+        # x2 = F.interpolate(x[2], size=(height, width), mode='bilinear', align_corners=False)
+        # x3 = F.interpolate(x[3], size=(height, width), mode='bilinear', align_corners=False)
+        # x = torch.cat([x[0], x1, x2, x3], 1)
 
         x = self.reduce(x)
         bs, c, h, w = x.shape
         x = x.flatten(2).permute(2, 0, 1)
         x = self.global_encoder(x, pos=self.pos_embedding)
         x = x.permute(1, 2, 0).contiguous().view(bs, c, h, w)
+        x = F.interpolate(x, size=(64, 64))
         x = self.final_layer(x)
 
         return x
