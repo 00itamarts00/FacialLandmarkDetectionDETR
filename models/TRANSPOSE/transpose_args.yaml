@@ -10,7 +10,7 @@ transpose_args:
     dim_model: 256
     dim_feedforward: 1024
     encoder_layers: 4
-    n_head: 1
+    n_head: 4
     attention_activation: relu
     pos_embedding: sine
     intermediate_sup: False

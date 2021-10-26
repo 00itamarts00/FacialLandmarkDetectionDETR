@@ -47,7 +47,7 @@ train:
   optimizer: ADAM
   scheduler: MultiStepLR
   heatmaps:
-    train_with_heatmaps: True
+    train_with_heatmaps: False
     hm_amp_factor: 100
     guassian_std: 2
     heatmap_size: [ 64, 64 ]

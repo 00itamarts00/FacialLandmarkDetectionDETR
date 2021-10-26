@@ -19,6 +19,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn, Tensor
 
+from main.detr.models.misc_nets import MLP
+
 BN_MOMENTUM = 0.1
 logger = logging.getLogger(__name__)
 
@@ -456,6 +458,8 @@ class TransPoseH(nn.Module):
         self.reduce = nn.Conv2d(sum(pre_stage_channels), d_model, 1, bias=False)
         self._make_position_embedding(w, h, d_model, pos_embedding_type)
 
+        self.mulitlayer_enc = self.build_multilayer_encoder()
+
         encoder_layer = TransformerEncoderLayer(
             d_model=d_model, nhead=n_head, dim_feedforward=dim_feedforward,
             activation='relu')
@@ -471,22 +475,16 @@ class TransPoseH(nn.Module):
 
         self.pretrained_layers = cfg.backbone_params.pretrained_layers
 
-        # final_inp_channels = sum(pre_stage_channels)
-        #
-        # self.head = nn.Sequential(
-        #     nn.Conv2d(in_channels=final_inp_channels,
-        #               out_channels=final_inp_channels,
-        #               kernel_size=1,
-        #               stride=1,
-        #               padding=1 if cfg.backbone_params.final_conv_kernel == 3 else 0),
-        #     nn.BatchNorm2d(final_inp_channels, momentum=BN_MOMENTUM),
-        #     nn.ReLU(inplace=True),
-        #     nn.Conv2d(in_channels=final_inp_channels,
-        #               out_channels=cfg.num_landmarks,
-        #               kernel_size=cfg.backbone_params.final_conv_kernel,
-        #               stride=1,
-        #               padding=1 if cfg.backbone_params.final_conv_kernel == 3 else 0)
-        # )
+
+    def build_multilayer_encoder(self):
+        encoder_layer = TransformerEncoderLayer(d_model=256, nhead=4, dim_feedforward=1024, activation='relu')
+        global_encoder_blocks = _get_clones(TransformerEncoder(encoder_layer, num_layers=4), N=3)
+        mlp_i = [MLP(input_dim=4096, hidden_dim=0, output_dim=2048, num_layers=1),
+                 MLP(input_dim=2048, hidden_dim=0, output_dim=1024, num_layers=1),
+                 MLP(input_dim=1024, hidden_dim=0, output_dim=512, num_layers=1)]
+
+        multilayer_encoder = [nn.Sequential(mlp, enc) for (mlp, enc) in zip(mlp_i, global_encoder_blocks)]
+        return nn.Sequential(*multilayer_encoder)
 
     def _make_position_embedding(self, w, h, d_model, pe_type='sine'):
         assert pe_type in ['none', 'learnable', 'sine']
@@ -662,7 +660,10 @@ class TransPoseH(nn.Module):
         x = self.reduce(x)
         bs, c, h, w = x.shape
         x = x.flatten(2).permute(2, 0, 1)
-        x = self.global_encoder(x, pos=self.pos_embedding)
+
+        # mulitlayer_enc
+        x = self.global_encoder(x)
+        x = self.mulitlayer_enc(x)
         x = x.permute(1, 2, 0).contiguous().view(bs, c, h, w)
         x = self.final_layer(x)
 
