@@ -448,43 +448,39 @@ class TransPoseH(nn.Module):
         self.transition3 = self._make_transition_layer(pre_stage_channels, num_channels)
         self.stage4, pre_stage_channels = self._make_stage(self.stage4_cfg, num_channels, multi_scale_output=True)
 
-        d_model = cfg.transformer.dim_model
-        dim_feedforward = cfg.transformer.dim_feedforward
-        encoder_layers_num = cfg.transformer.encoder_layers
-        n_head = cfg.transformer.n_head
+        self.d_model = cfg.transformer.dim_model
+        self.dim_feedforward = cfg.transformer.dim_feedforward
+        self.encoder_layers_num = cfg.transformer.encoder_layers
+        self.n_head = cfg.transformer.n_head
         pos_embedding_type = cfg.transformer.pos_embedding
         w, h = cfg.image_size
 
-        self.reduce = nn.Conv2d(sum(pre_stage_channels), d_model, 1, bias=False)
-        self._make_position_embedding(w, h, d_model, pos_embedding_type)
+        self.reduce = nn.Conv2d(sum(pre_stage_channels), 256, 1, bias=False)
+        self._make_position_embedding(w, h, self.d_model, pos_embedding_type)
 
-        self.mulitlayer_enc = self.build_multilayer_encoder()
-
-        encoder_layer = TransformerEncoderLayer(
-            d_model=d_model, nhead=n_head, dim_feedforward=dim_feedforward,
-            activation='relu')
-        self.global_encoder = TransformerEncoder(encoder_layer, encoder_layers_num)
-
-        self.final_layer = nn.Conv2d(
-            in_channels=d_model,
-            out_channels=cfg.num_landmarks,
-            kernel_size=cfg.backbone_params.final_conv_kernel,
-            stride=1,
-            padding=1 if cfg.backbone_params.final_conv_kernel == 3 else 0
-        )
+        self.multilayer_encoder = self.build_multilayer_encoder()
 
         self.pretrained_layers = cfg.backbone_params.pretrained_layers
 
-
     def build_multilayer_encoder(self):
-        encoder_layer = TransformerEncoderLayer(d_model=256, nhead=4, dim_feedforward=1024, activation='relu')
-        global_encoder_blocks = _get_clones(TransformerEncoder(encoder_layer, num_layers=4), N=3)
-        mlp_i = [MLP(input_dim=4096, hidden_dim=0, output_dim=2048, num_layers=1),
-                 MLP(input_dim=2048, hidden_dim=0, output_dim=1024, num_layers=1),
-                 MLP(input_dim=1024, hidden_dim=0, output_dim=512, num_layers=1)]
 
-        multilayer_encoder = [nn.Sequential(mlp, enc) for (mlp, enc) in zip(mlp_i, global_encoder_blocks)]
-        return nn.Sequential(*multilayer_encoder)
+        encoder_layer = TransformerEncoderLayer(
+            d_model=self.d_model, nhead=self.n_head, dim_feedforward=self.dim_feedforward, activation='relu')
+        global_encoder = TransformerEncoder(encoder_layer, self.encoder_layers_num)
+
+        multilayer_encoder_block = [global_encoder]
+        multilayer_encoder_block.append(MLP(input_dim=self.d_model, hidden_dim=0, output_dim=self.d_model // 2,
+                                            num_layers=1))
+
+        encoder_layer = TransformerEncoderLayer(d_model=self.d_model // 2, nhead=self.n_head,
+                                                dim_feedforward=self.dim_feedforward, activation='relu')
+        encoder = TransformerEncoder(encoder_layer, num_layers=self.encoder_layers_num)
+
+        multilayer_encoder_block.append(encoder)
+
+        multilayer_encoder_block.append(MLP(input_dim=self.d_model // 2, hidden_dim=0, output_dim=68, num_layers=1))
+
+        return nn.Sequential(*multilayer_encoder_block)
 
     def _make_position_embedding(self, w, h, d_model, pe_type='sine'):
         assert pe_type in ['none', 'learnable', 'sine']
@@ -523,7 +519,7 @@ class TransPoseH(nn.Module):
         pos_x = torch.stack((pos_x[:, :, :, 0::2].sin(), pos_x[:, :, :, 1::2].cos()), dim=4).flatten(3)
         pos_y = torch.stack((pos_y[:, :, :, 0::2].sin(), pos_y[:, :, :, 1::2].cos()), dim=4).flatten(3)
         pos = torch.cat((pos_y, pos_x), dim=3).permute(0, 3, 1, 2)
-        pos = F.interpolate(pos.flatten(2), 4096).permute(2, 0, 1)
+        pos = F.interpolate(pos.flatten(2), 1024).permute(2, 0, 1)
         return pos  # [h*w, 1, d_model]
 
     def _make_transition_layer(
@@ -651,21 +647,19 @@ class TransPoseH(nn.Module):
         x = self.stage4(x_list)
 
         # Head Part
-        height, width = x[0].shape[2], x[0].shape[3]
+        height, width = 64, 64
+        x0 = F.interpolate(x[0], size=(height, width), mode='bilinear', align_corners=False)
         x1 = F.interpolate(x[1], size=(height, width), mode='bilinear', align_corners=False)
         x2 = F.interpolate(x[2], size=(height, width), mode='bilinear', align_corners=False)
         x3 = F.interpolate(x[3], size=(height, width), mode='bilinear', align_corners=False)
-        x = torch.cat([x[0], x1, x2, x3], 1)
+        x = torch.cat([x0, x1, x2, x3], 1)
 
         x = self.reduce(x)
         bs, c, h, w = x.shape
         x = x.flatten(2).permute(2, 0, 1)
+        x = self.multilayer_encoder(x)
 
-        # mulitlayer_enc
-        x = self.global_encoder(x)
-        x = self.mulitlayer_enc(x)
-        x = x.permute(1, 2, 0).contiguous().view(bs, c, h, w)
-        x = self.final_layer(x)
+        x = x.permute(1, 2, 0).reshape(bs, 68, h, w)
 
         return x
 

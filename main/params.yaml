@@ -27,7 +27,7 @@ train:
   input_size: [ 128, 128 ]
   trainset_partition: 0.8
   epochs: 250
-  batch_size: 4
+  batch_size: 1
   torch_seed: 42
   trainable_parameters: null
   run_valid: True
@@ -47,7 +47,7 @@ train:
   optimizer: ADAM
   scheduler: MultiStepLR
   heatmaps:
-    train_with_heatmaps: False
+    train_with_heatmaps: True
     hm_amp_factor: 100
     guassian_std: 2
     heatmap_size: [ 64, 64 ]
