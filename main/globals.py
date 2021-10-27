@@ -12,3 +12,6 @@ PERC = 'PERC'
 
 RANGER = 'RANGER'
 ADAMW = 'ADAMW'
+
+
+USE_AMP = True

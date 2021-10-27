@@ -173,7 +173,7 @@ def inference(model, input_batch, **kwargs):
     # inference
     preds = None
     model_name = kwargs.get('model_name', None)
-    with torch.cuda.amp.autocast():
+    with torch.cuda.amp.autocast(enabled=USE_AMP):
         output_ = model(input_batch)
         # output is float16 because linear layers autocast to float16.
         assert output_.dtype is torch.float16
@@ -191,7 +191,7 @@ def inference(model, input_batch, **kwargs):
 
 def get_loss(criteria, output, target_dict, **kwargs):
     model_name = kwargs.get('model_name', None)
-    with torch.cuda.amp.autocast():
+    with torch.cuda.amp.autocast(enabled=USE_AMP):
         # Loss
         if model_name == HRNET:
             hm_amp_factor = kwargs.get('hm_amp_factor', 1)

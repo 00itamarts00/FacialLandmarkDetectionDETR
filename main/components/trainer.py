@@ -42,6 +42,7 @@ class LDMTrain(object):
         self.model = self.load_model()
         self.criteria = self.load_criteria()
         self.optimizer = self.load_optimizer()
+        self.scaler = self.load_gradient_scaler()
         self.scheduler = self.load_scheduler()
         self.nnstats = CnnStats(self.paths.stats, self.model)
         self.trn_loss = 0
@@ -112,6 +113,12 @@ class LDMTrain(object):
         paths = DotMap(structure)
         return paths
 
+    def load_gradient_scaler(self):
+        scaler = torch.cuda.amp.GradScaler(enabled=USE_AMP)
+        if self.pr.pretrained.use_pretrained:
+            scaler.load_state_dict(torch.load(self.model_best_pth)['scaler'])
+        return scaler
+
     def load_optimizer(self):
         args_op = self.pr.optimizer.toDict().copy()
         optimizer_type = args_op.pop('name')
@@ -173,8 +180,7 @@ class LDMTrain(object):
         if self.tr.model == HRNET:
             kwargs.update({'hm_amp_factor': self.tr['hm_amp_factor']})
 
-        scaler = torch.cuda.amp.GradScaler()
-        kwargs.update({'gradient_scaler': scaler})
+        kwargs.update({'gradient_scaler': self.scaler})
 
         for epoch in range(self.last_epoch + 1, epochs):
             self.logger_cml.report_scalar('train/max_memory_allocated_gpu', 'Gb', value=self.get_max_memory_allocated(),
@@ -218,6 +224,7 @@ class LDMTrain(object):
                     save_checkpoint(states={"state_dict": self.model.state_dict(),
                                             "epoch": epoch + 1,
                                             "best_nme": best_nme,
-                                            "optimizer": self.optimizer.state_dict()},
+                                            "optimizer": self.optimizer.state_dict(),
+                                            "scaler": scaler.state_dict()},
                                     output_dir=self.paths.checkpoint,
                                     task_id=self.task_id)
