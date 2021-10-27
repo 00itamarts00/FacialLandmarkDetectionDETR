@@ -124,7 +124,11 @@ def validate_epoch(val_loader, model, criteria, epoch, logger_cml, **kwargs):
 
             output, preds = inference(model, input_batch=input_, **kwargs)
             # preds = rearrange_prediction_for_min_cos_max_bipartite(preds, tpts)
-            loss_dict, lossv = get_loss(criteria, output, target_dict=target_dict, **kwargs)
+
+            with torch.cuda.amp.autocast():
+                loss_dict, lossv = get_loss(criteria, output, target_dict=target_dict, **kwargs)
+                # loss is float32 because mse_loss layers autocast to float32.
+                assert lossv.dtype is torch.float32
 
             # NME
             batch_eval.nme, batch_eval.auc08, batch_eval.auc10, for_pck_curve_batch = evaluate_normalized_mean_error(
@@ -166,7 +170,10 @@ def inference(model, input_batch, **kwargs):
     # inference
     preds = None
     model_name = kwargs.get('model_name', None)
-    output_ = model(input_batch)
+    with torch.cuda.amp.autocast():
+        output_ = model(input_batch)
+        # output is float16 because linear layers autocast to float16.
+        assert output_.dtype is torch.float16
 
     if model_name == PERC:
         preds = output_
