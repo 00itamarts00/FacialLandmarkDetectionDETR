@@ -20,7 +20,7 @@ def train_epoch(train_loader, model, criteria, optimizer, scheduler, epoch, logg
     log_interval = kwargs.get('log_interval', 20)
     debug = kwargs.get('debug', False)
     train_with_heatmaps = kwargs.get('train_with_heatmaps', False)
-
+    gradient_scaler = kwargs.get('gradient_scaler', None)
     epoch_eval = EpochEval(epoch=epoch)
     batch_eval_lst = list()
 
@@ -54,11 +54,17 @@ def train_epoch(train_loader, model, criteria, optimizer, scheduler, epoch, logg
                                                                                                                  tpts)
 
         # optimize
-        optimizer.zero_grad()
         lossv.backward()
+        # Scales loss.  Calls backward() on scaled loss to create scaled gradients.
+        gradient_scaler.scale(lossv).backward()
+
         if max_norm > 0:
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
-        optimizer.step()
+        gradient_scaler.step(optimizer)
+        # Updates the scale for next iteration.
+        gradient_scaler.update()
+        optimizer.zero_grad(set_to_none=True)
+
 
         batch_eval.loss = lossv.item()
         batch_eval.end_time()
@@ -125,10 +131,7 @@ def validate_epoch(val_loader, model, criteria, epoch, logger_cml, **kwargs):
             output, preds = inference(model, input_batch=input_, **kwargs)
             # preds = rearrange_prediction_for_min_cos_max_bipartite(preds, tpts)
 
-            with torch.cuda.amp.autocast():
-                loss_dict, lossv = get_loss(criteria, output, target_dict=target_dict, **kwargs)
-                # loss is float32 because mse_loss layers autocast to float32.
-                assert lossv.dtype is torch.float32
+            loss_dict, lossv = get_loss(criteria, output, target_dict=target_dict, **kwargs)
 
             # NME
             batch_eval.nme, batch_eval.auc08, batch_eval.auc10, for_pck_curve_batch = evaluate_normalized_mean_error(
@@ -188,18 +191,20 @@ def inference(model, input_batch, **kwargs):
 
 def get_loss(criteria, output, target_dict, **kwargs):
     model_name = kwargs.get('model_name', None)
-    # Loss
-    if model_name == HRNET:
-        hm_amp_factor = kwargs.get('hm_amp_factor', 1)
-        heatmaps = target_dict['heatmap_bb']
-        lossv = criteria(output, heatmaps * hm_amp_factor)
-        loss_dict = {'MSE_loss': lossv.item()}
-    elif model_name == DETR:
-        loss_dict, lossv = criteria(output, target_dict)
-    elif model_name == PERC:
-        lossv = criteria(output, target_dict['coords'])
-        loss_dict = None
-    elif model_name == TRANSPOSE:
-        lossv = criteria(output, target_dict['heatmap_bb'])
-        loss_dict = None
+    with torch.cuda.amp.autocast():
+        # Loss
+        if model_name == HRNET:
+            hm_amp_factor = kwargs.get('hm_amp_factor', 1)
+            heatmaps = target_dict['heatmap_bb']
+            lossv = criteria(output, heatmaps * hm_amp_factor)
+            loss_dict = {'MSE_loss': lossv.item()}
+        elif model_name == DETR:
+            loss_dict, lossv = criteria(output, target_dict)
+        elif model_name == PERC:
+            lossv = criteria(output, target_dict['coords'])
+            loss_dict = None
+        elif model_name == TRANSPOSE:
+            lossv = criteria(output, target_dict['heatmap_bb'])
+            loss_dict = None
+        assert lossv.dtype is torch.float32
     return loss_dict, lossv

@@ -173,6 +173,9 @@ class LDMTrain(object):
         if self.tr.model == HRNET:
             kwargs.update({'hm_amp_factor': self.tr['hm_amp_factor']})
 
+        scaler = torch.cuda.amp.GradScaler()
+        kwargs.update({'gradient_scaler': scaler})
+
         for epoch in range(self.last_epoch + 1, epochs):
             self.logger_cml.report_scalar('train/max_memory_allocated_gpu', 'Gb', value=self.get_max_memory_allocated(),
                                           iteration=epoch)
