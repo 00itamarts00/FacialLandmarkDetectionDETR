@@ -499,11 +499,12 @@ class TransPoseH(nn.Module):
                 self.pe_w = w // 4
                 length = self.pe_h * self.pe_w
             if pe_type == 'learnable':
-                self.pos_embedding = nn.Parameter(torch.randn(length, 1, d_model))
+                self.pos_embedding = nn.Parameter(torch.randn(length, 1, d_model)).type(torch.float16)
                 logger.info("==> Add Learnable PositionEmbedding~")
             else:
-                self.pos_embedding = nn.Parameter(self._make_sine_position_embedding(d_model), requires_grad=False)
+                self.pos_embedding = nn.Parameter(self._make_sine_position_embedding(d_model), requires_grad=False).type(torch.float16)
                 logger.info("==> Add Sine PositionEmbedding~")
+        self.pos_embedding = self.pos_embedding.cuda()
 
     def _make_sine_position_embedding(self, d_model, temperature=10000, scale=2 * math.pi):
         h, w = self.pe_h, self.pe_w

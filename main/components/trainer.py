@@ -5,7 +5,10 @@ import math
 import os
 import sys
 
-import torch.backends.cudnn
+import torch
+
+torch.cuda.empty_cache()
+
 import torch.optim as optim
 from dotmap import DotMap
 from torch.optim.lr_scheduler import StepLR, MultiStepLR, CosineAnnealingLR
@@ -20,8 +23,6 @@ from main.core.utils import save_checkpoint
 from main.detr.models.detr import load_criteria as load_criteria_detr, DETR
 from main.globals import *
 from models.TRANSPOSE.loss import JointsMSELoss
-
-torch.cuda.empty_cache()
 
 
 # TODO: Load tensorboard logs as df/dict
@@ -160,7 +161,6 @@ class LDMTrain(object):
         torch.backends.cudnn.benchmark = self.tr.backend.cudnn_benchmark
         torch.backends.cudnn.deterministic = self.tr.backend.cudnn_deterministic
         torch.backends.cudnn.enabled = self.tr.backend.cudnn_enabled
-        torch.set_default_dtype(torch.float32)
         return device
 
     def train(self):

@@ -27,7 +27,7 @@ train:
   input_size: [ 128, 128 ]
   trainset_partition: 0.8
   epochs: 250
-  batch_size: 2
+  batch_size: 1
   torch_seed: 42
   trainable_parameters: null
   run_valid: True

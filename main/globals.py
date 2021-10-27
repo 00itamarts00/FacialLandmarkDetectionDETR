@@ -14,4 +14,4 @@ RANGER = 'RANGER'
 ADAMW = 'ADAMW'
 
 
-USE_AMP = True
+USE_AMP = False
