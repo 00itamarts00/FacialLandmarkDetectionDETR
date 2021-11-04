@@ -143,10 +143,10 @@ def analyze_results(datastets_inst, datasets, eval_name, output=None, decoder_he
         logger.report_scalar(title=f'{dataset}/FR08', series='FR08', value=epoch_eval.get_failure_rate(0.08),
                              iteration=0)
         logger.report_scalar(title=f'{dataset}/AUC08', series='AUC08', value=epoch_eval.get_auc(0.08), iteration=0)
-        logger.report_scalar(title=f'{dataset}/FR10', series='AUC10', value=epoch_eval.get_failure_rate(0.10),
+        logger.report_scalar(title=f'{dataset}/FR10', series='FR10', value=epoch_eval.get_failure_rate(0.10),
                              iteration=0)
-        logger.report_scalar(title=f'{dataset}/NLE', series='NLE', value=epoch_eval.get_auc(0.10), iteration=0)
-        logger.report_scalar(title=f'{dataset}/FR08', series='FR08', value=epoch_eval.get_nle(), iteration=0)
+        logger.report_scalar(title=f'{dataset}/AUC10', series='AUC10', value=epoch_eval.get_auc(0.10), iteration=0)
+        logger.report_scalar(title=f'{dataset}/NLE', series='NLE', value=epoch_eval.get_nle(), iteration=0)
 
         full_analysis.append(epoch_eval)
         img_name = f'{eval_name.replace(" ", "_")}-{epoch_eval.epoch}'
@@ -179,9 +179,9 @@ def analyze_results(datastets_inst, datasets, eval_name, output=None, decoder_he
 
     logger.report_scalar(title=f'{eval_name.upper()}/FR08', series='FR08', value=fail08, iteration=0)
     logger.report_scalar(title=f'{eval_name.upper()}/AUC08', series='AUC08', value=auc08, iteration=0)
-    logger.report_scalar(title=f'{eval_name.upper()}/FR10', series='AUC10', value=fail10, iteration=0)
-    logger.report_scalar(title=f'{eval_name.upper()}/NLE', series='NLE', value=auc10, iteration=0)
-    logger.report_scalar(title=f'{eval_name.upper()}/FR08', series='FR08', value=nle, iteration=0)
+    logger.report_scalar(title=f'{eval_name.upper()}/FR10', series='FR10', value=fail10, iteration=0)
+    logger.report_scalar(title=f'{eval_name.upper()}/AUC10', series='AUC10', value=auc10, iteration=0)
+    logger.report_scalar(title=f'{eval_name.upper()}/NLE', series='NLE', value=nle, iteration=0)
 
 
 def evaluate_normalized_mean_error(predictions, groundtruth):
