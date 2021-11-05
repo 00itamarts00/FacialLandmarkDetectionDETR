@@ -24,10 +24,10 @@ train:
       flip_lr: True
   partition_seed: 42
   num_landmarks: 68
-  input_size: [ 128, 128 ]
+  input_size: [ 256, 256 ]
   trainset_partition: 0.8
   epochs: 250
-  batch_size: 4
+  batch_size: 20
   torch_seed: 42
   trainable_parameters: null
   run_valid: True
@@ -43,7 +43,7 @@ train:
     cudnn_enabled: True
     cudnn_deterministic: False
     cudnn_benchmark: True
-  model: TRANSPOSE
+  model: HRNET
   optimizer: ADAM
   scheduler: MultiStepLR
   heatmaps:

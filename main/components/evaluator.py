@@ -50,13 +50,10 @@ class Evaluator(LDMTrain):
                 input_, tpts = item['img'].cuda(), item['tpts'].cuda()
 
                 output, preds = inference(model=self.model, input_batch=input_, **kwargs)
-                # from models.TRANSPOSE.visualize import inspect_atten_map_by_locations
-                # inspect_atten_map_by_locations(item['img'], self.model, preds, index=0, model_name="transpose",
-                #                                mode='dependency', save_img=True, threshold=0.0)
-                # self.ev.usa_tta = True
+                # TODO: fix TTA for HRNET eval
                 if self.ev.usa_tta:
                     input_tta = torch.flip(input_, [3])
-                    output, preds_tta = inference(model=self.model, input_batch=input_tta, **kwargs)
+                    output_tta, preds_tta = inference(model=self.model, input_batch=input_tta, **kwargs)
                     preds_tta = [fliplr_joints(np_detached(i), width=input_.shape[-1]) for i in preds_tta]
                     preds = (preds + preds_tta) * 0.5
                 item['preds'] = [np_detached(i) for i in preds]

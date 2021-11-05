@@ -1,22 +1,23 @@
 import os
 import sys
 
-import clearml
 from clearml import Task
+from clearml.logger import Logger
 from dotmap import DotMap
 from pygit2 import Repository
+
 import main.globals as g
+from common.s3_interface import upload_file_to_s3
 from main.components.evaluator import Evaluator
 from main.components.trainer import LDMTrain
-from common.s3_interface import upload_file_to_s3
 from models.TRANSPOSE.utils import get_transpose_params
 from utils.file_handler import FileHandler
 from utils.param_utils import *
-from clearml.logger import Logger
 
 PARAMS = 'main/params.yaml'
 DETR_ARGS = 'main/detr/detr_args.yaml'
 PERC_ARGS = 'models/PERCIEVER/perciever_args.yaml'
+HRNET_ARGS = 'models/HRNET/hrnet_args.yaml'
 TRANSPOSE_ARGS = 'models/TRANSPOSE/transpose_args.yaml'
 SCHEDULER_PARAMS = 'main/scheduler_params.yaml'
 OPTIMIZER_PARAMS = 'main/optimizer_params.yaml'
@@ -28,7 +29,7 @@ class TopLevel(object):
         if self.params.pretrained.use_pretrained or task_id is not None:
             task_id = task_id if task_id is not None else self.params.pretrained.task_id
             self.task = Task.get_task(task_id=task_id)
-            g.TASK_ID = self.task.task_id
+            TASK_ID = self.task.task_id
             self.params = self.load_params(self.task.task_id)
             self.params.pretrained.use_pretrained = True
             self.logger = self.task.logger
@@ -36,14 +37,14 @@ class TopLevel(object):
             self.task = self.init_clearml()
 
     def init_clearml(self):
-        project_name = self.params.project if not sys.gettrace() else 'DEBUG'
+        project_name = self.params.project if not sys.gettrace() else g.DEBUG
         # TODO: change task name to custom value
         task_name = self.get_current_git_branch_name()
         task = Task.init(project_name, task_name, task_type='training', reuse_last_task_id=False)
         self.params.update(task_id=task.task_id)
         g.TASK_ID = task.task_id
         task.connect(self.params)
-        tags = [str(g.TIMESTAMP)] if not sys.gettrace() else [str(g.TIMESTAMP), 'DEBUG']
+        tags = [str(g.TIMESTAMP)] if not sys.gettrace() else [str(g.TIMESTAMP), g.DEBUG]
         task.set_tags(tags)
         self.logger = Logger.current_logger()
         return task
@@ -101,14 +102,13 @@ class TopLevel(object):
 
     @staticmethod
     def integrate_model_params(params):
-        if params.train.model == 'DETR':
+        if params.train.model == g.DETR:
             return DotMap(update_nested_dict(params.toDict(), FileHandler.load_yaml(DETR_ARGS)))
-        elif params.train.model == 'HRNET':
-            raise NotImplementedError
-        # TODO: update params with HRNET config params
-        elif params.train.model == 'PERC':
+        elif params.train.model == g.HRNET:
+            return DotMap(update_nested_dict(params.toDict(), FileHandler.load_yaml(HRNET_ARGS)))
+        elif params.train.model == g.PERC:
             return DotMap(update_nested_dict(params.toDict(), FileHandler.load_yaml(PERC_ARGS)))
-        elif params.train.model == 'TRANSPOSE':
+        elif params.train.model == g.TRANSPOSE:
             transpose_params = get_transpose_params(FileHandler.load_yaml(TRANSPOSE_ARGS))
             return DotMap(update_nested_dict(params.toDict(), transpose_params))
 

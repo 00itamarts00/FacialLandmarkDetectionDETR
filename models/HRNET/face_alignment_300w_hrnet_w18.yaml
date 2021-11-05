@@ -4,6 +4,9 @@ PRINT_FREQ: 50
 
 DATASET:
   DATASET: 300W
+  ROOT: './data/300w/images'
+  TRAINSET: './data/300w/face_landmarks_300w_train.csv'
+  TESTSET: './data/300w/face_landmarks_300w_valid.csv'
   FLIP: true
   SCALE_FACTOR: 0.25
   ROT_FACTOR: 30
@@ -11,9 +14,8 @@ MODEL:
   NAME: 'hrnet'
   NUM_JOINTS: 68
   INIT_WEIGHTS: true
-#  PRETRAINED: ''
-  PRETRAINED: '/home/itamar/thesis/MODELS/HRNET/hrnetv2_w18_imagenet_pretrained.pth'
-  SIGMA: 1.5
+  PRETRAINED: 'hrnetv2_pretrained/hrnetv2_w18_imagenet_pretrained.pth'
+  SIGMA: 1.0
   IMAGE_SIZE:
     - 256
     - 256
@@ -62,7 +64,7 @@ MODEL:
         - 144
       FUSE_METHOD: SUM
 TRAIN:
-  BATCH_SIZE_PER_GPU: 32
+  BATCH_SIZE_PER_GPU: 16
   SHUFFLE: true
   BEGIN_EPOCH: 0
   END_EPOCH: 60
@@ -74,4 +76,4 @@ TRAIN:
   MOMENTUM: 0.0
   NESTEROV: false
 TEST:
-  BATCH_SIZE_PER_GPU: 32
+  BATCH_SIZE_PER_GPU: 8

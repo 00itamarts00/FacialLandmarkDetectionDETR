@@ -9,7 +9,7 @@ import sys
 import torch
 
 from main.components.dataclasses import EpochEval, BatchEval
-from main.components.ptsutils import get_max_preds
+from main.components.ptsutils import get_hm_preds
 from main.core.evaluation_functions import evaluate_normalized_mean_error
 from main.globals import *
 from utils.plot_utils import plot_gt_pred_on_img
@@ -121,7 +121,6 @@ def validate_epoch(val_loader, model, criteria, epoch, logger_cml, **kwargs):
                 hm_factor, heatmaps, weighted_loss_mask_awing = item['hmfactor'], item['heatmaps'].cuda(), \
                                                                 item['weighted_loss_mask_awing'].cuda()
                 target_dict.update({'heatmap_bb': heatmaps, 'weighted_loss_mask_awing': weighted_loss_mask_awing})
-
             output, preds = inference(model, input_batch=input_, **kwargs)
             # preds = rearrange_prediction_for_min_cos_max_bipartite(preds, tpts)
             loss_dict, lossv = get_loss(criteria, output, target_dict=target_dict, **kwargs)
@@ -174,7 +173,10 @@ def inference(model, input_batch, **kwargs):
         decoder_head = kwargs.get('decoder_head', -1)
         preds = output_['pred_coords'][decoder_head]  # +0.5 from HRNET
     if model_name == TRANSPOSE:
-        preds, _ = get_max_preds(output_.detach().cpu().numpy())
+        preds = get_hm_preds(output_.detach().cpu().numpy(), method='argmax')
+        preds *= input_batch.shape[-1] / output_.shape[-1]
+    if model_name == HRNET:
+        preds = get_hm_preds(output_.detach().cpu().numpy(), method='center_mass')
         preds *= input_batch.shape[-1] / output_.shape[-1]
     return output_, preds
 
@@ -183,10 +185,8 @@ def get_loss(criteria, output, target_dict, **kwargs):
     model_name = kwargs.get('model_name', None)
     # Loss
     if model_name == HRNET:
-        hm_amp_factor = kwargs.get('hm_amp_factor', 1)
-        heatmaps = target_dict['heatmap_bb']
-        lossv = criteria(output, heatmaps * hm_amp_factor)
-        loss_dict = {'MSE_loss': lossv.item()}
+        lossv = criteria(output, target_dict['heatmap_bb'])
+        loss_dict = None
     elif model_name == DETR:
         loss_dict, lossv = criteria(output, target_dict)
     elif model_name == PERC:

@@ -4,6 +4,7 @@ import math
 import numpy as np
 import skimage
 import torch
+from scipy.ndimage import center_of_mass
 from skimage import color
 
 MATCHED_PARTS = {
@@ -132,6 +133,7 @@ def get_preds(scores):
     return preds
 
 
+# HRNET code
 def decode_preds_heatmaps(output, hm_size=None):
     if hm_size is None:
         hm_size = [64, 64]
@@ -151,7 +153,7 @@ def decode_preds_heatmaps(output, hm_size=None):
     if preds.dim() < 3:
         preds = preds.view(1, preds.size())
 
-    return preds * (256 / hm_size[0])
+    return preds
 
 
 def crop_image_by_pts(im, pts, ppad=20):
@@ -265,4 +267,28 @@ def get_max_preds(batch_heatmaps):
     pred_mask = pred_mask.astype(np.float32)
 
     preds *= pred_mask
-    return preds, maxvals
+    return preds
+
+
+def get_center_mass_hm(batch_heatmaps, threshold_perc=99):
+    """
+    get predictions from score maps
+    heatmaps: numpy.ndarray([batch_size, num_joints, height, width])
+    """
+    assert isinstance(batch_heatmaps, np.ndarray), 'batch_heatmaps should be numpy.ndarray'
+    assert batch_heatmaps.ndim == 4, 'batch_images should be 4-ndim'
+
+    mask = lambda x: x > np.percentile(x, threshold_perc)
+    get_landmark_preds = lambda x: [center_of_mass(i * mask(i))[::-1] for i in x]
+    preds = []
+    for img_hms in batch_heatmaps:
+        preds.append(get_landmark_preds(img_hms))
+
+    return np.array(preds)
+
+
+def get_hm_preds(batch_heatmaps, method='center_mass'):
+    if method == 'argmax':
+        return get_max_preds(batch_heatmaps)
+    if method == 'center_mass':
+        return get_center_mass_hm(batch_heatmaps)

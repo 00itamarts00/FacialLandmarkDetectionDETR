@@ -119,8 +119,10 @@ class LDMTrain(object):
             optimizer = Ranger(params=filter(lambda p: p.requires_grad, self.model.parameters()), **args_op)
         if optimizer_type == ADAMW:
             optimizer = optim.AdamW(params=filter(lambda p: p.requires_grad, self.model.parameters()), **args_op)
-        if self.tr.model == TRANSPOSE:
+        if optimizer_type == ADAM:
             optimizer = optim.Adam(params=filter(lambda p: p.requires_grad, self.model.parameters()), **args_op)
+        if optimizer_type == SGD:
+            optimizer = optim.SGD(params=filter(lambda p: p.requires_grad, self.model.parameters()), **args_op)
 
         if self.pr.pretrained.use_pretrained:
             optimizer.load_state_dict(torch.load(self.model_best_pth)['optimizer'])
