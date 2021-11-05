@@ -14,14 +14,6 @@ from models.TRANSPOSE.utils import get_transpose_params
 from utils.file_handler import FileHandler
 from utils.param_utils import *
 
-PARAMS = 'main/params.yaml'
-DETR_ARGS = 'main/detr/detr_args.yaml'
-PERC_ARGS = 'models/PERCIEVER/perciever_args.yaml'
-HRNET_ARGS = 'models/HRNET/hrnet_args.yaml'
-TRANSPOSE_ARGS = 'models/TRANSPOSE/transpose_args.yaml'
-SCHEDULER_PARAMS = 'main/scheduler_params.yaml'
-OPTIMIZER_PARAMS = 'main/optimizer_params.yaml'
-
 
 class TopLevel(object):
     def init(self, task_id=None):
@@ -74,7 +66,7 @@ class TopLevel(object):
 
     def load_params(self, task_id=None):
         if task_id is None:
-            params = DotMap(FileHandler.load_yaml(PARAMS))
+            params = DotMap(FileHandler.load_yaml(g.PARAMS))
             params = self.integrate_optimizer_params(params)
             params = self.integrate_scheduler_params(params)
             params = self.integrate_model_params(params)
@@ -88,14 +80,14 @@ class TopLevel(object):
 
     @staticmethod
     def integrate_optimizer_params(params):
-        optimizer_params = FileHandler.load_yaml(OPTIMIZER_PARAMS)['optimizer']
+        optimizer_params = FileHandler.load_yaml(g.OPTIMIZER_PARAMS)['optimizer']
         dc_op = {'optimizer': {'name': params.train.optimizer}}
         dc_op['optimizer'].update(optimizer_params[params.train.optimizer])
         return DotMap(update_nested_dict(params.toDict(), dc_op))
 
     @staticmethod
     def integrate_scheduler_params(params):
-        scheduler_params = FileHandler.load_yaml(SCHEDULER_PARAMS)['scheduler']
+        scheduler_params = FileHandler.load_yaml(g.SCHEDULER_PARAMS)['scheduler']
         dc_sc = {'scheduler': {'name': params.train.scheduler}}
         dc_sc['scheduler'].update(scheduler_params[params.train.scheduler])
         return DotMap(update_nested_dict(params.toDict(), dc_sc))
@@ -103,14 +95,17 @@ class TopLevel(object):
     @staticmethod
     def integrate_model_params(params):
         if params.train.model == g.DETR:
-            return DotMap(update_nested_dict(params.toDict(), FileHandler.load_yaml(DETR_ARGS)))
+            return DotMap(update_nested_dict(params.toDict(), FileHandler.load_yaml(g.DETR_ARGS)))
         elif params.train.model == g.HRNET:
-            return DotMap(update_nested_dict(params.toDict(), FileHandler.load_yaml(HRNET_ARGS)))
+            return DotMap(update_nested_dict(params.toDict(), FileHandler.load_yaml(g.HRNET_ARGS)))
         elif params.train.model == g.PERC:
-            return DotMap(update_nested_dict(params.toDict(), FileHandler.load_yaml(PERC_ARGS)))
+            return DotMap(update_nested_dict(params.toDict(), FileHandler.load_yaml(g.PERC_ARGS)))
         elif params.train.model == g.TRANSPOSE:
-            transpose_params = get_transpose_params(FileHandler.load_yaml(TRANSPOSE_ARGS))
+            transpose_params = get_transpose_params(FileHandler.load_yaml(g.TRANSPOSE_ARGS))
             return DotMap(update_nested_dict(params.toDict(), transpose_params))
+        elif params.train.model == g.TRXREFINE01:
+            trxrefine01_params = FileHandler.load_yaml(g.TRXREFINE01_ARGS)
+            return DotMap(update_nested_dict(params.toDict(), trxrefine01_params))
 
     def single_batch_train(self):
         self.init()

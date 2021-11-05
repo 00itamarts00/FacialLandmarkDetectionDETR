@@ -13,16 +13,13 @@ from torch.utils import data
 
 from main.components.CLMDataset import CLMDataset, get_def_transform, get_data_list
 from main.components.Ranger_Deep_Learning_Optimizer_master.ranger.ranger2020 import Ranger
-from main.components.model_loader import load_model
+from main.components.model_loader import load_model, set_model_device
 from main.core.functions import train_epoch, validate_epoch
 from main.core.nnstats import CnnStats
 from main.core.utils import save_checkpoint
 from main.detr.models.detr import load_criteria as load_criteria_detr, DETR
 from main.globals import *
 from models.TRANSPOSE.loss import JointsMSELoss
-
-torch.cuda.empty_cache()
-
 
 # TODO: Load tensorboard logs as df/dict
 
@@ -54,6 +51,8 @@ class LDMTrain(object):
         if self.tr.model == PERC:
             return torch.nn.MSELoss(size_average=True).cuda()
         if self.tr.model == TRANSPOSE:
+            return JointsMSELoss().cuda()
+        if self.tr.model == TRXREFINE01:
             return JointsMSELoss().cuda()
 
     @property
@@ -133,7 +132,8 @@ class LDMTrain(object):
         self.logger_cml.report_text(f'Loading {self.tr.model} Model', level=logging.INFO, print_console=True)
         pretrained_path = self.model_best_pth if self.pr.pretrained.use_pretrained else None
         model = load_model(model_name=self.tr.model, params=self.pr, pretrained_path=pretrained_path)
-        return model.cuda()
+        set_model_device(model, self.pr)
+        return model
 
     def load_scheduler(self):
         args_sc = self.pr.scheduler.toDict().copy()
@@ -161,7 +161,7 @@ class LDMTrain(object):
     def train(self):
         # TODO: support multiple gpus
         # self.model = torch.nn.DataParallel(self.model, device_ids=[0]).cuda()
-        self.model.to(device=self.device)
+        # self.model.to(device=self.device)
 
         epochs = self.tr['epochs'] + self.last_epoch + 1
         best_nme = 100

@@ -1,8 +1,8 @@
 import ast
 import collections.abc
 
-
 parse_dict = {'True': True, 'False': False, 'None': None}
+
 
 def update_nested_dict(d, u):
     for k, v in u.items():
@@ -30,8 +30,6 @@ def fix_parsing_values_to_int(d):
                 v = parse_dict[v] if v in parse_dict.keys() else v
                 d.update({k: v})
     return d
-
-
 
 
 def is_list(v):

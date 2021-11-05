@@ -1,0 +1,21 @@
+trxrefine01_args:
+  pretrained: ''
+  num_landmarks: 68
+  image_size: [ 256 , 256 ]
+  heatmap_size: [ 64, 64 ]
+  init_weights: True
+  backbone: HRNET
+  transformer:
+    # transformer
+    bottleneck_num: 0
+    dim_model: 68
+    dim_feedforward: 1024
+    encoder_layers: 4
+    n_head: 1
+    attention_activation: relu
+    pos_embedding: sine
+    intermediate_sup: False
+    pe_only_at_begin: False
+  backbone_params:
+    name: HRNET
+

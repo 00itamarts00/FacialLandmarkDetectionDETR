@@ -14,7 +14,6 @@ from main.components.trainer import LDMTrain
 from main.core.evaluation_functions import analyze_results
 from main.core.functions import inference
 
-torch.cuda.empty_cache()
 logger = logging.getLogger(__name__)
 
 
