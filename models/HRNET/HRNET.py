@@ -11,12 +11,13 @@ from __future__ import print_function
 
 import logging
 import os
+from functools import partial
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-BatchNorm2d = nn.BatchNorm2d
+BatchNorm2d = partial(nn.BatchNorm2d, track_running_stats=False)
 BN_MOMENTUM = 0.01
 logger = logging.getLogger(__name__)
 
@@ -246,16 +247,14 @@ class HighResolutionModule(nn.Module):
 
 
 blocks_dict = {
-    'BASIC': BasicBlock,
-    'BOTTLENECK': Bottleneck
+    'basic': BasicBlock,
+    'bottleneck': Bottleneck
 }
 
 
 class HighResolutionNet(nn.Module):
-
-    def __init__(self, config, **kwargs):
+    def __init__(self, config):
         self.inplanes = 64
-        extra = config.MODEL.EXTRA
         super(HighResolutionNet, self).__init__()
 
         # stem net
@@ -269,9 +268,9 @@ class HighResolutionNet(nn.Module):
         self.sf = nn.Softmax(dim=1)
         self.layer1 = self._make_layer(Bottleneck, 64, 64, 4)
 
-        self.stage2_cfg = extra['STAGE2']
-        num_channels = self.stage2_cfg['NUM_CHANNELS']
-        block = blocks_dict[self.stage2_cfg['BLOCK']]
+        self.stage2_cfg = config.stage2
+        num_channels = self.stage2_cfg.num_channels
+        block = blocks_dict[self.stage2_cfg.block]
         num_channels = [
             num_channels[i] * block.expansion for i in range(len(num_channels))]
         self.transition1 = self._make_transition_layer(
@@ -279,9 +278,9 @@ class HighResolutionNet(nn.Module):
         self.stage2, pre_stage_channels = self._make_stage(
             self.stage2_cfg, num_channels)
 
-        self.stage3_cfg = extra['STAGE3']
-        num_channels = self.stage3_cfg['NUM_CHANNELS']
-        block = blocks_dict[self.stage3_cfg['BLOCK']]
+        self.stage3_cfg = config.stage3
+        num_channels = self.stage3_cfg.num_channels
+        block = blocks_dict[self.stage3_cfg.block]
         num_channels = [
             num_channels[i] * block.expansion for i in range(len(num_channels))]
         self.transition2 = self._make_transition_layer(
@@ -289,9 +288,9 @@ class HighResolutionNet(nn.Module):
         self.stage3, pre_stage_channels = self._make_stage(
             self.stage3_cfg, num_channels)
 
-        self.stage4_cfg = extra['STAGE4']
-        num_channels = self.stage4_cfg['NUM_CHANNELS']
-        block = blocks_dict[self.stage4_cfg['BLOCK']]
+        self.stage4_cfg = config.stage4
+        num_channels = self.stage4_cfg.num_channels
+        block = blocks_dict[self.stage4_cfg.block]
         num_channels = [
             num_channels[i] * block.expansion for i in range(len(num_channels))]
         self.transition3 = self._make_transition_layer(
@@ -307,19 +306,18 @@ class HighResolutionNet(nn.Module):
                 out_channels=final_inp_channels,
                 kernel_size=1,
                 stride=1,
-                padding=1 if extra.FINAL_CONV_KERNEL == 3 else 0),
+                padding=1 if config.final_conv_kernel == 3 else 0),
             BatchNorm2d(final_inp_channels, momentum=BN_MOMENTUM),
             nn.ReLU(inplace=True),
             nn.Conv2d(
                 in_channels=final_inp_channels,
-                out_channels=config.MODEL.NUM_JOINTS,
-                kernel_size=extra.FINAL_CONV_KERNEL,
+                out_channels=config.num_joints,
+                kernel_size=config.final_conv_kernel,
                 stride=1,
-                padding=1 if extra.FINAL_CONV_KERNEL == 3 else 0)
+                padding=1 if config.final_conv_kernel == 3 else 0)
         )
 
-    def _make_transition_layer(
-            self, num_channels_pre_layer, num_channels_cur_layer):
+    def _make_transition_layer(self, num_channels_pre_layer, num_channels_cur_layer):
         num_branches_cur = len(num_channels_cur_layer)
         num_branches_pre = len(num_channels_pre_layer)
 
@@ -330,9 +328,7 @@ class HighResolutionNet(nn.Module):
                     transition_layers.append(nn.Sequential(
                         nn.Conv2d(num_channels_pre_layer[i],
                                   num_channels_cur_layer[i],
-                                  3,
-                                  1,
-                                  1,
+                                  3, 1, 1,
                                   bias=False),
                         BatchNorm2d(
                             num_channels_cur_layer[i], momentum=BN_MOMENTUM),
@@ -373,12 +369,12 @@ class HighResolutionNet(nn.Module):
 
     def _make_stage(self, layer_config, num_inchannels,
                     multi_scale_output=True):
-        num_modules = layer_config['NUM_MODULES']
-        num_branches = layer_config['NUM_BRANCHES']
-        num_blocks = layer_config['NUM_BLOCKS']
-        num_channels = layer_config['NUM_CHANNELS']
-        block = blocks_dict[layer_config['BLOCK']]
-        fuse_method = layer_config['FUSE_METHOD']
+        num_modules = layer_config.num_modules
+        num_branches = layer_config.num_branches
+        num_blocks = layer_config.num_blocks
+        num_channels = layer_config.num_channels
+        block = blocks_dict[layer_config.block]
+        fuse_method = layer_config.fuse_method
 
         modules = []
         for i in range(num_modules):
@@ -411,7 +407,7 @@ class HighResolutionNet(nn.Module):
         x = self.layer1(x)
 
         x_list = []
-        for i in range(self.stage2_cfg['NUM_BRANCHES']):
+        for i in range(self.stage2_cfg.num_branches):
             if self.transition1[i] is not None:
                 x_list.append(self.transition1[i](x))
             else:
@@ -419,7 +415,7 @@ class HighResolutionNet(nn.Module):
         y_list = self.stage2(x_list)
 
         x_list = []
-        for i in range(self.stage3_cfg['NUM_BRANCHES']):
+        for i in range(self.stage3_cfg.num_branches):
             if self.transition2[i] is not None:
                 x_list.append(self.transition2[i](y_list[-1]))
             else:
@@ -427,7 +423,7 @@ class HighResolutionNet(nn.Module):
         y_list = self.stage3(x_list)
 
         x_list = []
-        for i in range(self.stage4_cfg['NUM_BRANCHES']):
+        for i in range(self.stage4_cfg.num_branches):
             if self.transition3[i] is not None:
                 x_list.append(self.transition3[i](y_list[-1]))
             else:
@@ -445,7 +441,7 @@ class HighResolutionNet(nn.Module):
         return x
 
     def init_weights(self, pretrained=''):
-        logger.info('=> init weights from normal distribution')
+        print('=> init weights from normal distribution')
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 # nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
@@ -456,21 +452,19 @@ class HighResolutionNet(nn.Module):
                 nn.init.constant_(m.bias, 0)
         if os.path.isfile(pretrained):
             pretrained_dict = torch.load(pretrained)
-            logger.info('=> loading pretrained model {}'.format(pretrained))
+            pretrained_dict = {k.replace('module.', ''): v for k, v in pretrained_dict.items()}
+            print('=> loading pretrained model {}'.format(pretrained))
             model_dict = self.state_dict()
             pretrained_dict = {k: v for k, v in pretrained_dict.items()
                                if k in model_dict.keys()}
             for k, _ in pretrained_dict.items():
-                logger.info(
-                    '=> loading {} pretrained model {}'.format(k, pretrained))
+                print('=> loading {} pretrained model {}'.format(k, pretrained))
             model_dict.update(pretrained_dict)
             self.load_state_dict(model_dict)
 
 
-def get_face_alignment_net(config, **kwargs):
-    pretrained_path = kwargs.get('pretrained_path', None)
-    model = HighResolutionNet(config, **kwargs)
-    pretrained = config.MODEL.PRETRAINED if config.MODEL.INIT_WEIGHTS else ''
-    pretrained_path = pretrained if pretrained_path is None else pretrained_path
-    model.init_weights(pretrained=pretrained_path)
+def get_face_alignment_net(config):
+    model = HighResolutionNet(config)
+    if config.init_weights:
+        model.init_weights(pretrained=config.pretrained)
     return model

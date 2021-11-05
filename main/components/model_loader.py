@@ -6,6 +6,7 @@ import torch
 from common.s3_interface import download_file_from_s3
 from main.detr.models.detr import build as build_model
 from main.globals import *
+from models.HRNET.HRNET import get_face_alignment_net
 from models.PERCIEVER import Perceiver
 from models.TRANSPOSE.transpose_h import get_pose_net as get_pose_hrnet
 from models.TRANSPOSE.transpose_r import get_pose_net as get_pose_resnet
@@ -33,6 +34,17 @@ def load_model(model_name, params, pretrained_path=None):
         model_args = params.transpose_args
         get_pose_net = get_pose_hrnet if model_args.backbone == HRNET.lower() else get_pose_resnet
         model = get_pose_net(cfg=model_args)
+        if use_pretrained:
+            if not os.path.exists(pretrained_path):
+                os.makedirs(os.path.dirname(pretrained_path), exist_ok=True)
+                download_file_from_s3(s3_object_key=os.path.basename(pretrained_path),
+                                      local_file_name=pretrained_path)
+            load_pretrained_model(model, pretrained_path)
+
+    if model_name == HRNET:
+        model_args = params.hrnet_args
+        model = get_face_alignment_net(config=model_args)
+
         if use_pretrained:
             if not os.path.exists(pretrained_path):
                 os.makedirs(os.path.dirname(pretrained_path), exist_ok=True)
