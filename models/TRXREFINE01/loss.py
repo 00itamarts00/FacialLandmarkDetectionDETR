@@ -74,3 +74,15 @@ class JointsOHKMMSELoss(nn.Module):
         loss = torch.cat(loss, dim=1)
 
         return self.ohkm(loss)
+
+
+class EncL1_Loss(nn.Module):
+    def __init__(self):
+        super(EncL1_Loss, self).__init__()
+        self.l2criterion = nn.MSELoss(reduction='mean')
+        self.l1criterion = nn.L1Loss(reduction='mean')
+
+    def forward(self, output, target_dict):
+        l1 = self.l2criterion(output[0], target_dict['coords'])
+        l2 = self.l2criterion(output[1], target_dict['distance_matrix'])
+        return l1 + l2

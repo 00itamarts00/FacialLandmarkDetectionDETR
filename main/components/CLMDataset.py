@@ -8,13 +8,12 @@ import pandas as pd
 import torch
 import torch.utils.data as data
 from PIL import Image
+from scipy.spatial import distance_matrix
 from skimage.morphology import dilation, square
-
 # from torchvision.utils.transforms import fliplr_joints, crop, generate_target, transform_pixel
 from torchvision.transforms import Normalize
 
 import common.fileutils as fu
-from common.ptsutils import create_heatmaps2
 from main.components.ptsutils import fliplr_img_pts
 from utils.file_handler import FileHandler
 
@@ -83,6 +82,8 @@ class CLMDataset(data.Dataset):
             weighted_loss_mask_awing = dilation(hm_sum, square(3)) >= 0.2
             hmfactor = self.input_size[0] / self.heatmaps.heatmap_size[0]
 
+            dist_matrix = generate_distance_matrix(tpts=pts)
+
         item = {'index': idx,
                 'img_name': img_name,
                 'dataset': dataset,
@@ -94,7 +95,8 @@ class CLMDataset(data.Dataset):
         if self.heatmaps is not None:
             item.update({'heatmaps': heatmaps,
                          'hmfactor': hmfactor,
-                         'weighted_loss_mask_awing': weighted_loss_mask_awing})
+                         'weighted_loss_mask_awing': weighted_loss_mask_awing,
+                         'distance_matrix': dist_matrix})
         return item
 
     def update_mean_and_std(self):
@@ -199,3 +201,7 @@ def generate_target_heatmaps(landmarks, hm_size, sigma, target_type='gaussian'):
         target[landmark_id] = np.exp(- ((x - mu_x) ** 2 + (y - mu_y) ** 2) / (2 * sigma ** 2))
         target[(target < 1e-5)] = 0
     return target
+
+
+def generate_distance_matrix(tpts):
+    return distance_matrix(x=tpts.T[0].reshape(-1, 1), y=tpts.T[1].reshape(-1, 1), p=2)

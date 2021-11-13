@@ -37,21 +37,21 @@ def train_epoch(train_loader, model, criteria, optimizer, scheduler, epoch, logg
         target_dict = {'labels': [torch.range(start=0, end=tpts.shape[1] - 1) for i in range(bs)], 'coords': tpts, }
 
         if train_with_heatmaps:
-            hm_factor, heatmaps, weighted_loss_mask_awing = item['hmfactor'], item['heatmaps'].cuda(), \
-                                                            item['weighted_loss_mask_awing'].cuda()
-            target_dict.update({'heatmap_bb': heatmaps, 'weighted_loss_mask_awing': weighted_loss_mask_awing})
+            target_dict.update({'heatmap_bb': item['heatmaps'].cuda(), 'weighted_loss_mask_awing': item['weighted_loss_mask_awing'].cuda(),
+                                'distance_matrix': item['distance_matrix'].cuda()})
 
         output, preds = inference(model, input_batch=input_, **kwargs)
         # preds = rearrange_prediction_for_min_cos_max_bipartite(preds, tpts)
         loss_dict, lossv = get_loss(criteria, output, target_dict=target_dict, **kwargs)
 
         if not math.isfinite(lossv.item()):
-            logger_cml.report_text(f"Loss is {lossv.item()}, stopping training", level=logging.INFO, print_console=True)
+            logger_cml.report_text(f"Loss is {lossv.item()}, stopping training", level=logging.INFO,
+                                   print_console=True)
             sys.exit(1)
 
         # NME
-        batch_eval.nme, batch_eval.auc08, batch_eval.auc10, for_pck_curve_batch = evaluate_normalized_mean_error(preds,
-                                                                                                                 tpts)
+        batch_eval.nme, batch_eval.auc08, batch_eval.auc10, for_pck_curve_batch = \
+            evaluate_normalized_mean_error(preds, tpts)
 
         # optimize
         optimizer.zero_grad()
@@ -118,16 +118,16 @@ def validate_epoch(val_loader, model, criteria, epoch, logger_cml, **kwargs):
             target_dict = {'labels': [torch.range(start=0, end=tpts.shape[1] - 1) for i in range(bs)], 'coords': tpts, }
 
             if train_with_heatmaps:
-                hm_factor, heatmaps, weighted_loss_mask_awing = item['hmfactor'], item['heatmaps'].cuda(), \
-                                                                item['weighted_loss_mask_awing'].cuda()
-                target_dict.update({'heatmap_bb': heatmaps, 'weighted_loss_mask_awing': weighted_loss_mask_awing})
+                target_dict.update({'heatmap_bb': item['heatmaps'].cuda(),
+                                    'weighted_loss_mask_awing': item['weighted_loss_mask_awing'].cuda(),
+                                    'distance_matrix': item['distance_matrix'].cuda()})
             output, preds = inference(model, input_batch=input_, **kwargs)
             # preds = rearrange_prediction_for_min_cos_max_bipartite(preds, tpts)
             loss_dict, lossv = get_loss(criteria, output, target_dict=target_dict, **kwargs)
 
             # NME
-            batch_eval.nme, batch_eval.auc08, batch_eval.auc10, for_pck_curve_batch = evaluate_normalized_mean_error(
-                preds, tpts)
+            batch_eval.nme, batch_eval.auc08, batch_eval.auc10, for_pck_curve_batch =\
+                evaluate_normalized_mean_error(preds, tpts)
 
             batch_eval.loss = lossv.item()
             batch_eval.end_time()
@@ -181,8 +181,10 @@ def inference(model, input_batch, **kwargs):
         preds = get_hm_preds(output_.detach().cpu().numpy(), method='center_mass')
         preds *= input_batch.shape[-1] / output_.shape[-1]
     if model_name == g.TRXREFINE01:
-        preds = get_hm_preds(output_.detach().cpu().numpy(), method='center_mass')
-        preds *= input_batch.shape[-1] / output_.shape[-1]
+        preds, enc_out = output_
+        output_ = [preds, enc_out]
+        # preds = get_hm_preds(output_.detach().cpu().numpy(), method='center_mass')
+        # preds *= input_batch.shape[-1] / output_.shape[-1]
 
     return output_, preds
 
@@ -202,7 +204,7 @@ def get_loss(criteria, output, target_dict, **kwargs):
         lossv = criteria(output, target_dict['heatmap_bb'])
         loss_dict = None
     elif model_name == g.TRXREFINE01:
-        lossv = criteria(output, target_dict['heatmap_bb'])
+        lossv = criteria(output=output, target_dict=target_dict)
         loss_dict = None
 
     return loss_dict, lossv

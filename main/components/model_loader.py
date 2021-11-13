@@ -65,3 +65,5 @@ def set_model_device(model, params):
     else:
         model.backbone.cpu()
         model.global_encoder.cuda()
+        model.final_layer.cuda()
+        model.mm.cuda()

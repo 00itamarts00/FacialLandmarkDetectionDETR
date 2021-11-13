@@ -12,7 +12,6 @@ from __future__ import print_function
 import copy
 import logging
 import math
-import os
 from typing import Optional
 
 import torch
@@ -21,6 +20,7 @@ from dotmap import DotMap
 from torch import nn, Tensor
 
 import main.globals as g
+from main.detr.models.misc_nets import MLP
 from utils.file_handler import FileHandler
 
 BN_MOMENTUM = 0.1
@@ -91,6 +91,7 @@ def _get_activation_fn(activation):
 
 class TransformerEncoderLayer(nn.Module):
     """ Modified from https://github.com/facebookresearch/detr/blob/master/models/transformer.py"""
+
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
                  activation="relu", normalize_before=False, return_atten_map=False):
         super().__init__()
@@ -181,6 +182,8 @@ class TRXREFINE01(nn.Module):
         self.backbone = self.load_backbone(backbone=cfg.backbone)
         w, h = cfg.image_size
         self._make_position_embedding(w, h, cfg.transformer.dim_model, cfg.transformer.pos_embedding)
+        self.final_layer = MLP(input_dim=4096, hidden_dim=1024, output_dim=2, num_layers=3)
+        self.mm = MLP(input_dim=4096, hidden_dim=1024, output_dim=68, num_layers=3)
 
     @staticmethod
     def load_backbone(backbone, **kwargs):
@@ -232,14 +235,15 @@ class TRXREFINE01(nn.Module):
 
     def forward(self, x):
         # input is bsx256,256,3
-        x = self.backbone.forward(x)    # bsx68x64x64
+        x = self.backbone.forward(x)  # bsx68x64x64
 
         bs, c, h, w = x.shape
         x = x.flatten(2).permute(2, 0, 1)
         x = self.global_encoder(x.cuda(), pos=self.pos_embedding.cuda())
-        x = x.permute(1, 2, 0).contiguous().view(bs, c, h, w)
+        enc_out = self.mm(x.permute(1, 2, 0))
 
-        return x
+        x = self.final_layer(x.permute(1, 2, 0)) * 255
+        return x, enc_out
 
 
 def freeze_training_on_block_(model):

@@ -20,6 +20,7 @@ from main.core.utils import save_checkpoint
 from main.detr.models.detr import load_criteria as load_criteria_detr, DETR
 from main.globals import *
 from models.TRANSPOSE.loss import JointsMSELoss
+from models.TRXREFINE01.loss import EncL1_Loss
 
 # TODO: Load tensorboard logs as df/dict
 
@@ -53,7 +54,9 @@ class LDMTrain(object):
         if self.tr.model == TRANSPOSE:
             return JointsMSELoss().cuda()
         if self.tr.model == TRXREFINE01:
-            return JointsMSELoss().cuda()
+            return EncL1_Loss().cuda()
+            # torch.nn.MSELoss(size_average=True).cuda()
+            # return JointsMSELoss().cuda()
 
     @property
     def pr(self):
