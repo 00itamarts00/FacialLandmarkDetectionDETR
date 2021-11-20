@@ -1,5 +1,5 @@
 project: FacialLandmarkDetection
-workspace_path: '/home/itamar/thesis/outputs'
+workspace_path: '/home/oem/thesis/OUTPUTS'
 log_interval: 20
 pretrained:
   use_pretrained: False
@@ -8,7 +8,7 @@ save_model: True
 single_batch_debug: False
 
 dataset:
-  dataset_dir: '/home/itamar/thesis/DATASET'
+  dataset_dir: '/home/oem/thesis/DATASET'
   workset_name: 'WS02'
   to_use: [ '300W', 'AFW', 'COFW68', 'helen/trainset', 'helen/testset',
             'ibug', 'lfpw/trainset', 'lfpw/testset', 'menpo/trainset', 'WFLW/trainset', 'WFLW/testset' ]
