@@ -12,7 +12,7 @@ task = None
 fname = os.path.join(g.LOGS_PROFS, f'{g.TIMESTAMP}')
 os.makedirs(g.LOGS_PROFS, exist_ok=True)
 # TODO: add task name
-# task_id = '"55077966c7074b299ab193253bc7f95d"'
+# task_id = '"2176639f89c84d2bb124c6d83d5df25d"'
 tl = TopLevel()
 # exec_str = 'tl.single_batch_train()'
 # exec_str = f'tl.evaluate_model(task_id={task_id})'

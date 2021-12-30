@@ -1,6 +1,6 @@
 optimizer:
   ADAM:
-    lr: 0.0001
+    lr: 1e-5
     betas: [0.5, 0.999]
     eps: 1e-8
     weight_decay: 0.0001

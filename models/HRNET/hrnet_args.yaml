@@ -1,6 +1,6 @@
 hrnet_args:
   init_weights: True
-  pretrained: '/home/itamar/thesis/MODELS/HRNET/d6dff207d99049c4b89bde2e677ff99d_model_best.pth'
+  pretrained: '/home/oem/thesis/MODELS/HRNET/2176639f89c84d2bb124c6d83d5df25d_model_best.pth'
   num_joints: 68
   sigma: 1.5
   # high-resolution net
